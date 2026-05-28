@@ -18,6 +18,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
   const [activeStake, setActiveStake] = useState<number>(0);
   const [history, setHistory] = useState<number[]>([1.34, 4.23, 1.08, 12.44, 2.11, 1.01, 3.82]);
   const [chartPoints, setChartPoints] = useState<{x: number; y: number}[]>([{x: 0, y: 0}]);
+  const [lastWinAmount, setLastWinAmount] = useState<number>(0);
 
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const crashPointRef = useRef<number>(2.0);
@@ -116,6 +117,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     setActiveStake(betVal);
     setStatus('running');
     setMultiplier(1.0);
+    setLastWinAmount(0);
     currentMultiplierRef.current = 1.0;
     setChartPoints([{x: 0, y: 0}]);
     pointsRef.current = [{x: 0, y: 0}];
@@ -183,6 +185,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
 
     const winAmt = activeStake * multiplier;
     onUpdateBalance(winAmt);
+    setLastWinAmount(winAmt);
     setStatus('cashed_out');
 
     const newBet: PlacedBet = {
@@ -323,7 +326,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
                   {multiplier.toFixed(2)}x
                 </div>
                 <div className="text-xs text-brand font-bold mt-1">
-                  +R$ {(activeStake * multiplier).toFixed(2)}
+                  +R$ {lastWinAmount.toFixed(2)}
                 </div>
               </motion.div>
             ) : (
