@@ -136,17 +136,19 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     if (tickRef.current) clearInterval(tickRef.current);
 
     const startTime = Date.now();
-    const growthSpeed = 0.28; // velocidade exponencial realista
-    const minDuration = 800; // duração mínima em ms (evita crash instantâneo)
+    const minDuration = 800;
     const tickRate = 60;
 
     tickRef.current = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      let nextMult = parseFloat(Math.exp(elapsed * growthSpeed).toFixed(2));
-      
-      // Garante mínimo de 1 segundo antes de crashar
-      if (elapsed * 1000 < minDuration && nextMult >= crashTarget) {
-        nextMult = parseFloat((1 + (crashTarget - 1) * (elapsed * 1000 / minDuration)).toFixed(2));
+      // Curva quadrática: começa devagar e acelera
+      // multiplier = 1 + (t * k)^p  →  k=0.55, p=2.2
+      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.55, 2.2)).toFixed(2));
+
+      if (elapsed * 1000 < minDuration) {
+        // Rampe suavemente até o crash point mesmo em crashes rápidos
+        const linear = 1 + (crashTarget - 1) * (elapsed * 1000 / minDuration);
+        if (linear < nextMult) nextMult = parseFloat(linear.toFixed(2));
       }
 
       if (nextMult >= crashTarget) {
