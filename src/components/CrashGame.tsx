@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { TrendingUp, Play, Trophy, History, Plane, AlertTriangle, Zap, Percent, DollarSign } from 'lucide-react';
+import { Trophy, History, AlertTriangle, Zap, DollarSign, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 
@@ -350,24 +350,6 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
           </AnimatePresence>
         </div>
 
-        {/* Airplane icon for running state */}
-        {status === 'running' && (
-          <motion.div
-            className="absolute z-10 pointer-events-none"
-            style={{
-              bottom: `${Math.min(10 + (multiplier - 1.0) * 10, 70)}%`,
-              left: `${Math.min(5 + (multiplier - 1.0) * 7, 75)}%`,
-            }}
-            animate={{ y: [0, -4, 0] }}
-            transition={{ repeat: Infinity, duration: 0.8 }}
-          >
-            <div className="relative">
-              <Plane className="w-8 h-8 text-white transform -rotate-45 drop-shadow-[0_0_15px_rgba(0,255,135,0.6)]" />
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-r from-orange-500 to-rose-500 rounded-full blur-md animate-pulse" />
-            </div>
-          </motion.div>
-        )}
-
         {/* Bottom labels */}
         <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-between px-4 py-2 text-[8px] text-slate-600 font-mono font-bold uppercase tracking-wider">
           <span>Rodada #{history.length + 1}</span>
@@ -448,8 +430,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
               whileTap={{ scale: 0.99 }}
               className="w-full bg-gradient-to-r from-brand to-emerald-400 hover:from-[#00e074] hover:to-emerald-500 text-slate-950 font-black py-5 px-6 rounded-xl transition-all duration-300 disabled:from-[#151724] disabled:to-[#1a1c29] disabled:text-[#383d5a] disabled:cursor-not-allowed uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,255,135,0.2)] hover:shadow-[0_0_30px_rgba(0,255,135,0.4)]"
             >
-              <Plane className="w-4 h-4" />
-              Decolar Avião
+              <TrendingUp className="w-4 h-4" />
+              Iniciar Voo
             </motion.button>
           )}
 
