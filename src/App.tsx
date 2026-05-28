@@ -251,8 +251,8 @@ export default function App() {
     <div className="min-h-screen bg-[#06070d] font-sans text-slate-100 flex flex-col justify-between">
       
       {/* 🇧🇷 NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#0c0d14]/90 border-b border-[#1c1e2d] backdrop-blur-md px-4 py-3 md:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-[#0c0d14]/90 border-b border-[#1c1e2d] backdrop-blur-md px-4 py-3 md:px-8 lg:px-12">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Slogan */}
           <div className="flex items-center gap-3">
@@ -307,7 +307,7 @@ export default function App() {
 
       {/* Hero Brazil Regulatory Header Notice */}
       <div className="bg-[#0b0c13] border-b border-[#1b1d2c]/60 py-2.5 px-4 text-xs text-center text-slate-300">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2">
+        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-center gap-2">
           <span className="bg-brand/10 border border-brand/20 text-brand px-2 py-0.5 rounded text-[10px] font-bold font-mono">COMPLIANCE NACIONAL</span>
           <p className="text-[11px] font-medium text-slate-300">
             Apostas operadas de acordo com as regras de Jogo Seguro. Domínio exclusivo <span className="font-bold text-brand">.bet.br</span> outorga SPA/MF.
@@ -316,7 +316,7 @@ export default function App() {
       </div>
 
       {/* MAIN CONTAINER GRID */}
-      <main className="max-w-7xl mx-auto px-4 py-6 md:px-8 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+      <main className="max-w-[1600px] mx-auto px-4 py-6 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full">
         
         {/* LEFT COLUMN: FILTERS & MATCHES/CASINO SELECT (COLS-8) */}
         <section className="col-span-1 lg:col-span-8 space-y-6">
@@ -576,7 +576,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer className="bg-[#0b0c13] border-t border-[#1b1e2e] text-slate-500 py-8 px-4 mt-12 text-center text-[11px] leading-relaxed">
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="max-w-[1600px] mx-auto space-y-4">
           
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-slate-400 uppercase font-sans font-bold tracking-wider">
             <a href="#rules" onClick={(e) => { e.preventDefault(); setIsInfoOpen(true); }} className="hover:text-brand transition-colors">Regras de Jogo</a>
