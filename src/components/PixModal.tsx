@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, QrCode, Copy, Check, Upload, ArrowDownCircle, ArrowUpCircle, Info, Sparkles, Loader2 } from 'lucide-react';
+import { DollarSign, QrCode, Copy, Check, Upload, ArrowDownCircle, ArrowUpCircle, Info, Sparkles, Loader2, Ticket, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Transaction } from '../types';
 
@@ -22,12 +22,15 @@ export default function PixModal({
   transactions,
   onAddTransaction,
 }: PixModalProps) {
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'coupon'>('deposit');
   const [depositAmount, setDepositAmount] = useState<string>('50');
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
   const [pixKey, setPixKey] = useState<string>('');
   const [cpf, setCpf] = useState<string>('');
   const [pixType, setPixType] = useState<string>('cpf');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [couponUsed, setCouponUsed] = useState(false);
   
   // Simulated steps
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -175,7 +178,18 @@ export default function PixModal({
             }`}
           >
             <ArrowDownCircle className="w-4 h-4 text-brand animate-pulse" />
-            Depositar Pix
+            Depositar
+          </button>
+          <button
+            onClick={() => { setActiveTab('coupon'); }}
+            className={`flex-1 py-3 text-xs uppercase tracking-wider font-extrabold transition-all rounded-lg flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'coupon' 
+                ? 'bg-[#151724] text-amber-400 border border-[#23273e]' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Ticket className="w-4 h-4 text-amber-400" />
+            Cupons
           </button>
           <button
             onClick={() => { setActiveTab('withdraw'); }}
@@ -186,7 +200,7 @@ export default function PixModal({
             }`}
           >
             <ArrowUpCircle className="w-4 h-4 text-indigo-400" />
-            Sacar Prêmios
+            Sacar
           </button>
         </div>
 
@@ -311,6 +325,92 @@ export default function PixModal({
                     Gerar Copia e Cola Pix
                   </button>
                 )}
+              </motion.div>
+            )}
+
+            {/* TAB CUPONS */}
+            {activeTab === 'coupon' && !showStatusMessage && (
+              <motion.div
+                key="coupon-tab"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4 flex-1 flex flex-col justify-between animate-in fade-in"
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Gift className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-bold text-slate-200">Resgatar Cupom</span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                      placeholder="Digite o código do cupom"
+                      className="flex-1 bg-[#040508] border border-[#1b1e2e] focus:border-amber-500 rounded-xl py-3 px-4 text-sm text-white placeholder-slate-600 focus:outline-none uppercase tracking-wider"
+                    />
+                    <button
+                      onClick={() => {
+                        const code = couponInput.trim();
+                        setCouponError('');
+
+                        if (!code) { setCouponError('Digite um código de cupom.'); return; }
+
+                        if (code === '20REAIS') {
+                          if (couponUsed) { setCouponError('Este cupom já foi usado.'); return; }
+                          if (balance >= 0.50) { setCouponError('Seu saldo precisa estar abaixo de R$ 0,50 para usar este cupom.'); return; }
+
+                          onDeposit(20);
+                          const newTx: Transaction = {
+                            id: `tx-${Math.random().toString(36).substr(2, 9)}`,
+                            type: 'deposito',
+                            amount: 20,
+                            status: 'concluido',
+                            date: new Date().toLocaleString('pt-BR'),
+                          };
+                          onAddTransaction(newTx);
+                          setCouponUsed(true);
+                          setCouponInput('');
+                          setShowStatusMessage('Cupom 20REAIS resgatado com sucesso! R$ 20,00 adicionados à sua conta.');
+                          setTimeout(() => setShowStatusMessage(null), 3500);
+                        } else {
+                          setCouponError('Cupom inválido ou expirado.');
+                        }
+                      }}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 rounded-xl text-xs transition-all cursor-pointer shrink-0 shadow-[0_0_10px_rgba(255,191,0,0.2)]"
+                    >
+                      Resgatar
+                    </button>
+                  </div>
+
+                  {couponError && (
+                    <p className="text-rose-400 text-[11px] mt-2">{couponError}</p>
+                  )}
+
+                  {balance < 0.50 && !couponUsed && (
+                    <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-slate-300 flex items-start gap-2">
+                      <Ticket className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <p>Você tem um <span className="text-amber-400 font-bold">cupom disponível</span>! Use o código <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">20REAIS</span> para ganhar R$ 20,00 gratuitamente.</p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 space-y-2">
+                    <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Cupons disponíveis</h4>
+                    <div className="bg-[#0d0e16] rounded-xl p-4 border border-[#1c1f32]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-mono font-bold text-amber-400 text-sm">20REAIS</span>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Válido para saldos abaixo de R$ 0,50</p>
+                        </div>
+                        <div className="bg-amber-500/10 px-2 py-1 rounded text-amber-400 text-[10px] font-bold">
+                          {couponUsed ? 'Usado' : 'Disponível'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
 
