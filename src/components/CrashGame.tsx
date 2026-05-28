@@ -14,7 +14,7 @@ type GameStatus = 'idle' | 'running' | 'crashed' | 'cashed_out';
 export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }: CrashGameProps) {
   const [status, setStatus] = useState<GameStatus>('idle');
   const [multiplier, setMultiplier] = useState<number>(1.0);
-  const [stake, setStake] = useState<string>('10');
+  const [stake, setStake] = useState<string>('');
   const [activeStake, setActiveStake] = useState<number>(0);
   const [history, setHistory] = useState<number[]>([1.34, 4.23, 1.08, 12.44, 2.11, 1.01, 3.82]);
   const [chartPoints, setChartPoints] = useState<{x: number; y: number}[]>([{x: 0, y: 0}]);

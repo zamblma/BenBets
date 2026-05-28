@@ -30,7 +30,7 @@ const SYMBOLS: SymbolDef[] = [
 export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: SlotGameProps) {
   const [reels, setReels] = useState<SymbolDef[]>([SYMBOLS[2], SYMBOLS[3], SYMBOLS[4]]);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
-  const [stake, setStake] = useState<string>('5');
+  const [stake, setStake] = useState<string>('');
   const [winAmount, setWinAmount] = useState<number>(0);
   const [outcomeText, setOutcomeText] = useState<string>('');
   const [totalSpins, setTotalSpins] = useState<number>(0);
