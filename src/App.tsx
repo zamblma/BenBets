@@ -51,6 +51,7 @@ export default function App() {
   // Custom modals/drawers
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
   const [isPixOpen, setIsPixOpen] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Active user data
   const [balance, setBalance] = useState<number>(20.00);
@@ -312,7 +313,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Slogan */}
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 cursor-pointer text-left">
+          <button onClick={() => { setSelectedSport('Todos'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
             <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
               BB
             </div>
@@ -327,6 +328,15 @@ export default function App() {
           {/* User Account Controls */}
           <div className="flex items-center gap-4">
             
+            {/* Mobile Hamburger */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(prev => !prev)}
+              className="lg:hidden p-2 border border-[#1c1e2d] text-slate-400 hover:text-brand rounded-xl hover:bg-[#161826] transition-colors cursor-pointer"
+              title="Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
             {/* Balance Component */}
             <div className="bg-[#07080f] px-3 py-1.5 md:px-4 md:py-2 rounded-xl border border-[#1b1e2e] flex items-center gap-2.5">
               <div className="p-1 bg-brand/10 rounded-lg text-brand md:block hidden animate-pulse">
@@ -370,6 +380,42 @@ export default function App() {
 
         </div>
       </header>
+
+      {/* Mobile Navigation Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="lg:hidden bg-[#0c0d14] border-b border-[#1c1e2d] overflow-hidden"
+          >
+            <div className="px-4 py-3 flex flex-wrap gap-2">
+              {[
+                { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
+                { id: 'Futebol', label: 'Futebol', icon: '⚽' },
+                { id: 'Basquete', label: 'Basquete', icon: '🏀' },
+                { id: 'Tênis', label: 'Tênis', icon: '🎾' },
+                { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
+                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' }
+              ].map((sport) => (
+                <button
+                  key={sport.id}
+                  onClick={() => { setSelectedSport(sport.id); setIsMobileMenuOpen(false); }}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border leading-none ${
+                    selectedSport === sport.id
+                      ? 'bg-brand text-slate-950 border-brand shadow-[0_0_10px_rgba(0,255,135,0.2)]'
+                      : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
+                  }`}
+                >
+                  <span>{sport.icon}</span>
+                  {sport.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hero Brazil Regulatory Header Notice */}
       <div className="bg-[#0b0c13] border-b border-[#1b1d2c]/60 py-2.5 px-4 text-xs text-center text-slate-300">
