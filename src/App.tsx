@@ -255,17 +255,17 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Slogan */}
-          <div className="flex items-center gap-3">
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 cursor-pointer text-left">
             <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
-              B.BR
+              BB
             </div>
             <div>
-              <h1 className="font-extrabold text-brand font-sans text-lg tracking-tight leading-none flex items-center gap-1">
-                ArenaBet<span className="text-white text-[9px] font-bold px-1.5 py-0.5 bg-[#171a29] border border-[#272b44] rounded uppercase tracking-wider">.bet.br</span>
+              <h1 className="font-extrabold text-brand font-sans text-lg tracking-tight leading-none">
+                BenBets
               </h1>
               <p className="text-[9px] text-slate-400 font-medium">Ambiente Demonstração Legal • Lei 14.790/2023</p>
             </div>
-          </div>
+          </button>
 
           {/* User Account Controls */}
           <div className="flex items-center gap-4">
