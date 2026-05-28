@@ -7,6 +7,7 @@ type Mode = 'login' | 'register';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +20,7 @@ export default function AuthScreen() {
     try {
       if (mode === 'register') {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await createUserData(cred.user.uid, email);
+        await createUserData(cred.user.uid, email, name);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -55,6 +56,20 @@ export default function AuthScreen() {
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs p-3 rounded-xl text-center">
               {error}
+            </div>
+          )}
+
+          {mode === 'register' && (
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-slate-500 font-bold block mb-1">Nome</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Seu nome"
+                required
+                className="w-full bg-[#07080f] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/50"
+              />
             </div>
           )}
 

@@ -58,6 +58,8 @@ export default function App() {
   const [selections, setSelections] = useState<BetSelection[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
+  const [showBonus, setShowBonus] = useState(false);
+  const [userName, setUserName] = useState('');
 
   // Firebase auth listener + load user data
   useEffect(() => {
@@ -69,6 +71,11 @@ export default function App() {
           setBalance(data.balance);
           setPlacedBets(data.placedBets || []);
           setTransactions(data.transactions || []);
+          setUserName(data.displayName || '');
+          if (data.transactions.length === 0 && data.balance === 20) {
+            setShowBonus(true);
+            setTimeout(() => setShowBonus(false), 4500);
+          }
         }
       }
       setAuthLoading(false);
@@ -679,6 +686,23 @@ export default function App() {
             transactions={transactions}
             onAddTransaction={handleAddTransaction}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Welcome Bonus Toast */}
+      <AnimatePresence>
+        {showBonus && (
+          <motion.div
+            initial={{ opacity: 0, y: -60, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -60, scale: 0.9 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-brand/20 to-emerald-900/20 border border-brand/40 rounded-2xl px-6 py-4 shadow-[0_0_30px_rgba(0,255,135,0.15)] backdrop-blur-xl text-center max-w-sm w-[90%]"
+          >
+            <p className="text-brand font-extrabold text-lg">🎉 Bônus de Boas-Vindas!</p>
+            <p className="text-slate-200 text-sm mt-1">
+              {userName}, você recebeu <span className="text-brand font-bold">R$ 20,00</span> para começar a apostar!
+            </p>
+          </motion.div>
         )}
       </AnimatePresence>
 

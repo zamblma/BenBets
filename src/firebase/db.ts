@@ -13,10 +13,11 @@ export async function getUserData(uid: string) {
   };
 }
 
-export async function createUserData(uid: string, email: string) {
+export async function createUserData(uid: string, email: string, displayName?: string) {
   const ref = doc(db, 'users', uid);
   const data = {
     email,
+    displayName: displayName || email.split('@')[0],
     balance: 20.00,
     placedBets: [],
     transactions: [],
