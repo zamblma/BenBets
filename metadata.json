@@ -1,0 +1,6 @@
+{
+  "name": "Site de Apostas Esportivas",
+  "description": "Uma plataforma e simulador de apostas esportivas completo e interativo, destacando as regulamentações brasileiras da Lei 14.790/2023.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
