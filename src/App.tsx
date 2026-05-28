@@ -4,7 +4,6 @@ import {
   ShieldCheck, 
   HelpCircle, 
   Wallet, 
-  ArrowDownCircle, 
   Play, 
   Percent, 
   Search, 
@@ -339,16 +338,14 @@ export default function App() {
                   R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
+              <button 
+                onClick={() => setIsPixOpen(true)}
+                className="ml-1 w-7 h-7 flex items-center justify-center rounded-lg bg-brand/20 hover:bg-brand text-slate-950 font-black text-lg leading-none cursor-pointer transition-all hover:shadow-[0_0_10px_rgba(0,255,135,0.3)] shrink-0"
+                title="Depositar / Sacar"
+              >
+                +
+              </button>
             </div>
-
-            {/* Pix CTA */}
-            <button 
-              onClick={() => setIsPixOpen(true)}
-              className="bg-brand hover:bg-[#00e074] text-slate-950 font-black py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(0,255,135,0.25)] hover:shadow-[0_0_20px_rgba(0,255,135,0.4)] transition-all duration-300 hover:scale-[1.02] active:scale-95 text-center shrink-0"
-            >
-              <ArrowDownCircle className="w-4 h-4 text-slate-950" />
-              Depositar
-            </button>
 
             {/* Logout */}
             {firebaseUser && (
