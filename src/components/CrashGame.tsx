@@ -143,7 +143,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
       const elapsed = (Date.now() - startTime) / 1000;
       // Curva quadrática: começa devagar e acelera
       // multiplier = 1 + (t * k)^p  →  k=0.55, p=2.2
-      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.55, 2.2)).toFixed(2));
+      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.35, 2.2)).toFixed(2));
 
       if (elapsed * 1000 < minDuration) {
         // Rampe suavemente até o crash point mesmo em crashes rápidos
