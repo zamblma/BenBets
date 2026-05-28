@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { createUserData } from '../firebase/db';
 
@@ -12,12 +12,14 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       if (mode === 'register') {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await createUserData(cred.user.uid, email, name);
@@ -108,7 +110,17 @@ export default function AuthScreen() {
 
           <p className="text-center text-[11px] text-slate-500">
             {mode === 'login' ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-            <button
+            <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border border-[#1b1e2e] bg-[#07080f] checked:bg-brand checked:border-brand accent-brand cursor-pointer"
+              />
+              Lembrar de mim
+            </label>
+
+          <button
               type="button"
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
               className="text-brand hover:underline cursor-pointer font-bold"
