@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Play, Award, Dribbble, Compass } from 'lucide-react';
+import { Sparkles, Play, Award, Coins, BarChart3, Zap, DollarSign, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 
@@ -14,33 +14,36 @@ interface SymbolDef {
   weight: number;
   multiplier: number;
   colorBg: string;
+  colorGlow: string;
   name: string;
 }
 
 const SYMBOLS: SymbolDef[] = [
-  { char: '💎', weight: 8, multiplier: 25, colorBg: 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400', name: 'Diamante' },
-  { char: '🔔', weight: 12, multiplier: 12, colorBg: 'bg-amber-950/40 border-amber-500/30 text-amber-400', name: 'Sino' },
-  { char: '🍇', weight: 18, multiplier: 6, colorBg: 'bg-purple-950/40 border-purple-500/30 text-purple-400', name: 'Uva' },
-  { char: '🍋', weight: 22, multiplier: 4, colorBg: 'bg-yellow-950/40 border-yellow-500/30 text-yellow-400', name: 'Limão' },
-  { char: '🍒', weight: 25, multiplier: 3, colorBg: 'bg-rose-950/40 border-rose-500/30 text-rose-400', name: 'Cereja' },
-  { char: '⭐', weight: 5, multiplier: 50, colorBg: 'bg-indigo-950/40 border-indigo-500/30 text-indigo-400', name: 'Estrela' }
+  { char: '💎', weight: 8, multiplier: 25, colorBg: 'from-cyan-600/40 to-cyan-900/40 border-cyan-500/40 text-cyan-300', colorGlow: 'rgba(6,182,212,0.3)', name: 'Diamante' },
+  { char: '🔔', weight: 12, multiplier: 12, colorBg: 'from-amber-600/40 to-amber-900/40 border-amber-500/40 text-amber-300', colorGlow: 'rgba(245,158,11,0.3)', name: 'Sino' },
+  { char: '🍇', weight: 18, multiplier: 6, colorBg: 'from-purple-600/40 to-purple-900/40 border-purple-500/40 text-purple-300', colorGlow: 'rgba(147,51,234,0.3)', name: 'Uva' },
+  { char: '🍋', weight: 22, multiplier: 4, colorBg: 'from-yellow-600/40 to-yellow-900/40 border-yellow-500/40 text-yellow-300', colorGlow: 'rgba(234,179,8,0.3)', name: 'Limão' },
+  { char: '🍒', weight: 25, multiplier: 3, colorBg: 'from-rose-600/40 to-rose-900/40 border-rose-500/40 text-rose-300', colorGlow: 'rgba(244,63,94,0.3)', name: 'Cereja' },
+  { char: '⭐', weight: 5, multiplier: 50, colorBg: 'from-indigo-600/40 to-indigo-900/40 border-indigo-500/40 text-indigo-300', colorGlow: 'rgba(99,102,241,0.3)', name: 'Estrela' }
 ];
 
 export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: SlotGameProps) {
   const [reels, setReels] = useState<SymbolDef[]>([SYMBOLS[2], SYMBOLS[3], SYMBOLS[4]]);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
-  const [stake, setStake] = useState<string>( '5');
+  const [stake, setStake] = useState<string>('5');
   const [winAmount, setWinAmount] = useState<number>(0);
   const [outcomeText, setOutcomeText] = useState<string>('');
+  const [totalSpins, setTotalSpins] = useState<number>(0);
+  const [totalWins, setTotalWins] = useState<number>(0);
+  const [biggestWin, setBiggestWin] = useState<number>(0);
+  const [showWinOverlay, setShowWinOverlay] = useState<boolean>(false);
+  const [winOverlayAmount, setWinOverlayAmount] = useState<number>(0);
 
   const pickRandomSymbol = (): SymbolDef => {
-    // Weighted random selection
     const totalWeight = SYMBOLS.reduce((sum, s) => sum + s.weight, 0);
     let randomNum = Math.random() * totalWeight;
     for (const symbol of SYMBOLS) {
-      if (randomNum < symbol.weight) {
-        return symbol;
-      }
+      if (randomNum < symbol.weight) return symbol;
       randomNum -= symbol.weight;
     }
     return SYMBOLS[SYMBOLS.length - 1];
@@ -57,13 +60,13 @@ export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: 
       return;
     }
 
-    // Deduct cost
     onUpdateBalance(-playCost);
     setIsSpinning(true);
     setWinAmount(0);
     setOutcomeText('');
+    setShowWinOverlay(false);
+    setTotalSpins(prev => prev + 1);
 
-    // Simulate real spinning ticks
     let ticks = 0;
     const interval = setInterval(() => {
       setReels([
@@ -72,54 +75,47 @@ export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: 
         pickRandomSymbol()
       ]);
       ticks++;
-
-      if (ticks > 12) {
+      if (ticks > 15) {
         clearInterval(interval);
         finalizeSpin(playCost);
       }
-    }, 80);
+    }, 70);
   };
 
   const finalizeSpin = (playCost: number) => {
-    // Generate final reels to check combinations
-    const finalReels = [
-      pickRandomSymbol(),
-      pickRandomSymbol(),
-      pickRandomSymbol()
-    ];
+    const finalReels = [pickRandomSymbol(), pickRandomSymbol(), pickRandomSymbol()];
     setReels(finalReels);
     setIsSpinning(false);
 
-    const r1 = finalReels[0].char;
-    const r2 = finalReels[1].char;
-    const r3 = finalReels[2].char;
+    const [r1, r2, r3] = finalReels.map(s => s.char);
 
     let multiplier = 0;
     let text = '';
-    
-    // Check match combinations
+
     if (r1 === r2 && r2 === r3) {
-      // 3 Matching Symbols (Jackpot / Full reel payout)
       multiplier = finalReels[0].multiplier;
-      text = `TRIPLA: ${finalReels[0].name}!`;
+      text = `${finalReels[0].char} ${finalReels[0].name}! TRIPLO!`;
     } else if (r1 === r2 || r2 === r3 || r1 === r3) {
-      // 2 Matching (Partial Payout)
-      const matchedSymbol = (r1 === r2) ? finalReels[0] : finalReels[2];
+      const matchedSymbol = r1 === r2 ? finalReels[0] : finalReels[2];
       multiplier = parseFloat((matchedSymbol.multiplier * 0.4).toFixed(1));
-      text = `DUPLA: ${matchedSymbol.name}!`;
+      text = `${matchedSymbol.char} DUPLA: ${matchedSymbol.name}!`;
     }
 
     if (multiplier > 0) {
       const payout = playCost * multiplier;
       onUpdateBalance(payout);
       setWinAmount(payout);
-      setOutcomeText(`${text} Mult: ${multiplier}x (+ R$ ${payout.toFixed(2)})`);
+      setOutcomeText(`${text} ${multiplier}x = R$ ${payout.toFixed(2)}`);
+      setTotalWins(prev => prev + 1);
+      if (payout > biggestWin) setBiggestWin(payout);
+      setWinOverlayAmount(payout);
+      setShowWinOverlay(true);
+      setTimeout(() => setShowWinOverlay(false), 2000);
 
-      // Log to history
       const newBet: PlacedBet = {
         id: `bet-slot-${Date.now()}`,
         matchName: 'Slots da Sorte',
-        selectionName: `Alinhamento: [${r1}][${r2}][${r3}]`,
+        selectionName: `[${r1}][${r2}][${r3}]`,
         odds: multiplier,
         stake: playCost,
         potentialPayout: payout,
@@ -130,13 +126,11 @@ export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: 
       };
       onAddBetHistory(newBet);
     } else {
-      setOutcomeText('Tente novamente.');
-      
-      // Log loss in history
+      setOutcomeText('Tente novamente');
       const newBet: PlacedBet = {
         id: `bet-slot-${Date.now()}`,
         matchName: 'Slots da Sorte',
-        selectionName: `Combinação: [${r1}][${r2}][${r3}]`,
+        selectionName: `[${r1}][${r2}][${r3}]`,
         odds: 0,
         stake: playCost,
         potentialPayout: 0,
@@ -154,116 +148,176 @@ export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: 
     setStake(val.toString());
   };
 
+  const winRate = totalSpins > 0 ? ((totalWins / totalSpins) * 100).toFixed(1) : '0.0';
+
   return (
-    <div className="bg-[#0b0c13] border border-[#1b1e2e] rounded-2xl p-5 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
-      {/* Mini Paytable Header */}
-      <div className="flex justify-between items-center bg-[#07080f] p-3 rounded-xl border border-[#1b1e2e]">
-        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-          <Award className="w-3.5 h-3.5 text-yellow-400" /> Tabela de Prêmio Triplo
-        </span>
-        <div className="flex gap-2 text-[10px] text-slate-300 font-mono">
-          <span>⭐ 50x</span>
-          <span>💎 25x</span>
-          <span>🔔 12x</span>
-          <span>🍇 6x</span>
+    <div className="relative bg-gradient-to-b from-[#0a0b12] to-[#06070d] border border-[#1b1e2e] rounded-2xl p-5 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)] overflow-hidden">
+      {/* Win overlay */}
+      <AnimatePresence>
+        {showWinOverlay && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
+          >
+            <div className="text-center">
+              <motion.div
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 0.5 }}
+                className="text-6xl mb-2"
+              >
+                {winOverlayAmount >= 100 ? '🏆' : '🎉'}
+              </motion.div>
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="text-3xl font-black text-brand drop-shadow-[0_0_30px_rgba(0,255,135,0.5)]"
+              >
+                +R$ {winOverlayAmount.toFixed(2)}
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Paytable Header */}
+      <div className="bg-gradient-to-r from-[#0d0e16] to-[#0a0b12] border border-[#1b1e2e] rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+            <Award className="w-3 h-3 text-yellow-400" /> Pagamentos
+          </span>
+          <span className="text-[8px] text-slate-500 font-mono uppercase">Triplo = x{Math.max(...SYMBOLS.map(s => s.multiplier))}</span>
         </div>
-      </div>
-
-      {/* Slots Reels Arena */}
-      <div className="bg-gradient-to-b from-[#07080f] to-[#040508] border border-[#1b1e2e] p-5 rounded-2xl flex flex-col items-center justify-center gap-4 relative overflow-hidden">
-        {/* Lights details on borders */}
-        <div className="absolute top-2 bottom-2 left-3 w-1.5 bg-indigo-500/25 rounded-full animate-pulse" />
-        <div className="absolute top-2 bottom-2 right-3 w-1.5 bg-indigo-500/25 rounded-full animate-pulse" />
-
-        {/* The Reels */}
-        <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
-          {reels.map((symbol, idx) => (
-            <motion.div
-              key={idx}
-              animate={isSpinning ? { y: [-15, 15, -15] } : { y: 0 }}
-              transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.15 }}
-              className={`aspect-square rounded-2xl border-2 flex items-center justify-center text-4xl shadow-inner select-none p-4 ${
-                symbol.colorBg
-              }`}
-            >
-              {symbol.char}
-            </motion.div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {SYMBOLS.slice(0, 5).map((sym, i) => (
+            <div key={i} className="flex items-center gap-1 text-[10px] text-slate-400 font-mono shrink-0">
+              <span>{sym.char}</span>
+              <span className="text-yellow-500 font-bold">{sym.multiplier}x</span>
+            </div>
           ))}
         </div>
+      </div>
 
-        {/* Win/Lose Outcome Box */}
-        <div className="h-8 flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {outcomeText && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className={`text-xs font-bold font-mono py-1 px-4 rounded-full ${
-                  winAmount > 0 
-                    ? 'bg-brand/5 border border-brand/20 text-brand flex items-center gap-1.5 shadow-[0_0_12px_rgba(0,255,135,0.15)]' 
-                    : 'bg-[#151724] text-slate-400 border border-[#212437]'
-                }`}
-              >
-                {winAmount > 0 && <Sparkles className="w-3.5 h-3.5 text-brand animate-spin" />}
-                {outcomeText}
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Slot Machine Frame */}
+      <div className="relative bg-gradient-to-b from-[#1a1c2e] to-[#0d0e16] p-1 rounded-2xl shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]">
+        <div className="bg-gradient-to-b from-[#0d0e16] to-[#06070d] border border-[#2a2d45] rounded-xl p-6 relative overflow-hidden">
+          {/* Decorative top lights */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand/30 to-transparent" />
+          <div className="absolute -top-1 left-1/4 w-2 h-2 bg-brand rounded-full animate-pulse" />
+          <div className="absolute -top-1 left-2/4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
+          <div className="absolute -top-1 left-3/4 w-2 h-2 bg-brand rounded-full animate-pulse" style={{ animationDelay: '0.6s' }} />
+
+          {/* Reels */}
+          <div className="grid grid-cols-3 gap-3 w-full max-w-xs mx-auto">
+            {reels.map((symbol, idx) => (
+              <div key={idx} className="relative">
+                {/* Reel background */}
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0b14]/50 to-transparent rounded-xl" />
+                <motion.div
+                  animate={isSpinning ? { y: [-20, 20, -20] } : { y: 0 }}
+                  transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.12 }}
+                  className={`relative aspect-square rounded-xl bg-gradient-to-b ${symbol.colorBg} border-2 flex items-center justify-center text-4xl md:text-5xl shadow-[inset_0_0_15px_rgba(0,0,0,0.3)] select-none`}
+                  style={{ boxShadow: winAmount > 0 && !isSpinning ? `0 0 25px ${symbol.colorGlow}` : '' }}
+                >
+                  <motion.span
+                    animate={winAmount > 0 && !isSpinning ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                  >
+                    {symbol.char}
+                  </motion.span>
+                </motion.div>
+              </div>
+            ))}
+          </div>
+
+          {/* Result display */}
+          <div className="h-10 flex items-center justify-center mt-3">
+            <AnimatePresence mode="wait">
+              {outcomeText && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className={`text-xs font-bold font-mono py-1.5 px-4 rounded-full ${
+                    winAmount > 0
+                      ? 'bg-gradient-to-r from-brand/10 to-emerald-500/10 border border-brand/30 text-brand shadow-[0_0_15px_rgba(0,255,135,0.15)]'
+                      : 'bg-[#151724] text-slate-400 border border-[#212437]'
+                  }`}
+                >
+                  {winAmount > 0 && <Sparkles className="w-3 h-3 inline mr-1 text-brand" />}
+                  {outcomeText}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {/* Slots Control Panel */}
+      {/* Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Input Stake */}
-        <div className="bg-[#0d0e16] border border-[#1a1c2a] p-3 rounded-xl space-y-2">
-          <label className="text-[11px] text-slate-400 uppercase font-semibold">Valor do Spin (R$)</label>
-          <div className="flex items-center gap-2">
-            <input 
-              type="number"
-              disabled={isSpinning}
-              value={stake}
-              onChange={(e) => setStake(e.target.value)}
-              className="w-full bg-[#040508] border border-[#1b1e2e] focus:border-[#7c3aed] rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
-            />
-          </div>
-
-          {/* Preset Buttons */}
-          <div className="flex gap-1.5 mt-2 overflow-x-auto">
+        <div className="bg-[#0d0e16]/80 border border-[#1a1c2a] p-3 rounded-xl space-y-2">
+          <label className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider flex items-center gap-1">
+            <DollarSign className="w-3 h-3" /> Valor do Spin (R$)
+          </label>
+          <input
+            type="number"
+            disabled={isSpinning}
+            value={stake}
+            onChange={(e) => setStake(e.target.value)}
+            className="w-full bg-[#040508] border border-[#1b1e2e] focus:border-[#7c3aed] rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+          />
+          <div className="flex gap-1.5 mt-2">
             {[1, 2, 5, 10, 20].map((val) => (
               <button
                 key={val}
                 onClick={() => handleShortcutAmount(val)}
                 disabled={isSpinning}
-                className={`flex-1 py-1 px-1.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                  stake === val.toString() 
-                    ? 'bg-[#7c3aed] text-white shadow-[0_0_12px_rgba(124,58,237,0.3)] border-none' 
+                className={`flex-1 py-1.5 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                  stake === val.toString()
+                    ? 'bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white shadow-[0_0_12px_rgba(124,58,237,0.3)]'
                     : 'bg-[#040508] border border-[#1c1f2e] text-slate-400 hover:text-white'
                 }`}
               >
-                R$ {val}
+                R${val}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Spin trigger button */}
         <div className="flex flex-col justify-center">
-          <button
+          <motion.button
             onClick={handleSpin}
             disabled={isSpinning || parseFloat(stake) <= 0 || !stake || parseFloat(stake) > balance}
-            className="w-full h-full bg-[#7c3aed] disabled:bg-[#1a1c29] disabled:text-[#383d5a] disabled:border-none hover:bg-[#8b5cf6] text-white font-black py-4 px-6 rounded-xl transition-all duration-300 cursor-pointer text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.25)] hover:shadow-[0_0_22px_rgba(124,58,237,0.45)] hover:scale-[1.01]"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="w-full bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] disabled:from-[#1a1c29] disabled:to-[#1a1c29] disabled:text-[#383d5a] disabled:border-none hover:from-[#8b5cf6] hover:to-[#7c3aed] text-white font-black py-5 px-6 rounded-xl transition-all duration-300 cursor-pointer text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(124,58,237,0.25)] hover:shadow-[0_0_30px_rgba(124,58,237,0.4)]"
           >
-            <Play className="w-4 h-4 fill-white" />
-            Rodar Slots (Girar Alavanca)
-          </button>
+            <Zap className="w-4 h-4" />
+            {isSpinning ? 'Girando...' : 'Girar Alavanca'}
+          </motion.button>
         </div>
       </div>
 
-      {/* RNG Guarantee footer */}
-      <p className="text-[10px] text-slate-500 text-center leading-normal">
-        O sistema de rodadas é puramente lúdico e utiliza gerador de números pseudo-aleatórios (PRNG) de ponto flutuante conforme regulamentado nacionalmente pela COAF/SPA.
-      </p>
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2 text-center">
+          <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Spins</p>
+          <p className="text-sm font-bold text-white font-mono">{totalSpins}</p>
+        </div>
+        <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2 text-center">
+          <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Vitórias</p>
+          <p className="text-sm font-bold text-brand font-mono">{totalWins}</p>
+        </div>
+        <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2 text-center">
+          <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Win Rate</p>
+          <p className="text-sm font-bold text-slate-300 font-mono">{winRate}%</p>
+        </div>
+        <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2 text-center">
+          <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Maior</p>
+          <p className="text-sm font-bold text-yellow-400 font-mono">R$ {biggestWin.toFixed(0)}</p>
+        </div>
+      </div>
     </div>
   );
 }
