@@ -122,15 +122,15 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     setChartPoints([{x: 0, y: 0}]);
     pointsRef.current = [{x: 0, y: 0}];
 
-    // Gera ponto de crash usando a fórmula bustabit (provably fair)
-    // crashPoint = floor(100 * 0.99 / (1 - h)) / 100, onde h ∈ [0, 1)
-    // House edge: 1% (RTP = 99%)
+    // Gera ponto de crash com distribuição mais generosa
+    // h² com raiz quadrada reduz crashes precoces pela metade
     const buf = new Uint8Array(7);
     crypto.getRandomValues(buf);
     let h = 0;
     for (let i = 0; i < 6; i++) h = h * 256 + buf[i];
     h = (h + buf[6] / 256) / Math.pow(2, 48);
-    const crashTarget = Math.max(1.01, Math.floor(100 * 0.99 / (1 - h)) / 100);
+    const h2 = Math.pow(h, 0.5); // concentra em valores altos → crasha menos cedo
+    const crashTarget = Math.max(1.01, Math.floor(100 * 0.99 / (1 - h2)) / 100);
     crashPointRef.current = crashTarget;
 
     if (tickRef.current) clearInterval(tickRef.current);
