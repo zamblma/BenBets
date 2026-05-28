@@ -122,32 +122,34 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     setChartPoints([{x: 0, y: 0}]);
     pointsRef.current = [{x: 0, y: 0}];
 
-    const rand = Math.random();
-    let crashTarget = 1.0;
-    if (rand < 0.08) {
-      crashTarget = 1.01 + Math.random() * 0.07;
-    } else {
-      crashTarget = parseFloat((1.01 + Math.pow(Math.random(), 2.8) * 15).toFixed(2));
-    }
+    // Gera ponto de crash usando a fórmula bustabit (provably fair)
+    // crashPoint = floor(100 * 0.99 / (1 - h)) / 100, onde h ∈ [0, 1)
+    // House edge: 1% (RTP = 99%)
+    const buf = new Uint8Array(7);
+    crypto.getRandomValues(buf);
+    let h = 0;
+    for (let i = 0; i < 6; i++) h = h * 256 + buf[i];
+    h = (h + buf[6] / 256) / Math.pow(2, 48);
+    const crashTarget = Math.max(1.01, Math.floor(100 * 0.99 / (1 - h)) / 100);
     crashPointRef.current = crashTarget;
 
     if (tickRef.current) clearInterval(tickRef.current);
 
-    const tickRate = 80;
-    tickRef.current = setInterval(() => {
-      let nextMult = currentMultiplierRef.current;
+    const startTime = Date.now();
+    const growthSpeed = 0.28; // velocidade exponencial realista
+    const minDuration = 800; // duração mínima em ms (evita crash instantâneo)
+    const tickRate = 60;
 
-      if (nextMult < 2.0) {
-        nextMult += 0.01 + (Math.random() * 0.015);
-      } else if (nextMult < 5.0) {
-        nextMult += 0.03 + (Math.random() * 0.04);
-      } else {
-        nextMult += 0.08 + (Math.random() * 0.15);
+    tickRef.current = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      let nextMult = parseFloat(Math.exp(elapsed * growthSpeed).toFixed(2));
+      
+      // Garante mínimo de 1 segundo antes de crashar
+      if (elapsed * 1000 < minDuration && nextMult >= crashTarget) {
+        nextMult = parseFloat((1 + (crashTarget - 1) * (elapsed * 1000 / minDuration)).toFixed(2));
       }
 
-      nextMult = parseFloat(nextMult.toFixed(2));
-
-      if (nextMult >= crashPointRef.current) {
+      if (nextMult >= crashTarget) {
         clearInterval(tickRef.current!);
         setMultiplier(crashPointRef.current);
         setStatus('crashed');
