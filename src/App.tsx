@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { 
   ShieldCheck, 
   HelpCircle, 
@@ -17,7 +18,8 @@ import {
   Check, 
   AlertTriangle,
   Flame,
-  Award
+  Award,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -25,14 +27,24 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Match, BetSelection, PlacedBet, Transaction } from './types';
 // Source data
 import { INITIAL_MATCHES } from './data/mockMatches';
+// Firebase
+import { auth } from './firebase/config';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
 import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
 import BetHistoryList from './components/BetHistoryList';
+import AuthScreen from './components/AuthScreen';
 
 export default function App() {
+  // Firebase Auth
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const syncTimer = useRef<NodeJS.Timeout | null>(null);
+
   // Navigation & Category states
   const [selectedSport, setSelectedSport] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -44,16 +56,38 @@ export default function App() {
   // Active user data
   const [balance, setBalance] = useState<number>(20.00);
   const [selections, setSelections] = useState<BetSelection[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: "tx-init",
-      type: "deposito",
-      amount: 250.00,
-      status: "concluido",
-      date: new Date().toLocaleString('pt-BR'),
-    }
-  ]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
+
+  // Firebase auth listener + load user data
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        const data = await getUserData(user.uid);
+        if (data) {
+          setBalance(data.balance);
+          setPlacedBets(data.placedBets || []);
+          setTransactions(data.transactions || []);
+        }
+      }
+      setAuthLoading(false);
+      setInitialDataLoaded(true);
+    });
+    return () => unsub();
+  }, []);
+
+  // Debounced sync to Firestore when state changes
+  useEffect(() => {
+    if (!firebaseUser || !initialDataLoaded) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(async () => {
+      try {
+        await updateBalance(firebaseUser.uid, balance);
+      } catch {}
+    }, 500);
+    return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
+  }, [balance, firebaseUser, initialDataLoaded]);
 
   // Dynamic Live Matches State Feed
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
@@ -149,18 +183,20 @@ export default function App() {
             status: 'won',
           };
           setBalance((b) => b + bet.potentialPayout);
+          if (firebaseUser) updateBet(firebaseUser.uid, bet.id, { status: 'won' }).catch(() => {});
         } else {
           updated[pendingSportsIdx] = {
             ...bet,
             status: 'lost'
           };
+          if (firebaseUser) updateBet(firebaseUser.uid, bet.id, { status: 'lost' }).catch(() => {});
         }
         return updated;
       });
     }, 22000);
 
     return () => clearInterval(settleInterval);
-  }, []);
+  }, [firebaseUser]);
 
   // Handler to toggle selection in the slip
   const handleOddsClick = (match: Match, outcomeType: 'home' | 'draw' | 'away', oddsValue: number) => {
@@ -221,10 +257,12 @@ export default function App() {
 
   const handleAddTransaction = (newTx: Transaction) => {
     setTransactions(prev => [newTx, ...prev]);
+    if (firebaseUser) addTransaction(firebaseUser.uid, newTx).catch(() => {});
   };
 
   const handleAddPlacedBet = (newBet: PlacedBet) => {
     setPlacedBets(prev => [newBet, ...prev]);
+    if (firebaseUser) addBet(firebaseUser.uid, newBet).catch(() => {});
   };
 
   const handleSettleAction = (betId: string, status: 'won' | 'lost', payOut: number) => {
@@ -232,6 +270,7 @@ export default function App() {
     if (status === 'won' && payOut > 0) {
       setBalance(prev => prev + payOut);
     }
+    if (firebaseUser) updateBet(firebaseUser.uid, betId, { status, potentialPayout: payOut }).catch(() => {});
   };
 
   // Filtered Matches selector
@@ -246,6 +285,18 @@ export default function App() {
     }
     return match.sport === selectedSport && matchesSearch;
   });
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#06070d] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <AuthScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-[#06070d] font-sans text-slate-100 flex flex-col justify-between">
@@ -291,6 +342,17 @@ export default function App() {
               <ArrowDownCircle className="w-4 h-4 text-slate-950" />
               Depositar
             </button>
+
+            {/* Logout */}
+            {firebaseUser && (
+              <button 
+                onClick={() => signOut(auth)}
+                className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-rose-400 rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
+                title="Sair"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Regulation Manual */}
             <button 
@@ -591,7 +653,7 @@ export default function App() {
           </p>
 
           <div className="text-slate-600 flex justify-center items-center gap-3">
-            <span>© {new Date().getFullYear()} ArenaBet Registrada. Todos os direitos reservados.</span>
+            <span>© {new Date().getFullYear()} BenBets. Todos os direitos reservados.</span>
             <span>•</span>
             <span className="border border-[#1f2334] px-1.5 py-0.2 rounded font-mono text-[9px]">CNPJ SIMULADO OK</span>
           </div>
