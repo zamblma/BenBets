@@ -42,7 +42,7 @@ export default function App() {
   const [isPixOpen, setIsPixOpen] = useState<boolean>(false);
 
   // Active user data
-  const [balance, setBalance] = useState<number>(250.00);
+  const [balance, setBalance] = useState<number>(20.00);
   const [selections, setSelections] = useState<BetSelection[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([
     {
