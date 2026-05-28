@@ -24,7 +24,7 @@ export default function BetHistoryList({
   onAddPlacedBet,
   onSettleBet,
 }: BetHistoryListProps) {
-  const [activeTab, setActiveTab] = useState<'slip' | 'history'>('slip');
+  const [activeTab, setActiveTab] = useState<'slip' | 'history'>('history');
   const [stakeInput, setStakeInput] = useState<string>('20');
 
   // Compute multi accumulator odds
