@@ -53,30 +53,7 @@ export default function App() {
       date: new Date().toLocaleString('pt-BR'),
     }
   ]);
-  const [placedBets, setPlacedBets] = useState<PlacedBet[]>([
-    {
-      id: "bet-pre-1",
-      matchName: "Flamengo vs Palmeiras",
-      selectionName: "Flamengo (Vence)",
-      odds: 2.10,
-      stake: 10,
-      potentialPayout: 21.00,
-      status: 'pending',
-      placedAt: '20:45',
-      type: 'sports',
-    },
-    {
-      id: "bet-pre-2",
-      matchName: "Slots da Sorte",
-      selectionName: "Alinhamento: [🍋][🍋][💎]",
-      odds: 1.5,
-      stake: 5,
-      potentialPayout: 0,
-      status: 'lost',
-      placedAt: '19:12',
-      type: 'casino',
-    }
-  ]);
+  const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
 
   // Dynamic Live Matches State Feed
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
@@ -172,10 +149,6 @@ export default function App() {
             status: 'won',
           };
           setBalance((b) => b + bet.potentialPayout);
-          // Standard web notification alert
-          setTimeout(() => {
-            alert(`Aposta Resolvida! 🏆\nJogo: "${bet.matchName}"\nRetorno creditado: R$ ${bet.potentialPayout.toFixed(2)}`);
-          }, 100);
         } else {
           updated[pendingSportsIdx] = {
             ...bet,
