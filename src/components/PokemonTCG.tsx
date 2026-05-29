@@ -112,6 +112,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   const pricesRef = useRef<Record<string, number>>({});
   const allCardIds = useRef<Set<string>>(new Set());
+  const skipRef = useRef(false);
 
   // Collect all unique card ids from collection
   useEffect(() => {
@@ -222,13 +223,15 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     allCards.sort((a, b) => getCardRarityLevel(a.rarity) - getCardRarityLevel(b.rarity));
     setPackResult(allCards);
 
+    skipRef.current = false;
     const delay = allCards.length <= 9 ? 350 : 200;
     for (let i = 0; i < allCards.length; i++) {
+      if (skipRef.current) break;
       await new Promise(r => setTimeout(r, delay));
       setRevealingIndex(i);
     }
 
-    onCollectionUpdate(allCards);
+    if (!skipRef.current) onCollectionUpdate(allCards);
   };
 
   const isSpecial = (r: string) => getCardRarityLevel(r) >= 3;
@@ -276,9 +279,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               >
                 🎴 {packQty > 1 ? `${packQty} Pacotes` : 'Pacote'} — {selectedSet?.name}
               </motion.h3>
-              <p className="text-slate-500 text-xs mb-4">
-                {revealingIndex + 1} de {packResult.length} cartas reveladas
-              </p>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <p className="text-slate-500 text-xs">
+                  {revealingIndex + 1} de {packResult.length} cartas reveladas
+                </p>
+                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 600); }} className="text-[10px] text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer">Pular</button>
+              </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
                 {packResult.map((card, idx) => {
                   const lvl = getCardRarityLevel(card.rarity);
