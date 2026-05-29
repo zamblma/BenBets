@@ -121,6 +121,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [filterRarity, setFilterRarity] = useState('todas');
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
+  const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: string; label: string }>({ show: false, rarity: '', label: '' });
 
   const pricesRef = useRef<Record<string, number>>({});
   const allCardIds = useRef<Set<string>>(new Set());
@@ -247,6 +248,18 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     if (!skipRef.current) onCollectionUpdate(allCards);
   };
 
+  useEffect(() => {
+    if (revealingIndex < 0 || revealingIndex >= packResult.length) return;
+    const card = packResult[revealingIndex];
+    const lvl = getCardRarityLevel(card.rarity);
+    if (lvl >= 3) {
+      const label = card.rarity === 'Rare Secret' ? '⭐ Secreta' : card.rarity === 'Rare Rainbow' ? '🌈 Arco-Íris' : card.rarity === 'Rare Ultra' ? '💎 Ultra' : '✨ Holo';
+      setRareFlash({ show: true, rarity: card.rarity, label });
+      const t = setTimeout(() => setRareFlash(prev => ({ ...prev, show: false })), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [revealingIndex, packResult]);
+
   const isSpecial = (r: string) => getCardRarityLevel(r) >= 3;
 
   return (
@@ -284,6 +297,34 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
           >
+            {/* Rare flash overlay */}
+            <AnimatePresence>
+              {rareFlash.show && (
+                <motion.div
+                  key="rareflash"
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: [0, 1, 1, 0], scale: [0.5, 1.3, 1.1, 1] }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
+                  className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+                >
+                  <motion.div
+                    animate={{ opacity: [0, 0.6, 0.4, 0] }}
+                    transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
+                    className={`absolute inset-0 ${rareFlash.rarity === 'Rare Secret' ? 'bg-red-500' : rareFlash.rarity === 'Rare Rainbow' ? 'bg-purple-500' : rareFlash.rarity === 'Rare Ultra' ? 'bg-amber-500' : 'bg-yellow-500'}`}
+                  />
+                  <motion.span
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: [0, 1, 1, 0], y: [30, 0, 0, -20] }}
+                    transition={{ duration: 1.2, times: [0, 0.15, 0.5, 1] }}
+                    className="relative z-10 text-center px-4"
+                  >
+                    <span className="text-5xl sm:text-7xl block mb-2">{rareFlash.label.split(' ')[0]}</span>
+                    <span className="text-2xl sm:text-4xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.5)]">{rareFlash.label.slice(rareFlash.label.indexOf(' ') + 1)}</span>
+                  </motion.span>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="text-center max-w-2xl w-full py-4">
               <motion.h3
                 initial={{ scale: 0.8, opacity: 0 }}
