@@ -29,7 +29,7 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -62,6 +62,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
   const [pokemonCollection, setPokemonCollection] = useState<PokemonCard[]>([]);
+  const [worldCupCollection, setWorldCupCollection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -76,6 +77,7 @@ export default function App() {
           setPlacedBets(data.placedBets || []);
           setTransactions(data.transactions || []);
           setPokemonCollection(data.pokemonCollection || []);
+        setWorldCupCollection(data.worldCupCollection || []);
           setUserName(data.displayName || '');
           if (data.transactions.length === 0 && data.balance === 20) {
             setShowBonus(true);
@@ -320,6 +322,41 @@ export default function App() {
     }
   };
 
+  const handleWorldCupCollectionUpdate = (cards: PokemonCard[]) => {
+    setWorldCupCollection(prev => {
+      const merged = [...prev];
+      for (const c of cards) {
+        const idx = merged.findIndex(x => x.id === c.id);
+        if (idx >= 0) merged[idx].quantity += 1;
+        else merged.push(c);
+      }
+      if (firebaseUser) addWorldCupStickers(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
+  const handleSellWorldCupSticker = (cardId: string, price: number) => {
+    setWorldCupCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    setBalance(prev => prev + price);
+    if (firebaseUser) removeWorldCupSticker(firebaseUser.uid, cardId).catch(() => {});
+  };
+
+  const handleSellAllWorldCupDuplicates = (prices: Record<string, number>) => {
+    setWorldCupCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = worldCupCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    setBalance(prev => prev + total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.worldCupCollection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { worldCupCollection: updated });
+      }).catch(() => {});
+    }
+  };
+
   // Filtered Matches selector
   const filteredMatches = matches.filter(match => {
     const matchesSearch = 
@@ -532,7 +569,15 @@ export default function App() {
               />
             </div>
           ) : selectedSport === 'Copa' ? (
-            <WorldCupAlbum balance={balance} onUpdateBalance={handleDepositSuccess} />
+            <WorldCupAlbum
+              balance={balance}
+              onUpdateBalance={handleDepositSuccess}
+              userId={firebaseUser?.uid || ''}
+              collection={worldCupCollection}
+              onCollectionUpdate={handleWorldCupCollectionUpdate}
+              onSellCard={handleSellWorldCupSticker}
+              onSellAllDuplicates={handleSellAllWorldCupDuplicates}
+            />
           ) : (
             // SPORTS BOOK LIST DISPLAY
             <div className="space-y-4">

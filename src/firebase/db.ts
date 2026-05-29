@@ -11,6 +11,7 @@ export async function getUserData(uid: string) {
     placedBets: PlacedBet[];
     transactions: Transaction[];
     pokemonCollection: PokemonCard[];
+    worldCupCollection: PokemonCard[];
   };
 }
 
@@ -23,6 +24,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     placedBets: [],
     transactions: [],
     pokemonCollection: [],
+    worldCupCollection: [],
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -84,4 +86,41 @@ export async function removePokemonCard(uid: string, cardId: string) {
     .map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c)
     .filter(c => c.quantity > 0);
   await updateDoc(ref, { pokemonCollection: updated });
+}
+
+export async function addWorldCupStickers(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.worldCupCollection || [];
+  const merged: PokemonCard[] = [...existing];
+
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) {
+      merged[idx].quantity += 1;
+    } else {
+      merged.push(newCard);
+    }
+  }
+
+  await updateDoc(ref, { worldCupCollection: merged });
+}
+
+export async function removeWorldCupSticker(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.worldCupCollection || [];
+  const updated = existing
+    .map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c)
+    .filter(c => c.quantity > 0);
+  await updateDoc(ref, { worldCupCollection: updated });
+}
+
+export async function setWorldCupCollection(uid: string, cards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { worldCupCollection: cards });
 }

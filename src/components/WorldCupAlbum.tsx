@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2, Medal, Shirt, Flag } from 'lucide-react';
+import { Package, Search, BookOpen, ArrowLeft, Star, Medal, Shirt, Flag } from 'lucide-react';
+import type { PokemonCard } from '../types';
 
 interface Player {
   id: string;
@@ -21,16 +22,6 @@ interface Team {
 }
 
 type RarityLevel = 'Common' | 'Uncommon' | 'Rare' | 'Ultra Rare';
-
-interface Collectible {
-  id: string;
-  name: string;
-  imageUrl: string;
-  rarity: string;
-  setName: string;
-  setSeries: string;
-  quantity: number;
-}
 
 const PACK_PRICE = 5.90;
 const PACK_SIZE = 5;
@@ -270,7 +261,7 @@ function generatePlayerImage(name: string): string {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${bg}&color=fff&size=128&bold=true&font-size=0.4`;
 }
 
-function generatePack(team: Team): Collectible[] {
+function generatePack(team: Team): PokemonCard[] {
   const pool = team.players;
   const result: Collectible[] = [];
 
@@ -299,21 +290,22 @@ const POSITION_LABELS: Record<string, string> = {
   VOL: 'Volante', MEI: 'Meia', AT: 'Atacante'
 };
 
-export default function WorldCupAlbum({ balance, onUpdateBalance }: { balance: number; onUpdateBalance: (amount: number) => void }) {
+export default function WorldCupAlbum({ balance, onUpdateBalance, collection, onCollectionUpdate, onSellCard, onSellAllDuplicates }: {
+  balance: number;
+  onUpdateBalance: (amount: number) => void;
+  userId: string;
+  collection: PokemonCard[];
+  onCollectionUpdate: (cards: PokemonCard[]) => void;
+  onSellCard: (cardId: string, price: number) => void;
+  onSellAllDuplicates: (prices: Record<string, number>) => void;
+}) {
   const [view, setView] = useState<'teams' | 'collection'>('teams');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [packResult, setPackResult] = useState<Collectible[]>([]);
+  const [packResult, setPackResult] = useState<PokemonCard[]>([]);
   const [opening, setOpening] = useState(false);
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [collection, setCollection] = useState<Collectible[]>(() => {
-    try { return JSON.parse(localStorage.getItem('wcCollection') || '[]'); } catch { return []; }
-  });
   const skipRef = useRef(false);
-
-  useEffect(() => {
-    localStorage.setItem('wcCollection', JSON.stringify(collection));
-  }, [collection]);
 
   const handleOpenPack = async () => {
     if (!selectedTeam) return;
@@ -335,42 +327,23 @@ export default function WorldCupAlbum({ balance, onUpdateBalance }: { balance: n
     }
 
     if (!skipRef.current) {
-      setCollection(prev => {
-        const merged = [...prev];
-        for (const c of allCards) {
-          const idx = merged.findIndex(x => x.id === c.id);
-          if (idx >= 0) merged[idx].quantity += 1;
-          else merged.push(c);
-        }
-        return merged;
-      });
+      onCollectionUpdate(allCards);
     }
   };
 
   const handleSellCard = (cardId: string) => {
-    setCollection(prev => {
-      const p = prev.find(c => c.id === cardId);
-      if (!p) return prev;
-      const price = getBasePrice(p.rarity);
-      onUpdateBalance(price);
-      return prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
-    });
+    const card = collection.find(c => c.id === cardId);
+    if (!card) return;
+    const price = getBasePrice(card.rarity);
+    onSellCard(cardId, price);
   };
 
   const handleSellAllDuplicates = () => {
-    let total = 0;
-    setCollection(prev => {
-      let newColl = [...prev];
-      for (const c of newColl) {
-        if (c.quantity > 1) {
-          const extras = c.quantity - 1;
-          total += getBasePrice(c.rarity) * extras;
-          c.quantity = 1;
-        }
-      }
-      onUpdateBalance(total);
-      return newColl;
-    });
+    const prices: Record<string, number> = {};
+    for (const c of collection) {
+      if (c.quantity > 1) prices[c.id] = getBasePrice(c.rarity);
+    }
+    onSellAllDuplicates(prices);
   };
 
   const getBasePrice = (rarity: string): number => {
@@ -418,7 +391,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance }: { balance: n
               </motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <p className="text-slate-500 text-xs">{revealingIndex + 1} de {packResult.length} figurinhas</p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); setCollection(prev => { const merged = [...prev]; for (const c of packResult) { const idx = merged.findIndex(x => x.id === c.id); if (idx >= 0) merged[idx].quantity += 1; else merged.push(c); } return merged; }); setTimeout(() => setOpening(false), 800); }} className="text-[10px] text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer">Pular</button>
+                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-[10px] text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 justify-items-center">
                 {packResult.map((card, idx) => {
