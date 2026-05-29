@@ -185,7 +185,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   useEffect(() => {
     const cached = sessionStorage.getItem('pokemonSets');
     if (cached) { setSets(JSON.parse(cached)); setSetsLoading(false); return; }
-    fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=20`)
+    fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=100`)
       .then(r => r.json()).then(d => {
         const list: TCGSets[] = d.data || [];
         setSets(list);
