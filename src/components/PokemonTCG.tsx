@@ -74,13 +74,24 @@ function getRarityLabel(rarity: string): string {
 function generatePack(cards: TCGCard[], setName: string, setSeries: string): PokemonCard[] {
   const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
   const uncommon = cards.filter(c => c.rarity === 'Uncommon');
-  const rare = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
-  const pick = (pool: TCGCard[]) => pool[Math.floor(Math.random() * pool.length)] || cards[Math.floor(Math.random() * cards.length)];
+  const rarePool = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
+  const pick = (pool: TCGCard[]) => pool[Math.floor(Math.random() * pool.length)];
 
   const result: PokemonCard[] = [];
-  for (let i = 0; i < 5; i++) result.push({ ...pick(common), quantity: 1, setName, setSeries, imageUrl: pick(common).images?.small || '' });
-  for (let i = 0; i < 3; i++) result.push({ ...pick(uncommon), quantity: 1, setName, setSeries, imageUrl: pick(uncommon).images?.small || '' });
-  const rareCard = pick(rare);
+  for (let i = 0; i < 5; i++) { const c = pick(common); result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c.images?.small || '' }); }
+  for (let i = 0; i < 3; i++) { const c = pick(uncommon); result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c.images?.small || '' }); }
+
+  const roll = Math.random();
+  let rareCard: TCGCard;
+  if (roll < 0.55) {
+    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
+  } else if (roll < 0.78) {
+    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
+  } else if (roll < 0.92) {
+    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
+  } else {
+    rareCard = pick(rarePool) || pick(cards);
+  }
   result.push({ ...rareCard, quantity: 1, setName, setSeries, imageUrl: rareCard.images?.small || '' });
 
   return result.map(c => ({
@@ -429,12 +440,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-lg font-extrabold text-amber-400">1</p>
                 <p className="text-[9px] text-amber-400/70 font-bold">Rara+</p>
               </div>
-              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30">
-                <p className="text-lg font-extrabold text-yellow-300">~5%</p>
-                <p className="text-[9px] text-yellow-300/70 font-bold">Holográfica</p>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
+                <p className="text-lg font-extrabold text-amber-400">~23%</p>
+                <p className="text-[9px] text-amber-400/70 font-bold">Holo</p>
               </div>
             </div>
-            <p className="text-[9px] text-slate-600 mt-2 text-center">~2% Ultra Rara • ~0.5% Secret Rara nos pacotes</p>
+            <p className="text-[9px] text-slate-600 mt-2 text-center">55% Rara • 14% Ultra/Rainbow • 8% Secreta/Variada</p>
           </div>
 
           {/* Quantity selector */}
