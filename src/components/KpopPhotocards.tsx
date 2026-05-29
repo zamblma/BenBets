@@ -57,7 +57,7 @@ function getRarityLabel(rarity: string): string {
 
 function getBasePrice(rarity: string): number {
   const lvl = getRarityLevel(rarity);
-  return lvl === 0 ? 0.50 + Math.random() : lvl === 1 ? 1.5 + Math.random() * 3 : lvl === 2 ? 5 + Math.random() * 10 : lvl === 3 ? 10 + Math.random() * 25 : 1;
+  return lvl === 0 ? 0.50 + Math.random() * 1.00 : lvl === 1 ? 1.00 + Math.random() * 2.00 : lvl === 2 ? 2.00 + Math.random() * 4.00 : lvl === 3 ? 5.00 + Math.random() * 15.00 : 1;
 }
 
 function genPack(): PokemonCard[] {

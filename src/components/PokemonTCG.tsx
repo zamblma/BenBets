@@ -154,13 +154,13 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   // Generate base price from rarity
   const getBasePrice = useCallback((rarity: string): number => {
     const lvl = getCardRarityLevel(rarity);
-    if (lvl === 0) return 0.50 + Math.random() * 1.50;
-    if (lvl === 1) return 1.00 + Math.random() * 4.00;
-    if (lvl === 2) return 5.00 + Math.random() * 15.00;
-    if (lvl === 3) return 10.00 + Math.random() * 40.00;
-    if (lvl === 4) return 30.00 + Math.random() * 120.00;
-    if (lvl === 5) return 50.00 + Math.random() * 450.00;
-    return 1.00;
+    if (lvl === 0) return 0.10 + Math.random() * 0.40;
+    if (lvl === 1) return 0.30 + Math.random() * 0.70;
+    if (lvl === 2) return 0.50 + Math.random() * 1.50;
+    if (lvl === 3) return 1.00 + Math.random() * 4.00;
+    if (lvl === 4) return 3.00 + Math.random() * 12.00;
+    if (lvl === 5) return 5.00 + Math.random() * 25.00;
+    return 0.30;
   }, []);
 
   // Market price simulation: update prices every 20s
