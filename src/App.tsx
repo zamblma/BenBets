@@ -36,6 +36,7 @@ import PixModal from './components/PixModal';
 import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
 import PokemonTCG from './components/PokemonTCG';
+import WorldCupAlbum from './components/WorldCupAlbum';
 import BetHistoryList from './components/BetHistoryList';
 import AuthScreen from './components/AuthScreen';
 
@@ -433,6 +434,7 @@ export default function App() {
               {[
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
                 { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
+                { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
                 { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
                 { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                 { id: 'Basquete', label: 'Basquete', icon: '🏀' },
@@ -478,6 +480,7 @@ export default function App() {
             {[
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
               { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
+              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
               { id: 'Futebol', label: 'Futebol', icon: '⚽' },
               { id: 'Basquete', label: 'Basquete', icon: '🏀' },
@@ -528,6 +531,8 @@ export default function App() {
                 onSellAllDuplicates={handleSellAllDuplicates}
               />
             </div>
+          ) : selectedSport === 'Copa' ? (
+            <WorldCupAlbum balance={balance} onUpdateBalance={handleDepositSuccess} />
           ) : (
             // SPORTS BOOK LIST DISPLAY
             <div className="space-y-4">
