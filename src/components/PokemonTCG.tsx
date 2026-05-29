@@ -78,9 +78,13 @@ function getRarityLabel(rarity: string): string {
   return rarity;
 }
 
-const MODERN_SERIES = ['Sword & Shield', 'Scarlet & Violet', 'Sun & Moon'];
-function getSetTier(series: string): 'modern' | 'classic' {
-  return MODERN_SERIES.some(s => series.includes(s)) ? 'modern' : 'classic';
+function getSetCapabilities(series: string): { tier: string; label: string; color: string; holo: boolean; ultra: boolean; secret: boolean } {
+  if (series.includes('Scarlet & Violet')) return { tier: 'premium', label: '🔥 Premium', color: 'text-red-400 bg-red-500/10 border-red-500/20', holo: true, ultra: true, secret: true };
+  if (series.includes('Sword & Shield')) return { tier: 'modern', label: '🔶 Moderno', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20', holo: true, ultra: true, secret: true };
+  if (series.includes('Sun & Moon')) return { tier: 'ultra', label: '🟣 Ultra', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20', holo: true, ultra: true, secret: true };
+  if (series.includes('XY')) return { tier: 'holo', label: '🟡 Holo', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20', holo: true, ultra: true, secret: false };
+  if (series.includes('Black & White')) return { tier: 'holo', label: '🟡 Holo', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20', holo: true, ultra: false, secret: false };
+  return { tier: 'classic', label: '🟦 Clássico', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20', holo: false, ultra: false, secret: false };
 }
 
 function generatePack(cards: TCGCard[], setName: string, setSeries: string, premium = false): PokemonCard[] {
@@ -142,7 +146,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [seriesFilter, setSeriesFilter] = useState<'todas' | 'classic' | 'modern'>('todas');
+  const [seriesFilter, setSeriesFilter] = useState<string>('todas');
   const [filterRarity, setFilterRarity] = useState('todas');
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
@@ -438,10 +442,13 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar coleção..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
               {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
             </div>
-            <div className="flex gap-1 text-[10px] font-bold">
+            <div className="flex gap-1 text-[10px] font-bold flex-wrap">
               <button onClick={() => setSeriesFilter('todas')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'todas' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>Todas</button>
-              <button onClick={() => setSeriesFilter('classic')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'classic' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🟦 Clássicas</button>
-              <button onClick={() => setSeriesFilter('modern')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'modern' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🔥 Modernas</button>
+              <button onClick={() => setSeriesFilter('classic')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'classic' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🟦 Clássico</button>
+              <button onClick={() => setSeriesFilter('holo')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'holo' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🟡 Holo</button>
+              <button onClick={() => setSeriesFilter('ultra')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'ultra' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🟣 Ultra</button>
+              <button onClick={() => setSeriesFilter('modern')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'modern' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🔶 SWSH</button>
+              <button onClick={() => setSeriesFilter('premium')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'premium' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🔴 SV</button>
             </div>
           </div>
           {setsLoading ? (
@@ -449,19 +456,30 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {sets.filter(s => {
-                if (seriesFilter !== 'todas' && getSetTier(s.series) !== seriesFilter) return false;
+                const cap = getSetCapabilities(s.series);
+                if (seriesFilter !== 'todas' && cap.tier !== seriesFilter) return false;
                 if (searchQuery && !s.name.toLowerCase().includes(searchQuery.toLowerCase()) && !s.series.toLowerCase().includes(searchQuery.toLowerCase())) return false;
                 return true;
               }).map(set => {
-                const tier = getSetTier(set.series);
+                const cap = getSetCapabilities(set.series);
+                const rarities: { key: string; has: boolean; icon: string; color: string }[] = [
+                  { key: 'holo', has: cap.holo, icon: '✨', color: 'text-yellow-300' },
+                  { key: 'ultra', has: cap.ultra, icon: '💎', color: 'text-purple-400' },
+                  { key: 'secret', has: cap.secret, icon: '⭐', color: 'text-red-400' },
+                ];
                 return (
                 <button key={set.id} onClick={() => { setSelectedSet(set); fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
-                  {tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
+                  {cap.tier === 'premium' && <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
+                  {cap.tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-bl-full" />}
+                  {cap.tier === 'ultra' && <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full" />}
                   <div className="bg-[#07080f] rounded-lg p-3 flex items-center justify-center aspect-[2/1] mb-2 border border-[#1a1c2a]">
                     {set.images?.logo ? <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" /> : <Package className="w-8 h-8 text-slate-500" />}
                   </div>
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${tier === 'modern' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>{tier === 'modern' ? '🔥 Moderno' : '🟦 Clássico'}</span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${cap.color}`}>{cap.label}</span>
+                    {rarities.filter(r => r.has).map(r => (
+                      <span key={r.key} className={`text-[9px] ${r.color}`} title={r.key === 'holo' ? 'Tem Holo' : r.key === 'ultra' ? 'Tem Ultra' : 'Tem Secret'}>{r.icon}</span>
+                    ))}
                   </div>
                   <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
                   <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
