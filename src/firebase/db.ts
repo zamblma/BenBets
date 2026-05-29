@@ -13,6 +13,7 @@ export async function getUserData(uid: string) {
     pokemonCollection: PokemonCard[];
     worldCupCollection: PokemonCard[];
     kpopCollection: PokemonCard[];
+    cs2Collection: PokemonCard[];
   };
 }
 
@@ -27,6 +28,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     pokemonCollection: [],
     worldCupCollection: [],
     kpopCollection: [],
+    cs2Collection: [],
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -150,4 +152,29 @@ export async function removeKpopCard(uid: string, cardId: string) {
   const existing: PokemonCard[] = data.kpopCollection || [];
   const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
   await updateDoc(ref, { kpopCollection: updated });
+}
+
+export async function addCS2Cards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.cs2Collection || [];
+  const merged: PokemonCard[] = [...existing];
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) { merged[idx].quantity += 1; }
+    else { merged.push(newCard); }
+  }
+  await updateDoc(ref, { cs2Collection: merged });
+}
+
+export async function removeCS2Card(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.cs2Collection || [];
+  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  await updateDoc(ref, { cs2Collection: updated });
 }

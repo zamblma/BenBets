@@ -29,7 +29,7 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -38,6 +38,7 @@ import SlotGame from './components/SlotGame';
 import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
+import CS2Cases from './components/CS2Cases';
 import BetHistoryList from './components/BetHistoryList';
 import AuthScreen from './components/AuthScreen';
 
@@ -65,6 +66,7 @@ export default function App() {
   const [pokemonCollection, setPokemonCollection] = useState<PokemonCard[]>([]);
   const [worldCupCollection, setWorldCupCollection] = useState<PokemonCard[]>([]);
   const [kpopCollection, setKpopCollection] = useState<PokemonCard[]>([]);
+  const [cs2Collection, setCs2Collection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -81,6 +83,7 @@ export default function App() {
           setPokemonCollection(data.pokemonCollection || []);
         setWorldCupCollection(data.worldCupCollection || []);
         setKpopCollection(data.kpopCollection || []);
+        setCs2Collection(data.cs2Collection || []);
           setUserName(data.displayName || '');
           if (data.transactions.length === 0 && data.balance === 20) {
             setShowBonus(true);
@@ -379,6 +382,41 @@ export default function App() {
     if (firebaseUser) removeKpopCard(firebaseUser.uid, cardId).catch(() => {});
   };
 
+  const handleCS2CollectionUpdate = (cards: PokemonCard[]) => {
+    setCs2Collection(prev => {
+      const merged = [...prev];
+      for (const c of cards) {
+        const idx = merged.findIndex(x => x.id === c.id);
+        if (idx >= 0) merged[idx].quantity += 1;
+        else merged.push(c);
+      }
+      if (firebaseUser) addCS2Cards(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
+  const handleSellCS2Card = (cardId: string, price: number) => {
+    setCs2Collection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    setBalance(prev => prev + price);
+    if (firebaseUser) removeCS2Card(firebaseUser.uid, cardId).catch(() => {});
+  };
+
+  const handleSellAllCS2Duplicates = (prices: Record<string, number>) => {
+    setCs2Collection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = cs2Collection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    setBalance(prev => prev + total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.cs2Collection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { cs2Collection: updated });
+      }).catch(() => {});
+    }
+  };
+
   const handleSellAllKpopDuplicates = (prices: Record<string, number>) => {
     setKpopCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = kpopCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
@@ -509,6 +547,7 @@ export default function App() {
               {[
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
                 { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
+                { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'Kpop', label: 'K-pop', icon: '🎤' },
                 { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
@@ -556,6 +595,7 @@ export default function App() {
             {[
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
               { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
+              { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'Kpop', label: 'K-pop', icon: '🎤' },
               { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
@@ -606,6 +646,18 @@ export default function App() {
                 onCollectionUpdate={handlePokemonCollectionUpdate}
                 onSellCard={handleSellPokemonCard}
                 onSellAllDuplicates={handleSellAllDuplicates}
+              />
+            </div>
+          ) : selectedSport === 'CS2' ? (
+            <div className="space-y-6">
+              <CS2Cases
+                balance={balance}
+                onUpdateBalance={handleDepositSuccess}
+                userId={firebaseUser?.uid || ''}
+                collection={cs2Collection}
+                onCollectionUpdate={handleCS2CollectionUpdate}
+                onSellCard={handleSellCS2Card}
+                onSellAllDuplicates={handleSellAllCS2Duplicates}
               />
             </div>
           ) : selectedSport === 'Copa' ? (
