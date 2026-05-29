@@ -69,7 +69,9 @@ function generatePhotocards(): PokemonCard[] {
   return result;
 }
 
-function getMemberImage(member: typeof ALL_MEMBERS[number]): string {
+function getMemberImage(member: typeof ALL_MEMBERS[number], groupPhotos: Record<string, string>): string {
+  const fromCache = groupPhotos[member.id] || groupPhotos[member.groupName];
+  if (fromCache) return fromCache;
   const initials = member.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || member.name[0];
   const colors: Record<string, string> = {
     'purple-400': '7c3aed', 'pink-400': 'db2777', 'hotpink': 'd946ef',
@@ -91,7 +93,43 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [filterRarity, setFilterRarity] = useState('todas');
   const [searchQuery, setSearchQuery] = useState('');
+  const [photos, setPhotos] = useState<Record<string, string>>({});
   const skipRef = useRef(false);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (fetchedRef.current) return; fetchedRef.current = true;
+    const cache = sessionStorage.getItem('kpopPhotos');
+    if (cache) { try { setPhotos(JSON.parse(cache)); return; } catch {} }
+
+    const results: Record<string, string> = {};
+    let done = GROUPS.length;
+
+    for (const group of GROUPS) {
+      const q = encodeURIComponent(group.name.replace(/[()!\-]/g, ' ').trim());
+      fetch(`https://api.deezer.com/search/artist?q=${q}&limit=1`)
+        .then(r => r.json())
+        .then(d => {
+          const artist = d?.data?.[0];
+          if (artist?.picture_medium) {
+            const url = artist.picture_medium;
+            for (const m of group.members) {
+              const id = `${group.name}-${m}`.replace(/[^a-zA-Z0-9]/g, '_');
+              results[id] = url;
+            }
+            results[group.name] = url;
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          done--;
+          if (done <= 0) {
+            setPhotos({ ...results });
+            sessionStorage.setItem('kpopPhotos', JSON.stringify(results));
+          }
+        });
+    }
+  }, []);
 
   const handleOpenPack = async () => {
     if (balance < PACK_PRICE) return;
@@ -184,7 +222,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
                     <motion.div key={idx} initial={{ rotateY: 180, opacity: 0, scale: 0.3 }} animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}} transition={{ type: 'spring', stiffness: 180, damping: 18 }} className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} shadow-lg ${isRare ? 'relative' : ''}`}>
                       {isRare && <div className="absolute -top-1 -right-1 z-10"><Star className={`w-4 h-4 ${getRarityLevel(card.rarity) >= 3 ? 'text-purple-300' : 'text-pink-400'}`} fill="currentColor" /></div>}
                       <div className="bg-[#07080f] p-3 flex items-center justify-center w-full aspect-[3/4]">
-                        {member && <img src={getMemberImage(member)} alt={card.name} className="w-full h-full object-contain" />}
+                          {member && <img src={getMemberImage(member, photos)} alt={card.name} className="w-full h-full object-contain" />}
                       </div>
                       {idx <= revealingIndex && <div className="p-2 text-center"><p className="text-[9px] font-bold text-slate-200 truncate">{card.name}</p><p className={`text-[7px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p></div>}
                     </motion.div>
@@ -223,7 +261,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
                     return (
                       <div key={card.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all group relative ${isRare ? getRarityBorder(card.rarity) : 'border-[#1a1c2a]'}`}>
                         <div className="p-1.5 flex items-center justify-center aspect-[3/4]">
-                          {member && <img src={getMemberImage(member)} alt={card.name} className="w-full h-full object-contain" />}
+                        {member && <img src={getMemberImage(member, photos)} alt={card.name} className="w-full h-full object-contain" />}
                         </div>
                         <div className="p-1 text-center">
                           <p className="text-[7px] font-bold text-slate-200 truncate">{card.name}</p>
