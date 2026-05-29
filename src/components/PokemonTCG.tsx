@@ -569,10 +569,31 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400"><span className="text-amber-400 font-bold">{filteredCards.length}</span> de {collection.length} cartas</p>
-                <p className="text-xs text-slate-500">
-                  {collection.filter(c => getCardRarityLevel(c.rarity) >= 3).length} especiais
+              <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-slate-400">
+                    <span className="text-amber-400 font-bold">{collection.length}</span> cartas únicas
+                    <span className="text-slate-600 mx-1">•</span>
+                    <span>{collection.reduce((s, c) => s + c.quantity, 0)} total</span>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {collection.filter(c => getCardRarityLevel(c.rarity) >= 3).length} especiais
+                    {collection.some(c => c.quantity > 1) && (
+                      <span className="text-slate-600 ml-1">• {collection.filter(c => c.quantity > 1).length} repetidas</span>
+                    )}
+                  </p>
+                </div>
+                <div className="h-2 bg-[#07080f] rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, collection.length)}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-[10px] text-slate-500">
+                  {searchQuery || filterRarity !== 'todas' ? (
+                    <><span className="text-slate-300 font-bold">{filteredCards.length}</span> resultados</>
+                  ) : (
+                    <>{collection.length} cartas únicas</>
+                  )}
                 </p>
               </div>
               {filteredCards.length === 0 ? (
