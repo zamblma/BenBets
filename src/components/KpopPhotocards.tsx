@@ -1,62 +1,36 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Medal, Package, BookOpen, Star, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PokemonCard } from '../types';
 
 const PACK_PRICE = 50;
 
-interface KpopMember {
-  id: string;
-  name: string;
-  groupName: string;
-  groupColor: string;
-}
-
-const GROUPS: { name: string; color: string; members: { name: string }[] }[] = [
-  { name: 'BTS', color: 'purple-400', members: [
-    { name: 'RM' }, { name: 'Jin' }, { name: 'Suga' }, { name: 'J-Hope' },
-    { name: 'Jimin' }, { name: 'V' }, { name: 'Jungkook' },
-  ]},
-  { name: 'BLACKPINK', color: 'pink-400', members: [
-    { name: 'Jisoo' }, { name: 'Jennie' }, { name: 'Rosé' }, { name: 'Lisa' },
-  ]},
-  { name: 'TWICE', color: 'hotpink', members: [
-    { name: 'Nayeon' }, { name: 'Jeongyeon' }, { name: 'Momo' }, { name: 'Sana' },
-    { name: 'Jihyo' }, { name: 'Mina' }, { name: 'Dahyun' }, { name: 'Chaeyoung' }, { name: 'Tzuyu' },
-  ]},
-  { name: 'NewJeans', color: 'blue-300', members: [
-    { name: 'Minji' }, { name: 'Hanni' }, { name: 'Danielle' }, { name: 'Haerin' }, { name: 'Hyein' },
-  ]},
-  { name: 'Stray Kids', color: 'red-400', members: [
-    { name: 'Bang Chan' }, { name: 'Lee Know' }, { name: 'Changbin' }, { name: 'Hyunjin' },
-    { name: 'Han' }, { name: 'Felix' }, { name: 'Seungmin' }, { name: 'I.N' },
-  ]},
-  { name: '(G)I-DLE', color: 'rose-400', members: [
-    { name: 'Soyeon' }, { name: 'Miyeon' }, { name: 'Minnie' }, { name: 'Yuqi' }, { name: 'Shuhua' },
-  ]},
-  { name: 'LE SSERAFIM', color: 'sky-400', members: [
-    { name: 'Sakura' }, { name: 'Kim Chaewon' }, { name: 'Huh Yunjin' }, { name: 'Kazuha' }, { name: 'Hong Eunchae' },
-  ]},
-  { name: 'aespa', color: 'violet-400', members: [
-    { name: 'Karina' }, { name: 'Winter' }, { name: 'Giselle' }, { name: 'Ningning' },
-  ]},
-  { name: 'ENHYPEN', color: 'orange-400', members: [
-    { name: 'Jungwon' }, { name: 'Heeseung' }, { name: 'Jay' }, { name: 'Jake' },
-    { name: 'Sunghoon' }, { name: 'Sunoo' }, { name: 'Ni-ki' },
-  ]},
-  { name: 'ITZY', color: 'lime-400', members: [
-    { name: 'Yeji' }, { name: 'Lia' }, { name: 'Ryujin' }, { name: 'Chaeryeong' }, { name: 'Yuna' },
-  ]},
+const GROUPS: { name: string; color: string; members: string[] }[] = [
+  { name: 'BTS', color: 'purple-400', members: ['RM', 'Jin', 'Suga', 'J-Hope', 'Jimin', 'V', 'Jungkook'] },
+  { name: 'BLACKPINK', color: 'pink-400', members: ['Jisoo', 'Jennie', 'Rosé', 'Lisa'] },
+  { name: 'TWICE', color: 'hotpink', members: ['Nayeon', 'Jeongyeon', 'Momo', 'Sana', 'Jihyo', 'Mina', 'Dahyun', 'Chaeyoung', 'Tzuyu'] },
+  { name: 'NewJeans', color: 'blue-300', members: ['Minji', 'Hanni', 'Danielle', 'Haerin', 'Hyein'] },
+  { name: 'Stray Kids', color: 'red-400', members: ['Bang Chan', 'Lee Know', 'Changbin', 'Hyunjin', 'Han', 'Felix', 'Seungmin', 'I.N'] },
+  { name: '(G)I-DLE', color: 'rose-400', members: ['Soyeon', 'Miyeon', 'Minnie', 'Yuqi', 'Shuhua'] },
+  { name: 'LE SSERAFIM', color: 'sky-400', members: ['Sakura', 'Kim Chaewon', 'Huh Yunjin', 'Kazuha', 'Hong Eunchae'] },
+  { name: 'aespa', color: 'violet-400', members: ['Karina', 'Winter', 'Giselle', 'Ningning'] },
+  { name: 'ENHYPEN', color: 'orange-400', members: ['Jungwon', 'Heeseung', 'Jay', 'Jake', 'Sunghoon', 'Sunoo', 'Ni-ki'] },
+  { name: 'ITZY', color: 'lime-400', members: ['Yeji', 'Lia', 'Ryujin', 'Chaeryeong', 'Yuna'] },
+  { name: 'SEVENTEEN', color: 'amber-400', members: ['S.Coups', 'Jeonghan', 'Joshua', 'Jun', 'Hoshi', 'Wonwoo', 'Woozi', 'DK', 'Mingyu', 'The8', 'Seungkwan', 'Vernon', 'Dino'] },
+  { name: 'NCT 127', color: 'cyan-400', members: ['Taeil', 'Johnny', 'Taeyong', 'Yuta', 'Doyoung', 'Jaehyun', 'Jungwoo', 'Mark', 'Haechan'] },
+  { name: 'EXO', color: 'teal-400', members: ['Suho', 'Xiumin', 'Baekhyun', 'Chen', 'Chanyeol', 'D.O.', 'Kai', 'Sehun'] },
+  { name: 'Red Velvet', color: 'red-300', members: ['Irene', 'Seulgi', 'Wendy', 'Joy', 'Yeri'] },
+  { name: 'MAMAMOO', color: 'green-400', members: ['Solar', 'Moonbyul', 'Wheein', 'Hwasa'] },
+  { name: 'IVE', color: 'yellow-300', members: ['Yujin', 'Gaeul', 'Rei', 'Wonyoung', 'Liz', 'Leeseo'] },
+  { name: 'ATEEZ', color: 'indigo-400', members: ['Hongjoong', 'Seonghwa', 'Yunho', 'Yeosang', 'San', 'Mingi', 'Wooyoung', 'Jongho'] },
+  { name: 'Dreamcatcher', color: 'fuchsia-400', members: ['JiU', 'SuA', 'Siyeon', 'Handong', 'Yoohyeon', 'Dami', 'Gahyeon'] },
+  { name: 'ZEROBASEONE', color: 'lime-300', members: ['Zhang Hao', 'Sung Hanbin', 'Matthew', 'Taerae', 'Ricky', 'Gyuvin', 'Gunwook', 'Yujin', 'Jiwoong'] },
+  { name: 'RIIZE', color: 'blue-400', members: ['Shotaro', 'Eunseok', 'Sungchan', 'Wonbin', 'Seunghan', 'Sohee', 'Anton'] },
 ];
 
-const ALL_MEMBERS: KpopMember[] = [];
-for (const g of GROUPS) {
-  for (const m of g.members) {
-    ALL_MEMBERS.push({ id: `${g.name}-${m.name}`.replace(/[^a-zA-Z0-9]/g, '_'), name: m.name, groupName: g.name, groupColor: g.color });
-  }
-}
-
-const POSITIONS = ['Leader', 'Vocal', 'Dancer', 'Rapper', 'Visual', 'Center'] as const;
+const ALL_MEMBERS = GROUPS.flatMap(g =>
+  g.members.map(m => ({ id: `${g.name}-${m}`.replace(/[^a-zA-Z0-9]/g, '_'), name: m, groupName: g.name, groupColor: g.color }))
+);
 
 function getRarityLevel(rarity: string): number {
   if (rarity === 'Ultra Rare') return 3;
@@ -87,28 +61,23 @@ function getBasePrice(rarity: string): number {
 }
 
 function generatePhotocards(): PokemonCard[] {
-  const pick = (arr: KpopMember[]) => arr[Math.floor(Math.random() * arr.length)];
+  const pick = (arr: typeof ALL_MEMBERS) => arr[Math.floor(Math.random() * arr.length)];
   const result: PokemonCard[] = [];
-  for (let i = 0; i < 3; i++) {
-    const m = pick(ALL_MEMBERS);
-    result.push({ id: m.id, name: m.name, imageUrl: '', rarity: 'Common' as string, setName: m.groupName, setSeries: 'K-pop', quantity: 1 });
-    result[result.length - 1].rarity = 'Common';
-  }
-  for (let i = 0; i < 2; i++) {
-    const m = pick(ALL_MEMBERS);
-    result.push({ id: m.id, name: m.name, imageUrl: '', rarity: 'Uncommon' as string, setName: m.groupName, setSeries: 'K-pop', quantity: 1 });
-  }
-  const r = pick(ALL_MEMBERS);
-  result.push({ id: r.id, name: r.name, imageUrl: '', rarity: Math.random() < 0.3 ? 'Ultra Rare' : 'Rare', setName: r.groupName, setSeries: 'K-pop', quantity: 1 });
+  for (let i = 0; i < 3; i++) { const m = pick(ALL_MEMBERS); result.push({ id: m.id, name: m.name, imageUrl: '', rarity: 'Common', setName: m.groupName, setSeries: 'K-pop', quantity: 1 }); }
+  for (let i = 0; i < 2; i++) { const m = pick(ALL_MEMBERS); result.push({ id: m.id, name: m.name, imageUrl: '', rarity: 'Uncommon', setName: m.groupName, setSeries: 'K-pop', quantity: 1 }); }
+  const r = pick(ALL_MEMBERS); result.push({ id: r.id, name: r.name, imageUrl: '', rarity: Math.random() < 0.3 ? 'Ultra Rare' : 'Rare', setName: r.groupName, setSeries: 'K-pop', quantity: 1 });
   return result;
 }
 
-function getMemberImage(member: KpopMember): string {
+function getMemberImage(member: typeof ALL_MEMBERS[number]): string {
   const initials = member.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || member.name[0];
   const colors: Record<string, string> = {
     'purple-400': '7c3aed', 'pink-400': 'db2777', 'hotpink': 'd946ef',
     'blue-300': '3b82f6', 'red-400': 'ef4444', 'rose-400': 'e11d48',
     'sky-400': '38bdf8', 'violet-400': '7c3aed', 'orange-400': 'f97316', 'lime-400': '65a30d',
+    'amber-400': 'd97706', 'cyan-400': '06b6d4', 'teal-400': '14b8a6', 'red-300': 'f87171',
+    'green-400': '22c55e', 'yellow-300': 'facc15', 'indigo-400': '6366f1', 'fuchsia-400': 'd946ef',
+    'lime-300': '9ecb3c', 'blue-400': '3b82f6',
   };
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${colors[member.groupColor] || '7c3aed'}&color=fff&size=128&bold=true&font-size=0.4`;
 }
@@ -141,11 +110,15 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
   const uniqueCount = collection.length;
   const progress = Math.round((uniqueCount / totalMembers) * 100);
 
-  const filteredCollection = collection.filter(c => {
-    if (filterRarity !== 'todas' && getRarityLevel(c.rarity) !== parseInt(filterRarity)) return false;
-    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase()) && !c.setName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const groupedCollection = useMemo(() => {
+    const groups: Record<string, PokemonCard[]> = {};
+    const filtered = filterRarity === 'todas' ? collection : collection.filter(c => getRarityLevel(c.rarity) === parseInt(filterRarity));
+    for (const card of filtered) {
+      if (searchQuery && !card.name.toLowerCase().includes(searchQuery.toLowerCase()) && !card.setName.toLowerCase().includes(searchQuery.toLowerCase())) continue;
+      (groups[card.setName] ??= []).push(card);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [collection, filterRarity, searchQuery]);
 
   return (
     <div className="space-y-4">
@@ -230,46 +203,43 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
           <p className="text-slate-500 text-xs mt-1">Compre pacotes para começar sua coleção de {totalMembers} photocards de {GROUPS.length} grupos!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3">
-            <div className="flex gap-2 items-center">
-              <Search className="w-4 h-4 text-slate-500 shrink-0" />
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar por nome ou grupo..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
-              {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
-            </div>
-          </div>
-          {filteredCollection.length === 0 ? (
-            <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
-              <p className="text-slate-400 text-sm font-bold">Nenhum resultado</p>
-              <p className="text-slate-500 text-xs mt-1">Tente ajustar os filtros ou busca.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-              {filteredCollection.map(card => {
-                const member = ALL_MEMBERS.find(m => m.id === card.id);
-                const isRare = getRarityLevel(card.rarity) >= 2;
-                const price = getBasePrice(card.rarity);
-                return (
-                  <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)}`}>
-                    <div className="bg-[#07080f] p-2 flex items-center justify-center aspect-[3/4]">
-                      {member && <img src={getMemberImage(member)} alt={card.name} className="w-full h-full object-contain" />}
-                    </div>
-                    <div className="p-2 text-center">
-                      <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-pink-400 transition-colors">{card.name}</p>
-                      <span className={`text-[7px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</span>
-                      <span className="text-[7px] text-slate-500 ml-1">{card.setName}</span>
-                      {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
-                    </div>
-                    {card.quantity > 1 && (
-                      <button onClick={() => onSellCard(card.id, price)} className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">
-                        R$ {price.toFixed(2)}
-                      </button>
-                    )}
+        <div className="space-y-4">
+          {groupedCollection.map(([groupName, cards]) => {
+            const group = GROUPS.find(g => g.name === groupName);
+            const groupMembers = group ? group.members.length : cards.length;
+            return (
+              <div key={groupName} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between bg-[#07080f] border-b border-[#1a1c2a]">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold text-${group?.color || 'slate-200'}`}>{groupName}</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <span className="text-[10px] font-bold text-slate-500">{cards.length}/{groupMembers}</span>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-3">
+                  {cards.map(card => {
+                    const member = ALL_MEMBERS.find(m => m.id === card.id);
+                    const isRare = getRarityLevel(card.rarity) >= 2;
+                    const price = getBasePrice(card.rarity);
+                    return (
+                      <div key={card.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all group relative ${isRare ? getRarityBorder(card.rarity) : 'border-[#1a1c2a]'}`}>
+                        <div className="p-1.5 flex items-center justify-center aspect-[3/4]">
+                          {member && <img src={getMemberImage(member)} alt={card.name} className="w-full h-full object-contain" />}
+                        </div>
+                        <div className="p-1 text-center">
+                          <p className="text-[7px] font-bold text-slate-200 truncate">{card.name}</p>
+                          <p className={`text-[6px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p>
+                          {card.quantity > 1 && <span className="text-[7px] text-slate-500">×{card.quantity}</span>}
+                        </div>
+                        {card.quantity > 1 && (
+                          <button onClick={() => onSellCard(card.id, price)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">R$ {price.toFixed(2)}</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
