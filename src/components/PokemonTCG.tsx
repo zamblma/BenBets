@@ -36,6 +36,7 @@ interface TCGSets {
   series: string;
   releaseDate: string;
   printedTotal: number;
+  total?: number;
   images: { logo: string; symbol: string };
 }
 
@@ -380,16 +381,17 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
                   <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
                   {(() => {
+                    const totalCards = set.total || set.printedTotal;
                     const owned = collection.filter(c => c.setName === set.name).length;
-                    const pct = Math.round((owned / set.printedTotal) * 100);
+                    const pct = Math.min(Math.round((owned / totalCards) * 100), 100);
                     return (
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[8px] text-slate-500 mb-0.5">
-                          <span>{owned}/{set.printedTotal}</span>
-                          <span className={pct >= 100 ? 'text-green-400 font-bold' : ''}>{pct}%</span>
+                          <span>{owned}/{totalCards}</span>
+                          <span className={pct >= 100 ? 'text-green-400 font-bold' : ''}>{pct < 100 ? pct + '%' : '100%'}</span>
                         </div>
                         <div className="h-1 bg-[#07080f] rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${pct}%` }} />
+                          <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                         </div>
                       </div>
                     );
