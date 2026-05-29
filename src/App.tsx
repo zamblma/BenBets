@@ -27,7 +27,8 @@ import { Match, BetSelection, PlacedBet, Transaction, PokemonCard } from './type
 // Source data
 import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
-import { auth } from './firebase/config';
+import { auth, db } from './firebase/config';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
@@ -302,6 +303,22 @@ export default function App() {
     if (firebaseUser) removePokemonCard(firebaseUser.uid, cardId).catch(() => {});
   };
 
+  const handleSellAllDuplicates = (prices: Record<string, number>) => {
+    setPokemonCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = collection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    setBalance(prev => prev + total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.pokemonCollection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { pokemonCollection: updated });
+      }).catch(() => {});
+    }
+  };
+
   // Filtered Matches selector
   const filteredMatches = matches.filter(match => {
     const matchesSearch = 
@@ -492,6 +509,7 @@ export default function App() {
                 collection={pokemonCollection}
                 onCollectionUpdate={handlePokemonCollectionUpdate}
                 onSellCard={handleSellPokemonCard}
+                onSellAllDuplicates={handleSellAllDuplicates}
               />
             </div>
           ) : selectedSport === 'Cassino' ? (

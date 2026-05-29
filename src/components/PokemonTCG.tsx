@@ -19,6 +19,7 @@ interface PokemonTCGProps {
   collection: PokemonCard[];
   onCollectionUpdate: (cards: PokemonCard[]) => void;
   onSellCard: (cardId: string, price: number) => void;
+  onSellAllDuplicates: (prices: Record<string, number>) => void;
 }
 
 interface TCGCard {
@@ -93,7 +94,7 @@ function generatePack(cards: TCGCard[], setName: string, setSeries: string): Pok
   }));
 }
 
-export default function PokemonTCG({ balance, onUpdateBalance, userId, collection, onCollectionUpdate }: PokemonTCGProps) {
+export default function PokemonTCG({ balance, onUpdateBalance, userId, collection, onCollectionUpdate, onSellCard, onSellAllDuplicates }: PokemonTCGProps) {
   const [view, setView] = useState<'sets' | 'collection' | 'market'>('sets');
   const [sets, setSets] = useState<TCGSets[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
@@ -442,10 +443,15 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         <div className="space-y-3">
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-4 flex items-center gap-3">
             <TrendingUp className="w-5 h-5 text-emerald-400" />
-            <div>
+            <div className="flex-1">
               <p className="text-xs font-bold text-slate-200">Mercado de Cartas</p>
-              <p className="text-[10px] text-slate-500">Preços simulados com flutuação a cada 20s • Venda suas cartas repetidas</p>
+              <p className="text-[10px] text-slate-500">Preços simulados com flutuação a cada 20s</p>
             </div>
+            {collection.some(c => c.quantity > 1) && (
+              <button onClick={() => onSellAllDuplicates(pricesRef.current)} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer shrink-0" title="Vender todas as cartas repetidas">
+                Vender Repetidas
+              </button>
+            )}
           </div>
           {/* Filters */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
