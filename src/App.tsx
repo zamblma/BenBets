@@ -305,7 +305,7 @@ export default function App() {
 
   const handleSellAllDuplicates = (prices: Record<string, number>) => {
     setPokemonCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
-    const total = collection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    const total = pokemonCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
     setBalance(prev => prev + total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
