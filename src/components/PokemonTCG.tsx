@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Package, ChevronRight, Search, Loader2, Sparkles, BookOpen, ArrowLeft, X } from 'lucide-react';
+import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Gem, Star } from 'lucide-react';
 import type { PokemonCard } from '../types';
+
+const API_BASE = 'https://api.pokemontcg.io/v2';
+const PACK_BASE_PRICE = 14.90;
+const PACK_OPTIONS = [
+  { qty: 1, price: 14.90, label: '1 pacote' },
+  { qty: 3, price: 39.90, label: '3 pacotes', badge: '−11%' },
+  { qty: 5, price: 59.90, label: '5 pacotes', badge: '−20%' },
+  { qty: 10, price: 99.90, label: '10 pacotes', badge: '−33%' },
+];
 
 interface PokemonTCGProps {
   balance: number;
@@ -28,8 +37,60 @@ interface TCGSets {
   images: { logo: string; symbol: string };
 }
 
-const API_BASE = 'https://api.pokemontcg.io/v2';
-const PACK_PRICE = 5;
+function getCardRarityLevel(rarity: string): number {
+  if (!rarity || rarity === 'Common') return 0;
+  if (rarity === 'Uncommon') return 1;
+  if (rarity === 'Rare') return 2;
+  if (rarity === 'Rare Holo' || rarity === 'Rare Holo V') return 3;
+  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow') return 4;
+  if (rarity === 'Rare Secret') return 5;
+  if (rarity.includes('Rare')) return 2;
+  return 0;
+}
+
+function getRarityBorder(rarity: string): string {
+  const lvl = getCardRarityLevel(rarity);
+  if (lvl === 0) return 'border-slate-700';
+  if (lvl === 1) return 'border-green-600 shadow-[0_0_8px_rgba(34,197,94,0.3)]';
+  if (lvl === 2) return 'border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.4)]';
+  if (lvl === 3) return 'border-yellow-400 shadow-[0_0_18px_rgba(234,179,8,0.6)] shimmer-gold';
+  if (lvl === 4) return 'border-purple-400 shadow-[0_0_22px_rgba(168,85,247,0.7)] shimmer-rainbow';
+  if (lvl === 5) return 'border-red-400 shadow-[0_0_28px_rgba(248,113,113,0.8)] shimmer-rainbow';
+  return 'border-slate-700';
+}
+
+function getRarityLabel(rarity: string): string {
+  const lvl = getCardRarityLevel(rarity);
+  if (lvl <= 1) return 'Comum';
+  if (lvl === 2) return 'Rara';
+  if (lvl === 3) return 'Holográfica';
+  if (lvl === 4) return 'Ultra Rara';
+  if (lvl === 5) return 'Secret Rara';
+  return rarity;
+}
+
+function generatePack(cards: TCGCard[], setName: string, setSeries: string): PokemonCard[] {
+  const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
+  const uncommon = cards.filter(c => c.rarity === 'Uncommon');
+  const rare = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
+  const pick = (pool: TCGCard[]) => pool[Math.floor(Math.random() * pool.length)] || cards[Math.floor(Math.random() * cards.length)];
+
+  const result: PokemonCard[] = [];
+  for (let i = 0; i < 5; i++) result.push({ ...pick(common), quantity: 1, setName, setSeries, imageUrl: pick(common).images?.small || '' });
+  for (let i = 0; i < 3; i++) result.push({ ...pick(uncommon), quantity: 1, setName, setSeries, imageUrl: pick(uncommon).images?.small || '' });
+  const rareCard = pick(rare);
+  result.push({ ...rareCard, quantity: 1, setName, setSeries, imageUrl: rareCard.images?.small || '' });
+
+  return result.map(c => ({
+    id: c.id,
+    name: c.name,
+    imageUrl: c.imageUrl,
+    rarity: c.rarity || 'Common',
+    setName: c.setName as string,
+    setSeries: c.setSeries as string,
+    quantity: 1,
+  }));
+}
 
 export default function PokemonTCG({ balance, onUpdateBalance, userId, collection, onCollectionUpdate }: PokemonTCGProps) {
   const [view, setView] = useState<'sets' | 'collection'>('sets');
@@ -38,27 +99,24 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [selectedSet, setSelectedSet] = useState<TCGSets | null>(null);
   const [setCards, setSetCards] = useState<TCGCard[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
+  const [packQty, setPackQty] = useState(1);
   const [packResult, setPackResult] = useState<PokemonCard[]>([]);
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
+  const canBuy = balance >= selectedOption.price && setCards.length > 0;
+
   useEffect(() => {
     const cached = sessionStorage.getItem('pokemonSets');
-    if (cached) {
-      setSets(JSON.parse(cached));
-      setSetsLoading(false);
-      return;
-    }
+    if (cached) { setSets(JSON.parse(cached)); setSetsLoading(false); return; }
     fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=20`)
-      .then(r => r.json())
-      .then(d => {
+      .then(r => r.json()).then(d => {
         const list: TCGSets[] = d.data || [];
         setSets(list);
         sessionStorage.setItem('pokemonSets', JSON.stringify(list));
-      })
-      .catch(() => {})
-      .finally(() => setSetsLoading(false));
+      }).catch(() => {}).finally(() => setSetsLoading(false));
   }, []);
 
   const fetchSetCards = useCallback(async (setId: string) => {
@@ -72,82 +130,45 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   }, []);
 
   const handleOpenPack = async () => {
-    if (!selectedSet || balance < PACK_PRICE) return;
-    if (setCards.length === 0) {
-      await fetchSetCards(selectedSet.id);
-    }
-    onUpdateBalance(-PACK_PRICE);
+    if (!selectedSet || !canBuy) return;
+    if (setCards.length === 0) await fetchSetCards(selectedSet.id);
+
+    onUpdateBalance(-selectedOption.price);
     setOpening(true);
     setPackResult([]);
     setRevealingIndex(-1);
 
-    const cards = setCards.length > 0 ? setCards : [];
-    if (cards.length === 0) {
-      setOpening(false);
-      return;
+    const cards = setCards;
+    if (cards.length === 0) { setOpening(false); return; }
+
+    const allCards: PokemonCard[] = [];
+    for (let i = 0; i < packQty; i++) {
+      allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series));
     }
+    allCards.sort((a, b) => getCardRarityLevel(a.rarity) - getCardRarityLevel(b.rarity));
+    setPackResult(allCards);
 
-    const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
-    const uncommon = cards.filter(c => c.rarity === 'Uncommon');
-    const rare = cards.filter(c => c.rarity && c.rarity !== 'Common' && c.rarity !== 'Uncommon');
-
-    const picks: TCGCard[] = [];
-    for (let i = 0; i < 5; i++) {
-      if (common.length > 0) picks.push(common[Math.floor(Math.random() * common.length)]);
-      else picks.push(cards[Math.floor(Math.random() * cards.length)]);
-    }
-    for (let i = 0; i < 3; i++) {
-      if (uncommon.length > 0) picks.push(uncommon[Math.floor(Math.random() * uncommon.length)]);
-      else picks.push(cards[Math.floor(Math.random() * cards.length)]);
-    }
-    if (rare.length > 0) picks.push(rare[Math.floor(Math.random() * rare.length)]);
-    else picks.push(cards[Math.floor(Math.random() * cards.length)]);
-
-    const result: PokemonCard[] = picks.map(c => ({
-      id: c.id,
-      name: c.name,
-      imageUrl: c.images?.small || '',
-      rarity: c.rarity || 'Common',
-      setName: selectedSet.name,
-      setSeries: selectedSet.series,
-      quantity: 1,
-    }));
-
-    setPackResult(result);
-
-    for (let i = 0; i < result.length; i++) {
-      await new Promise(r => setTimeout(r, 300));
+    const delay = allCards.length <= 9 ? 350 : 200;
+    for (let i = 0; i < allCards.length; i++) {
+      await new Promise(r => setTimeout(r, delay));
       setRevealingIndex(i);
     }
 
-    onCollectionUpdate(result);
+    onCollectionUpdate(allCards);
   };
 
-  const getRarityColor = (rarity: string) => {
-    if (rarity === 'Rare Holo' || rarity === 'Rare Holo V') return 'text-yellow-400';
-    if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow') return 'text-purple-400';
-    if (rarity === 'Rare Secret') return 'text-red-400';
-    if (rarity === 'Common') return 'text-slate-400';
-    if (rarity === 'Uncommon') return 'text-green-400';
-    if (rarity?.includes('Rare')) return 'text-amber-400';
-    return 'text-slate-400';
-  };
-
-  const filteredSets = sets.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.series.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const isSpecial = (r: string) => getCardRarityLevel(r) >= 3;
 
   return (
     <div className="space-y-4">
-      {/* Infos Header */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-amber-900/20 via-[#0e1017] to-amber-900/10 p-5 rounded-2xl border border-amber-950/40 flex items-center gap-4">
         <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
           <Gift className="w-6 h-6" />
         </div>
         <div>
           <h3 className="font-extrabold text-white text-base">Pokémon TCG — Pacotes & Coleção</h3>
-          <p className="text-slate-400 text-xs">Compre pacotes por R$ {PACK_PRICE.toFixed(2)} e complete sua coleção de cartas!</p>
+          <p className="text-slate-400 text-xs">A partir de R$ 14,90 por pacote • Preços reais do mercado brasileiro</p>
         </div>
       </div>
 
@@ -168,58 +189,83 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => {}}
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="text-center max-w-lg w-full">
+            <div className="text-center max-w-2xl w-full py-4">
               <motion.h3
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="text-amber-400 font-extrabold text-lg mb-4"
+                className="text-amber-400 font-extrabold text-lg mb-2"
               >
-                🎴 Abrindo Pacote — {selectedSet?.name}
+                🎴 {packQty > 1 ? `${packQty} Pacotes` : 'Pacote'} — {selectedSet?.name}
               </motion.h3>
-              <div className="grid grid-cols-4 gap-3 justify-items-center">
-                {packResult.map((card, idx) => (
-                  <motion.div
-                    key={card.id}
-                    initial={{ rotateY: 180, opacity: 0, scale: 0.5 }}
-                    animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}}
-                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                    className="bg-[#1a1c2a] rounded-xl overflow-hidden border border-[#2a2d47] shadow-lg"
-                  >
-                    <img
-                      src={card.imageUrl}
-                      alt={card.name}
-                      className="w-full aspect-[2/3] object-cover"
-                      loading="lazy"
-                    />
-                    <div className="p-1.5 text-center">
-                      <p className="text-[8px] font-bold text-slate-200 truncate">{card.name}</p>
-                      <span className={`text-[7px] font-bold ${getRarityColor(card.rarity)}`}>{card.rarity}</span>
-                    </div>
-                  </motion.div>
-                ))}
+              <p className="text-slate-500 text-xs mb-4">
+                {revealingIndex + 1} de {packResult.length} cartas reveladas
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
+                {packResult.map((card, idx) => {
+                  const lvl = getCardRarityLevel(card.rarity);
+                  const border = getRarityBorder(card.rarity);
+                  const isRare = lvl >= 3;
+                  return (
+                    <motion.div
+                      key={`${card.id}-${idx}`}
+                      initial={{ rotateY: 180, opacity: 0, scale: 0.3, y: 40 }}
+                      animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1, y: 0 } : {}}
+                      transition={{ type: 'spring', stiffness: 180, damping: 18, delay: 0 }}
+                      className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${border} shadow-lg ${isRare ? 'relative' : ''}`}
+                    >
+                      {isRare && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={idx <= revealingIndex ? { opacity: [0, 0.5, 0.3] } : {}}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none z-10"
+                        />
+                      )}
+                      <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover relative z-0" loading="lazy" />
+                      <div className="p-1.5 text-center relative z-10">
+                        <p className="text-[8px] font-bold text-slate-200 truncate">{card.name}</p>
+                        <span className={`text-[7px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                          {card.rarity === 'Rare Secret' ? '⭐' : card.rarity === 'Rare Rainbow' ? '🌈' : card.rarity === 'Rare Ultra' ? '💎' : ''}
+                          {getRarityLabel(card.rarity)}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
               {revealingIndex >= packResult.length - 1 && (
-                <motion.button
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={() => { setOpening(false); setPackResult([]); }}
-                  className="mt-6 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4 inline mr-1.5" /> Continuar
-                </motion.button>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                  {packResult.some(c => isSpecial(c.rarity)) && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [0, 1.2, 1] }}
+                      transition={{ type: 'spring', stiffness: 200 }}
+                      className="text-yellow-400 font-extrabold text-sm mt-4 flex items-center justify-center gap-2"
+                    >
+                      <Star className="w-5 h-5 fill-yellow-400" /> Carta&nbsp;
+                      {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 'Especiais' : 'Especial'} Encontrada
+                      {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 's' : ''}! <Star className="w-5 h-5 fill-yellow-400" />
+                    </motion.div>
+                  )}
+                  <button
+                    onClick={() => { setOpening(false); setPackResult([]); }}
+                    className="mt-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 inline mr-1.5" /> Continuar
+                  </button>
+                </motion.div>
               )}
               {revealingIndex < packResult.length - 1 && (
-                <p className="mt-4 text-amber-400/60 text-xs animate-pulse">Revelando cartas...</p>
+                <p className="mt-4 text-amber-400/60 text-xs animate-pulse">✨ Revelando cartas...</p>
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* SETS VIEW */}
+      {/* SETS GRID */}
       {view === 'sets' && !selectedSet && (
         <div className="space-y-3">
           <div className="flex gap-2 items-center bg-[#0d0e16] rounded-xl p-3 border border-[#1a1c2a]">
@@ -227,44 +273,35 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar coleção..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
             {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
           </div>
-
           {setsLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filteredSets.map(set => (
-                <button
-                  key={set.id}
-                  onClick={() => { setSelectedSet(set); fetchSetCards(set.id); }}
-                  className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group"
-                >
+              {sets.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.series.toLowerCase().includes(searchQuery.toLowerCase())).map(set => (
+                <button key={set.id} onClick={() => { setSelectedSet(set); fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group">
                   <div className="bg-[#07080f] rounded-lg p-3 flex items-center justify-center aspect-[2/1] mb-2 border border-[#1a1c2a]">
-                    {set.images?.logo ? (
-                      <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" />
-                    ) : (
-                      <Package className="w-8 h-8 text-slate-500" />
-                    )}
+                    {set.images?.logo ? <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" /> : <Package className="w-8 h-8 text-slate-500" />}
                   </div>
                   <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
                   <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
-                  <div className="mt-2 bg-amber-500/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center">Abrir Pacote R$ {PACK_PRICE.toFixed(2)}</div>
+                  <div className="mt-2 bg-amber-500/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center">A partir de R$ 14,90</div>
                 </button>
               ))}
-              {filteredSets.length === 0 && <div className="col-span-full text-center text-slate-500 text-xs py-8">Nenhuma coleção encontrada.</div>}
+              {sets.length === 0 && <div className="col-span-full text-center text-slate-500 text-xs py-8">Nenhuma coleção encontrada.</div>}
             </div>
           )}
         </div>
       )}
 
-      {/* SET DETAIL */}
+      {/* SET DETAIL + BUY */}
       {view === 'sets' && selectedSet && !opening && (
         <div className="space-y-4">
           <button onClick={() => { setSelectedSet(null); setPackResult([]); }} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-amber-400 transition-colors cursor-pointer">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar para coleções
           </button>
 
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 flex items-center gap-4">
-            <div className="bg-[#07080f] rounded-xl p-4 flex items-center justify-center w-24 h-24 border border-[#1a1c2a]">
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="bg-[#07080f] rounded-xl p-4 flex items-center justify-center w-24 h-24 border border-[#1a1c2a] shrink-0">
               {selectedSet.images?.logo ? <img src={selectedSet.images.logo} alt={selectedSet.name} className="h-12 object-contain" /> : <Package className="w-8 h-8 text-slate-500" />}
             </div>
             <div className="flex-1">
@@ -275,23 +312,56 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <span className="font-mono font-bold text-amber-400">R$ {balance.toFixed(2)}</span>
               </div>
             </div>
-            <button
-              onClick={handleOpenPack}
-              disabled={balance < PACK_PRICE || cardsLoading}
-              className="bg-amber-500 hover:bg-amber-400 disabled:bg-[#151724] disabled:text-[#383d5a] disabled:cursor-not-allowed text-slate-950 font-black px-5 py-3 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_12px_rgba(255,191,0,0.2)]"
-            >
-              {cardsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              Comprar R$ {PACK_PRICE.toFixed(2)}
-            </button>
           </div>
 
-          {cardsLoading && (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>
-          )}
+          {/* Quantity selector */}
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 space-y-3">
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quantidade de pacotes</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PACK_OPTIONS.map(opt => {
+                const selected = packQty === opt.qty;
+                const affordable = balance >= opt.price;
+                return (
+                  <button
+                    key={opt.qty}
+                    onClick={() => setPackQty(opt.qty)}
+                    disabled={!affordable}
+                    className={`relative p-3 rounded-xl border text-center transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+                      selected ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-[#07080f] border-[#1a1c2a] text-slate-300 hover:border-amber-500/30'
+                    }`}
+                  >
+                    {opt.badge && (
+                      <span className={`absolute -top-2 -right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selected ? 'bg-amber-500 text-slate-950' : 'bg-green-500 text-white'}`}>
+                        {opt.badge}
+                      </span>
+                    )}
+                    <p className="text-sm font-extrabold">{opt.qty}x</p>
+                    <p className="text-[10px] text-slate-400">{opt.label}</p>
+                    <p className={`text-[11px] font-bold mt-0.5 ${selected ? 'text-amber-400' : 'text-slate-300'}`}>R$ {opt.price.toFixed(2)}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-[#1a1c2a]">
+              <span>Total: <span className="font-bold text-white">{selectedOption.qty} pacote{selectedOption.qty > 1 ? 's' : ''}</span></span>
+              <span className="font-mono font-bold text-amber-400 text-sm">R$ {selectedOption.price.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleOpenPack}
+            disabled={!canBuy || cardsLoading}
+            className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-[#151724] disabled:text-[#383d5a] disabled:cursor-not-allowed text-slate-950 font-black py-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,191,0,0.2)]"
+          >
+            {cardsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {cardsLoading ? 'Carregando cartas...' : `Comprar ${selectedOption.qty} Pacote${selectedOption.qty > 1 ? 's' : ''} — R$ ${selectedOption.price.toFixed(2)}`}
+          </button>
+
+          {cardsLoading && <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>}
         </div>
       )}
 
-      {/* COLLECTION VIEW */}
+      {/* COLLECTION */}
       {view === 'collection' && (
         <div className="space-y-3">
           {collection.length === 0 ? (
@@ -302,14 +372,21 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           ) : (
             <>
-              <p className="text-xs text-slate-400"><span className="text-amber-400 font-bold">{collection.length}</span> cartas únicas na coleção</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-400"><span className="text-amber-400 font-bold">{collection.length}</span> cartas únicas</p>
+                <p className="text-xs text-slate-500">
+                  {collection.filter(c => getCardRarityLevel(c.rarity) >= 3).length} especiais
+                </p>
+              </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                 {collection.map(card => (
-                  <div key={card.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden hover:border-amber-500/30 transition-all group">
+                  <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group ${getRarityBorder(card.rarity)}`}>
                     <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
                     <div className="p-2 text-center">
                       <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
-                      <span className={`text-[7px] font-bold ${getRarityColor(card.rarity)}`}>{card.rarity}</span>
+                      <span className={`text-[7px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                        {getRarityLabel(card.rarity)}
+                      </span>
                       {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
                     </div>
                   </div>

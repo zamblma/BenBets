@@ -49,4 +49,18 @@ body {
   background: #334155;
 }
 
+/* Rarity shimmer effects for Pokémon TCG */
+@keyframes shimmer-gold {
+  0%, 100% { box-shadow: 0 0 8px rgba(234,179,8,0.3), 0 0 16px rgba(234,179,8,0.1); }
+  50% { box-shadow: 0 0 18px rgba(234,179,8,0.6), 0 0 32px rgba(234,179,8,0.2); }
+}
+@keyframes shimmer-rainbow {
+  0% { filter: hue-rotate(0deg); box-shadow: 0 0 12px rgba(168,85,247,0.4); }
+  33% { filter: hue-rotate(120deg); box-shadow: 0 0 12px rgba(59,130,246,0.4); }
+  66% { filter: hue-rotate(240deg); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+  100% { filter: hue-rotate(360deg); box-shadow: 0 0 12px rgba(168,85,247,0.4); }
+}
+.shimmer-gold { animation: shimmer-gold 1.5s ease-in-out infinite; }
+.shimmer-rainbow { animation: shimmer-rainbow 2s linear infinite; }
+
 
