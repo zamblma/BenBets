@@ -73,3 +73,15 @@ export async function addPokemonCards(uid: string, newCards: PokemonCard[]) {
 
   await updateDoc(ref, { pokemonCollection: merged });
 }
+
+export async function removePokemonCard(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.pokemonCollection || [];
+  const updated = existing
+    .map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c)
+    .filter(c => c.quantity > 0);
+  await updateDoc(ref, { pokemonCollection: updated });
+}

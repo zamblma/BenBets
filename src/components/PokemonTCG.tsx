@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Gem, Star } from 'lucide-react';
+import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
 import type { PokemonCard } from '../types';
 
 const API_BASE = 'https://api.pokemontcg.io/v2';
@@ -18,6 +18,7 @@ interface PokemonTCGProps {
   userId: string;
   collection: PokemonCard[];
   onCollectionUpdate: (cards: PokemonCard[]) => void;
+  onSellCard: (cardId: string, price: number) => void;
 }
 
 interface TCGCard {
@@ -93,7 +94,7 @@ function generatePack(cards: TCGCard[], setName: string, setSeries: string): Pok
 }
 
 export default function PokemonTCG({ balance, onUpdateBalance, userId, collection, onCollectionUpdate }: PokemonTCGProps) {
-  const [view, setView] = useState<'sets' | 'collection'>('sets');
+  const [view, setView] = useState<'sets' | 'collection' | 'market'>('sets');
   const [sets, setSets] = useState<TCGSets[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
   const [selectedSet, setSelectedSet] = useState<TCGSets | null>(null);
@@ -104,6 +105,54 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [priceVersion, setPriceVersion] = useState(0);
+
+  const pricesRef = useRef<Record<string, number>>({});
+  const allCardIds = useRef<Set<string>>(new Set());
+
+  // Collect all unique card ids from collection
+  useEffect(() => {
+    collection.forEach(c => allCardIds.current.add(c.id));
+  }, [collection]);
+
+  // Generate base price from rarity
+  const getBasePrice = useCallback((rarity: string): number => {
+    const lvl = getCardRarityLevel(rarity);
+    if (lvl === 0) return 0.50 + Math.random() * 1.50;
+    if (lvl === 1) return 1.00 + Math.random() * 4.00;
+    if (lvl === 2) return 5.00 + Math.random() * 15.00;
+    if (lvl === 3) return 10.00 + Math.random() * 40.00;
+    if (lvl === 4) return 30.00 + Math.random() * 120.00;
+    if (lvl === 5) return 50.00 + Math.random() * 450.00;
+    return 1.00;
+  }, []);
+
+  // Market price simulation: update prices every 20s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const prices = pricesRef.current;
+      for (const id of allCardIds.current) {
+        const card = collection.find(c => c.id === id);
+        if (!card) continue;
+        if (!prices[id]) prices[id] = getBasePrice(card.rarity);
+        const change = (Math.random() - 0.48) * 0.25; // ±12.5% drift
+        prices[id] = Math.max(0.10, prices[id] * (1 + change));
+        prices[id] = parseFloat(prices[id].toFixed(2));
+      }
+      setPriceVersion(v => v + 1);
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [collection, getBasePrice]);
+
+  // Initialize prices for any new cards
+  useEffect(() => {
+    const prices = pricesRef.current;
+    for (const card of collection) {
+      if (!prices[card.id]) {
+        prices[card.id] = getBasePrice(card.rarity);
+      }
+    }
+  }, [collection, getBasePrice]);
 
   const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
   const canBuy = balance >= selectedOption.price && setCards.length > 0;
@@ -176,6 +225,9 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       <div className="flex border-b border-[#1a1c2a] bg-[#0d0e16] rounded-xl p-1">
         <button onClick={() => { setView('sets'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'sets' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
           <Package className="w-4 h-4" /> Coleções
+        </button>
+        <button onClick={() => { setView('market'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'market' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
+          <TrendingUp className="w-4 h-4" /> Mercado
         </button>
         <button onClick={() => { setView('collection'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'collection' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
           <BookOpen className="w-4 h-4" /> Minha Coleção ({collection.length})
@@ -361,6 +413,61 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         </div>
       )}
 
+      {/* MARKET */}
+      {view === 'market' && (
+        <div className="space-y-3">
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-4 flex items-center gap-3">
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
+            <div>
+              <p className="text-xs font-bold text-slate-200">Mercado de Cartas</p>
+              <p className="text-[10px] text-slate-500">Preços simulados com flutuação a cada 20s • Venda suas cartas repetidas</p>
+            </div>
+          </div>
+          {collection.filter(c => c.quantity > 1 || true).length === 0 ? (
+            <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
+              <TrendingUp className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm font-bold">Nenhuma carta no mercado</p>
+              <p className="text-slate-500 text-xs mt-1">Compre pacotes para ter cartas para negociar.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {collection.map(card => {
+                const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
+                const canSell = card.quantity > 1;
+                return (
+                  <div key={card.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 flex items-center gap-3 hover:border-amber-500/20 transition-all">
+                    <img src={card.imageUrl} alt={card.name} className="w-12 h-16 object-cover rounded-lg shrink-0" loading="lazy" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-200 truncate">{card.name}</p>
+                      <span className={`text-[9px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : 'text-slate-400'}`}>
+                        {getRarityLabel(card.rarity)}
+                      </span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <DollarSign className="w-3 h-3 text-emerald-400" />
+                        <span className="font-mono font-bold text-emerald-400 text-xs">R$ {price.toFixed(2)}</span>
+                        <span className="text-[8px] text-slate-500">×{card.quantity}</span>
+                      </div>
+                    </div>
+                    {canSell && (
+                      <button
+                        onClick={() => onSellCard(card.id, price)}
+                        className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" /> Vender R$ {price.toFixed(2)}
+                      </button>
+                    )}
+                    {!canSell && card.quantity === 1 && (
+                      <span className="text-[9px] text-slate-600 italic">Única</span>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20 segundos • Mercado simulado</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* COLLECTION */}
       {view === 'collection' && (
         <div className="space-y-3">
@@ -379,8 +486,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 </p>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                {collection.map(card => (
-                  <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group ${getRarityBorder(card.rarity)}`}>
+                {collection.map(card => {
+                  const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
+                  return (
+                  <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)}`}>
                     <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
                     <div className="p-2 text-center">
                       <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
@@ -389,8 +498,18 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                       </span>
                       {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
                     </div>
+                    {card.quantity > 1 && (
+                      <button
+                        onClick={() => onSellCard(card.id, price)}
+                        className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                        title={`Vender por R$ ${price.toFixed(2)}`}
+                      >
+                        R$ {price.toFixed(2)}
+                      </button>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}

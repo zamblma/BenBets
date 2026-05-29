@@ -28,7 +28,7 @@ import { Match, BetSelection, PlacedBet, Transaction, PokemonCard } from './type
 import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth } from './firebase/config';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -296,6 +296,12 @@ export default function App() {
     });
   };
 
+  const handleSellPokemonCard = (cardId: string, price: number) => {
+    setPokemonCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    setBalance(prev => prev + price);
+    if (firebaseUser) removePokemonCard(firebaseUser.uid, cardId).catch(() => {});
+  };
+
   // Filtered Matches selector
   const filteredMatches = matches.filter(match => {
     const matchesSearch = 
@@ -485,6 +491,7 @@ export default function App() {
                 userId={firebaseUser?.uid || ''}
                 collection={pokemonCollection}
                 onCollectionUpdate={handlePokemonCollectionUpdate}
+                onSellCard={handleSellPokemonCard}
               />
             </div>
           ) : selectedSport === 'Cassino' ? (
