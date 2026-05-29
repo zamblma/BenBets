@@ -105,6 +105,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterRarity, setFilterRarity] = useState('todas');
+  const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
 
   const pricesRef = useRef<Record<string, number>>({});
@@ -156,6 +158,28 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
   const canBuy = balance >= selectedOption.price && setCards.length > 0;
+
+  const filteredCards = collection
+    .filter(c => {
+      if (filterRarity !== 'todas' && getCardRarityLevel(c.rarity).toString() !== filterRarity) return false;
+      if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'price') {
+        const pa = pricesRef.current[a.id] ?? getBasePrice(a.rarity);
+        const pb = pricesRef.current[b.id] ?? getBasePrice(b.rarity);
+        return pa - pb;
+      }
+      if (sortBy === 'price-desc') {
+        const pa = pricesRef.current[a.id] ?? getBasePrice(a.rarity);
+        const pb = pricesRef.current[b.id] ?? getBasePrice(b.rarity);
+        return pb - pa;
+      }
+      if (sortBy === 'quantity') return (b.quantity || 1) - (a.quantity || 1);
+      return getCardRarityLevel(b.rarity) - getCardRarityLevel(a.rarity);
+    });
 
   useEffect(() => {
     const cached = sessionStorage.getItem('pokemonSets');
@@ -423,15 +447,42 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               <p className="text-[10px] text-slate-500">Preços simulados com flutuação a cada 20s • Venda suas cartas repetidas</p>
             </div>
           </div>
-          {collection.filter(c => c.quantity > 1 || true).length === 0 ? (
+          {/* Filters */}
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
+            <div className="flex gap-2 items-center">
+              <Search className="w-4 h-4 text-slate-500 shrink-0" />
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar carta pelo nome..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
+              {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
+                <option value="todas">Todas raridades</option>
+                <option value="0">Comum</option>
+                <option value="1">Incomum</option>
+                <option value="2">Rara</option>
+                <option value="3">Holográfica</option>
+                <option value="4">Ultra Rara</option>
+                <option value="5">Secret Rara</option>
+              </select>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
+                <option value="rarity">Raridade ▼</option>
+                <option value="name">Nome A-Z</option>
+                <option value="price">Preço ▲</option>
+                <option value="price-desc">Preço ▼</option>
+                <option value="quantity">Qtd ▼</option>
+              </select>
+            </div>
+          </div>
+
+          {filteredCards.length === 0 ? (
             <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
               <TrendingUp className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm font-bold">Nenhuma carta no mercado</p>
-              <p className="text-slate-500 text-xs mt-1">Compre pacotes para ter cartas para negociar.</p>
+              <p className="text-slate-400 text-sm font-bold">Nenhuma carta encontrada</p>
+              <p className="text-slate-500 text-xs mt-1">Tente ajustar os filtros ou compre mais pacotes.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {collection.map(card => {
+              {filteredCards.map(card => {
                 const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
                 const canSell = card.quantity > 1;
                 return (
@@ -440,7 +491,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-200 truncate">{card.name}</p>
                       <span className={`text-[9px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : 'text-slate-400'}`}>
-                        {getRarityLabel(card.rarity)}
+                        {getRarityLabel(card.rarity)} • {card.setName}
                       </span>
                       <div className="flex items-center gap-2 mt-1">
                         <DollarSign className="w-3 h-3 text-emerald-400" />
@@ -453,7 +504,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                         onClick={() => onSellCard(card.id, price)}
                         className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
                       >
-                        <Trash2 className="w-3 h-3" /> Vender R$ {price.toFixed(2)}
+                        <Trash2 className="w-3 h-3" /> R$ {price.toFixed(2)}
                       </button>
                     )}
                     {!canSell && card.quantity === 1 && (
@@ -462,7 +513,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   </div>
                 );
               })}
-              <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20 segundos • Mercado simulado</p>
+              <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20s • {filteredCards.length} carta{filteredCards.length > 1 ? 's' : ''}</p>
             </div>
           )}
         </div>
@@ -471,6 +522,32 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       {/* COLLECTION */}
       {view === 'collection' && (
         <div className="space-y-3">
+          {/* Filters */}
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
+            <div className="flex gap-2 items-center">
+              <Search className="w-4 h-4 text-slate-500 shrink-0" />
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar carta pelo nome..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
+              {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
+                <option value="todas">Todas raridades</option>
+                <option value="0">Comum</option>
+                <option value="1">Incomum</option>
+                <option value="2">Rara</option>
+                <option value="3">Holográfica</option>
+                <option value="4">Ultra Rara</option>
+                <option value="5">Secret Rara</option>
+              </select>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
+                <option value="rarity">Raridade ▼</option>
+                <option value="name">Nome A-Z</option>
+                <option value="price">Preço ▲</option>
+                <option value="price-desc">Preço ▼</option>
+                <option value="quantity">Qtd ▼</option>
+              </select>
+            </div>
+          </div>
           {collection.length === 0 ? (
             <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
               <Package className="w-10 h-10 text-slate-500 mx-auto mb-3" />
@@ -480,13 +557,19 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400"><span className="text-amber-400 font-bold">{collection.length}</span> cartas únicas</p>
+                <p className="text-xs text-slate-400"><span className="text-amber-400 font-bold">{filteredCards.length}</span> de {collection.length} cartas</p>
                 <p className="text-xs text-slate-500">
                   {collection.filter(c => getCardRarityLevel(c.rarity) >= 3).length} especiais
                 </p>
               </div>
+              {filteredCards.length === 0 ? (
+                <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
+                  <p className="text-slate-400 text-sm font-bold">Nenhuma carta com esses filtros</p>
+                  <p className="text-slate-500 text-xs mt-1">Tente ajustar os filtros.</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                {collection.map(card => {
+                {filteredCards.map(card => {
                   const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
                   return (
                   <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)}`}>
@@ -511,6 +594,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   );
                 })}
               </div>
+              )}
             </>
           )}
         </div>
