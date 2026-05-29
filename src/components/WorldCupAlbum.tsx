@@ -208,6 +208,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [filterRarity, setFilterRarity] = useState('todas');
   const skipRef = useRef(false);
+  const skipHandledRef = useRef(false);
   const fetchedRef = useRef(false);
 
   useEffect(() => {
@@ -234,7 +235,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
 
   const handleOpenPack = async () => {
     if (balance < PACK_PRICE) return;
-    onUpdateBalance(-PACK_PRICE); setOpening(true); setPackResult([]); setRevealingIndex(-1); skipRef.current = false;
+    onUpdateBalance(-PACK_PRICE); setOpening(true); setPackResult([]); setRevealingIndex(-1); skipRef.current = false; skipHandledRef.current = false;
     const allCards = generatePack(); setPackResult(allCards);
     for (let i = 0; i < allCards.length; i++) {
       if (skipRef.current) break; await new Promise(r => setTimeout(r, 300)); setRevealingIndex(i);
@@ -300,7 +301,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
               <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-green-400 font-extrabold text-lg mb-2">🎴 Pacote de Figurinhas</motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <p className="text-slate-500 text-xs">{revealingIndex + 1} de {packResult.length} figurinhas</p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-xs sm:text-sm text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-green-500/5 hover:bg-green-500/10">Pular</button>
+                <button onClick={() => { if (skipHandledRef.current) return; skipHandledRef.current = true; skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-xs sm:text-sm text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-green-500/5 hover:bg-green-500/10">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 justify-items-center">
                 {packResult.map((card, idx) => {

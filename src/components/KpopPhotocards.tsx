@@ -79,6 +79,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
   const [filterRarity, setFilterRarity] = useState('todas');
   const [searchQuery, setSearchQuery] = useState('');
   const skipRef = React.useRef(false);
+  const skipHandledRef = React.useRef(false);
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const fetchedRef = useRef(false);
 
@@ -109,7 +110,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
 
   const handleOpenPack = async () => {
     if (balance < PACK_PRICE) return;
-    onUpdateBalance(-PACK_PRICE); setOpening(true); setPackResult([]); setRevealingIndex(-1); skipRef.current = false;
+    onUpdateBalance(-PACK_PRICE); setOpening(true); setPackResult([]); setRevealingIndex(-1); skipRef.current = false; skipHandledRef.current = false;
     const allCards = genPack(); setPackResult(allCards);
     for (let i = 0; i < allCards.length; i++) {
       if (skipRef.current) break; await new Promise(r => setTimeout(r, 300)); setRevealingIndex(i);
@@ -194,7 +195,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
               <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-pink-400 font-extrabold text-lg mb-2">🎴 Pacote de Photocards</motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <p className="text-slate-500 text-xs">{revealingIndex + 1} de {packResult.length} photocards</p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-xs sm:text-sm text-pink-400/60 hover:text-pink-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-pink-500/5 hover:bg-pink-500/10">Pular</button>
+                <button onClick={() => { if (skipHandledRef.current) return; skipHandledRef.current = true; skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-xs sm:text-sm text-pink-400/60 hover:text-pink-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-pink-500/5 hover:bg-pink-500/10">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 justify-items-center">
                 {packResult.map((card, idx) => {

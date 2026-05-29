@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, ArrowLeft, TrendingUp, Crosshair } from 'lucide-react';
 import type { PokemonCard } from '../types';
@@ -303,8 +303,9 @@ const ALL_CASES: CS2CaseData[] = [
   },
 ];
 
-const ITEM_WIDTH = 88;
-const CONTAINER_WIDTH = 600;
+const ITEM_W = 80;
+const ITEM_GAP = 6;
+const ITEM_STEP = ITEM_W + ITEM_GAP;
 
 function pickWeightedItem(caseData: CS2CaseData): CSSkin {
   const roll = Math.random() * 100;
@@ -358,6 +359,8 @@ export default function CS2Cases({
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
+  const stripContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(600);
 
   useEffect(() => {
     const newPrices: Record<string, number> = {};
@@ -378,6 +381,17 @@ export default function CS2Cases({
       });
     }, 20000);
     return () => clearInterval(interval);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = stripContainerRef.current;
+    if (el) setContainerWidth(el.clientWidth);
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setContainerWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -412,14 +426,15 @@ export default function CS2Cases({
       setDailyCooldown(86400);
     }
 
+    const cw = containerWidth;
     const winner = pickWeightedItem(selectedCase);
     const winnerIndex = 35 + Math.floor(Math.random() * 8);
     const items = generateStripItems(selectedCase, winner, winnerIndex);
     setStripItems(items);
-    setStripX(CONTAINER_WIDTH);
+    setStripX(cw);
 
-    const targetX = -(winnerIndex * ITEM_WIDTH - CONTAINER_WIDTH / 2 + ITEM_WIDTH / 2);
-    const startX = CONTAINER_WIDTH;
+    const targetX = cw / 2 - ITEM_W / 2 - winnerIndex * ITEM_STEP;
+    const startX = cw;
     const endX = targetX;
     const duration = 3500;
     const startTime = performance.now();
@@ -439,7 +454,7 @@ export default function CS2Cases({
       }
     }
     requestAnimationFrame(animate);
-  }, [selectedCase, rolling, balance, onUpdateBalance]);
+  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
@@ -636,9 +651,8 @@ export default function CS2Cases({
                   </button>
                 )}
 
-                {(rolling || showResult) && (
-                  <div className="relative">
-                    <div className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#0a0b12] mb-4" style={{ height: '160px' }}>
+                <div className={`relative ${!(rolling || showResult) ? 'invisible absolute pointer-events-none' : ''}`} style={!(rolling || showResult) ? { height: '160px' } : {}}>
+                    <div ref={stripContainerRef} className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#0a0b12] mb-4" style={{ height: '160px' }}>
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
                         <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
                       </div>
@@ -647,12 +661,13 @@ export default function CS2Cases({
                         className="flex gap-1.5 items-center py-8 absolute"
                         style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
                       >
-                        {(rolling ? stripItems : [result!]).map((item, i) => {
+                        {stripItems.map((item, i) => {
                           const rColor = rarityColor(item.rarityLevel);
+                          const isWinner = result && item.id === result.id && !rolling;
                           return (
-                            <div key={rolling ? `s-${i}` : 'r'}
-                              className={`shrink-0 w-[80px] rounded-lg border ${rColor.border} ${rColor.bg} p-1.5 text-center`}
-                              style={{ boxShadow: `0 0 6px ${rColor.glow}` }}
+                            <div key={`s-${i}`}
+                              className={`shrink-0 w-[80px] rounded-lg border ${rColor.border} ${rColor.bg} p-1.5 text-center ${isWinner ? 'ring-2 ring-amber-400 scale-110' : ''}`}
+                              style={{ boxShadow: `0 0 ${isWinner ? '12' : '6'}px ${rColor.glow}` }}
                             >
                               <div className="text-[9px] font-mono text-slate-400 truncate">{item.weapon}</div>
                               <div className={`text-[10px] font-bold ${rColor.text} truncate leading-tight`}>{item.name}</div>
@@ -702,8 +717,7 @@ export default function CS2Cases({
                       </motion.div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
 
               {/* Case contents */}
               <div className="mt-4">
