@@ -233,7 +233,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     for (let i = 0; i < packQty; i++) {
       allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series));
     }
-    allCards.sort((a, b) => getCardRarityLevel(a.rarity) - getCardRarityLevel(b.rarity));
+    allCards.sort((a, b) => getCardRarityLevel(b.rarity) - getCardRarityLevel(a.rarity));
     setPackResult(allCards);
 
     skipRef.current = false;
