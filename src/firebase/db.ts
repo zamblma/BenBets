@@ -12,6 +12,7 @@ export async function getUserData(uid: string) {
     transactions: Transaction[];
     pokemonCollection: PokemonCard[];
     worldCupCollection: PokemonCard[];
+    kpopCollection: PokemonCard[];
   };
 }
 
@@ -25,6 +26,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     transactions: [],
     pokemonCollection: [],
     worldCupCollection: [],
+    kpopCollection: [],
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -123,4 +125,29 @@ export async function removeWorldCupSticker(uid: string, cardId: string) {
 export async function setWorldCupCollection(uid: string, cards: PokemonCard[]) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, { worldCupCollection: cards });
+}
+
+export async function addKpopCards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.kpopCollection || [];
+  const merged: PokemonCard[] = [...existing];
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) { merged[idx].quantity += 1; }
+    else { merged.push(newCard); }
+  }
+  await updateDoc(ref, { kpopCollection: merged });
+}
+
+export async function removeKpopCard(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.kpopCollection || [];
+  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  await updateDoc(ref, { kpopCollection: updated });
 }

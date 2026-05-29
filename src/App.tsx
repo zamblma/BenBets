@@ -29,7 +29,7 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -37,6 +37,7 @@ import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
 import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
+import KpopPhotocards from './components/KpopPhotocards';
 import BetHistoryList from './components/BetHistoryList';
 import AuthScreen from './components/AuthScreen';
 
@@ -63,6 +64,7 @@ export default function App() {
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
   const [pokemonCollection, setPokemonCollection] = useState<PokemonCard[]>([]);
   const [worldCupCollection, setWorldCupCollection] = useState<PokemonCard[]>([]);
+  const [kpopCollection, setKpopCollection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -78,6 +80,7 @@ export default function App() {
           setTransactions(data.transactions || []);
           setPokemonCollection(data.pokemonCollection || []);
         setWorldCupCollection(data.worldCupCollection || []);
+        setKpopCollection(data.kpopCollection || []);
           setUserName(data.displayName || '');
           if (data.transactions.length === 0 && data.balance === 20) {
             setShowBonus(true);
@@ -357,6 +360,41 @@ export default function App() {
     }
   };
 
+  const handleKpopCollectionUpdate = (cards: PokemonCard[]) => {
+    setKpopCollection(prev => {
+      const merged = [...prev];
+      for (const c of cards) {
+        const idx = merged.findIndex(x => x.id === c.id);
+        if (idx >= 0) merged[idx].quantity += 1;
+        else merged.push(c);
+      }
+      if (firebaseUser) addKpopCards(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
+  const handleSellKpopCard = (cardId: string, price: number) => {
+    setKpopCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    setBalance(prev => prev + price);
+    if (firebaseUser) removeKpopCard(firebaseUser.uid, cardId).catch(() => {});
+  };
+
+  const handleSellAllKpopDuplicates = (prices: Record<string, number>) => {
+    setKpopCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = kpopCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    setBalance(prev => prev + total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.kpopCollection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { kpopCollection: updated });
+      }).catch(() => {});
+    }
+  };
+
   // Filtered Matches selector
   const filteredMatches = matches.filter(match => {
     const matchesSearch = 
@@ -471,7 +509,8 @@ export default function App() {
               {[
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
                 { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
-                { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
+              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
+              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
                 { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
                 { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                 { id: 'Basquete', label: 'Basquete', icon: '🏀' },
@@ -577,6 +616,16 @@ export default function App() {
               onCollectionUpdate={handleWorldCupCollectionUpdate}
               onSellCard={handleSellWorldCupSticker}
               onSellAllDuplicates={handleSellAllWorldCupDuplicates}
+            />
+          ) : selectedSport === 'Kpop' ? (
+            <KpopPhotocards
+              balance={balance}
+              onUpdateBalance={handleDepositSuccess}
+              userId={firebaseUser?.uid || ''}
+              collection={kpopCollection}
+              onCollectionUpdate={handleKpopCollectionUpdate}
+              onSellCard={handleSellKpopCard}
+              onSellAllDuplicates={handleSellAllKpopDuplicates}
             />
           ) : (
             // SPORTS BOOK LIST DISPLAY
