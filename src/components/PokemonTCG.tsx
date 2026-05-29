@@ -424,6 +424,39 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           </div>
 
+          {/* Set rarity breakdown */}
+          {setCards.length > 0 && (() => {
+            const counts: Record<string, number> = {};
+            for (const c of setCards) {
+              const r = c.rarity || 'Common';
+              counts[r] = (counts[r] || 0) + 1;
+            }
+            const groups = [
+              { keys: ['Common'], label: 'Comuns', color: 'text-slate-300', bg: 'border-slate-700' },
+              { keys: ['Uncommon'], label: 'Incomuns', color: 'text-green-400', bg: 'border-green-600/30' },
+              { keys: ['Rare'], label: 'Raras', color: 'text-amber-400', bg: 'border-amber-500/30' },
+              { keys: ['Rare Holo', 'Rare Holo V', 'Rare Holo EX', 'Rare Holo GX'], label: 'Holo', color: 'text-yellow-300', bg: 'border-yellow-400/30' },
+              { keys: ['Rare Ultra', 'Rare Rainbow'], label: 'Ultra', color: 'text-purple-400', bg: 'border-purple-400/30' },
+              { keys: ['Rare Secret'], label: 'Secret', color: 'text-red-400', bg: 'border-red-400/30' },
+            ];
+            return (
+              <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5">
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Cartas neste set</p>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {groups.map(g => {
+                    const val = g.keys.reduce((s, k) => s + (counts[k] || 0), 0);
+                    return (
+                      <div key={g.label} className={`bg-[#07080f] rounded-xl p-2.5 text-center border ${g.bg}`}>
+                        <p className={`text-sm font-extrabold ${g.color}`}>{val || '-'}</p>
+                        <p className={`text-[8px] font-bold ${g.color}/70`}>{g.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Rarity odds info */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5">
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
