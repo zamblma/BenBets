@@ -47,7 +47,7 @@ export default function App() {
   const syncTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Navigation & Category states
-  const [selectedSport, setSelectedSport] = useState<string>('Todos');
+  const [selectedSport, setSelectedSport] = useState<string>('Cassino');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // Custom modals/drawers
@@ -352,7 +352,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Slogan */}
-          <button onClick={() => { setSelectedSport('Todos'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
+          <button onClick={() => { setSelectedSport('Cassino'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
             <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
               BB
             </div>
@@ -431,13 +431,13 @@ export default function App() {
           >
             <div className="px-4 py-3 flex flex-wrap gap-2">
               {[
+                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+                { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
                 { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
                 { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                 { id: 'Basquete', label: 'Basquete', icon: '🏀' },
                 { id: 'Tênis', label: 'Tênis', icon: '🎾' },
-                { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
-                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-                { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' }
+                { id: 'E-Sports', label: 'E-Sports', icon: '🎮' }
               ].map((sport) => (
                 <button
                   key={sport.id}
@@ -476,13 +476,13 @@ export default function App() {
           {/* Main Visual Category Switchers */}
           <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-3 py-1 pb-2 md:pb-3 justify-start scrollbar-thin">
             {[
+              { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+              { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
               { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
               { id: 'Futebol', label: 'Futebol', icon: '⚽' },
               { id: 'Basquete', label: 'Basquete', icon: '🏀' },
               { id: 'Tênis', label: 'Tênis', icon: '🎾' },
-              { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
-              { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-              { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' }
+              { id: 'E-Sports', label: 'E-Sports', icon: '🎮' }
             ].map((sport) => (
               <button
                 key={sport.id}
