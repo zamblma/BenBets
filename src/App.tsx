@@ -500,19 +500,7 @@ export default function App() {
           </div>
 
           {/* Sub Panels Based on Category */}
-          {selectedSport === 'Pokemon' ? (
-            <div className="space-y-6">
-              <PokemonTCG
-                balance={balance}
-                onUpdateBalance={handleDepositSuccess}
-                userId={firebaseUser?.uid || ''}
-                collection={pokemonCollection}
-                onCollectionUpdate={handlePokemonCollectionUpdate}
-                onSellCard={handleSellPokemonCard}
-                onSellAllDuplicates={handleSellAllDuplicates}
-              />
-            </div>
-          ) : selectedSport === 'Cassino' ? (
+          {selectedSport === 'Cassino' ? (
             <div className="space-y-6">
               
               {/* Nested Intro Header */}
@@ -525,34 +513,20 @@ export default function App() {
                   <p className="text-slate-400 text-xs">Simulador regulado de geradores de números (RNG). Teste jogos de slots e crash de forma auditada.</p>
                 </div>
               </div>
-
-              {/* Dynamic Game Toggles (Slot vs Crash) Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-brand inline-block animate-ping" />
-                    Crash Game (Foguete)
-                  </h4>
-                  <CrashGame 
-                    balance={balance} 
-                    onUpdateBalance={handleDepositSuccess} 
-                    onAddBetHistory={handleAddPlacedBet} 
-                  />
-                </div>
-
-                <div>
-                  <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-indigo-500 inline-block animate-ping" />
-                    Slots Caça-Níqueis
-                  </h4>
-                  <SlotGame 
-                    balance={balance} 
-                    onUpdateBalance={handleDepositSuccess} 
-                    onAddBetHistory={handleAddPlacedBet} 
-                  />
-                </div>
-              </div>
-
+              <SlotGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
+              <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
+            </div>
+          ) : selectedSport === 'Pokemon' ? (
+            <div className="space-y-6">
+              <PokemonTCG
+                balance={balance}
+                onUpdateBalance={handleDepositSuccess}
+                userId={firebaseUser?.uid || ''}
+                collection={pokemonCollection}
+                onCollectionUpdate={handlePokemonCollectionUpdate}
+                onSellCard={handleSellPokemonCard}
+                onSellAllDuplicates={handleSellAllDuplicates}
+              />
             </div>
           ) : (
             // SPORTS BOOK LIST DISPLAY
