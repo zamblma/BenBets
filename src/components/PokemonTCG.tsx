@@ -368,6 +368,21 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   </div>
                   <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
                   <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
+                  {(() => {
+                    const owned = collection.filter(c => c.setName === set.name).length;
+                    const pct = Math.round((owned / set.printedTotal) * 100);
+                    return (
+                      <div className="mt-1.5">
+                        <div className="flex justify-between text-[8px] text-slate-500 mb-0.5">
+                          <span>{owned}/{set.printedTotal}</span>
+                          <span className={pct >= 100 ? 'text-green-400 font-bold' : ''}>{pct}%</span>
+                        </div>
+                        <div className="h-1 bg-[#07080f] rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="mt-2 bg-amber-500/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center">A partir de R$ 14,90</div>
                 </button>
               ))}
@@ -396,6 +411,30 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <span className="font-mono font-bold text-amber-400">R$ {balance.toFixed(2)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Rarity odds info */}
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5">
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-slate-700">
+                <p className="text-lg font-extrabold text-slate-300">5</p>
+                <p className="text-[9px] text-slate-500 font-bold">Comuns</p>
+              </div>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-green-600/30">
+                <p className="text-lg font-extrabold text-green-400">3</p>
+                <p className="text-[9px] text-green-400/70 font-bold">Incomuns</p>
+              </div>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
+                <p className="text-lg font-extrabold text-amber-400">1</p>
+                <p className="text-[9px] text-amber-400/70 font-bold">Rara+</p>
+              </div>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30">
+                <p className="text-lg font-extrabold text-yellow-300">~5%</p>
+                <p className="text-[9px] text-yellow-300/70 font-bold">Holográfica</p>
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-600 mt-2 text-center">~2% Ultra Rara • ~0.5% Secret Rara nos pacotes</p>
           </div>
 
           {/* Quantity selector */}
