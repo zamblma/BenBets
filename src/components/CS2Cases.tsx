@@ -11,8 +11,6 @@ interface CSSkin {
   rarityLevel: number;
   minPrice: number;
   maxPrice: number;
-  lastWinner?: string;
-  lastWonAt?: string;
 }
 
 interface CS2CaseData {
@@ -75,24 +73,24 @@ const ALL_CASES: CS2CaseData[] = [
     id: 'daily', name: 'Caixa Diária CSGOSKINS', image: '🎁', price: 0, tier: 'daily',
     weights: [70.469, 1.254, 1.186, 0.014, 0.011],
     items: [
-      { id: 'daily_1', name: 'Sand Dune', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05, lastWinner: '» Darek2510_ «', lastWonAt: '29/05/2026, 00:47:58' },
-      { id: 'daily_2', name: 'Sand Mesh', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05, lastWinner: 'NB', lastWonAt: '29/05/2026, 00:47:47' },
-      { id: 'daily_3', name: 'Desert Storm', rarity: 'Mil-Spec', weapon: 'G3SG1', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05, lastWinner: '—', lastWonAt: '—' },
-      { id: 'daily_4', name: 'Cold Fusion', rarity: 'Mil-Spec', weapon: 'Galil AR', rarityLevel: 0, minPrice: 0.02, maxPrice: 0.10, lastWinner: 'Tubi', lastWonAt: '29/05/2026, 00:47:57' },
-      { id: 'daily_5', name: 'Freight', rarity: 'Mil-Spec', weapon: 'P90', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30, lastWinner: 'k1nox SKINS', lastWonAt: '29/05/2026, 00:44:55' },
-      { id: 'daily_6', name: 'Aloha', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30, lastWinner: 'Pablo IX SKINS', lastWonAt: '29/05/2026, 00:40:20' },
-      { id: 'daily_7', name: 'Necro Jr.', rarity: 'Mil-Spec', weapon: 'MP5-SD', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30, lastWinner: 'XpLay__', lastWonAt: '29/05/2026, 00:46:57' },
-      { id: 'daily_8', name: 'Poultrygeist', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30, lastWinner: 'C SKINS', lastWonAt: '29/05/2026, 00:47:18' },
-      { id: 'daily_9', name: 'Runic', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 0.50, maxPrice: 3, lastWinner: 'Neckklace SKINS', lastWonAt: '29/05/2026, 00:44:56' },
-      { id: 'daily_10', name: 'Violent Daimyo', rarity: 'Classified', weapon: 'Five-SeveN', rarityLevel: 2, minPrice: 5, maxPrice: 20, lastWinner: 'Anonymous', lastWonAt: '28/05/2026, 21:02:19' },
-      { id: 'daily_11', name: 'Weasel', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 5, maxPrice: 20, lastWinner: 'diegoslvr', lastWonAt: '28/05/2026, 22:23:37' },
-      { id: 'daily_12', name: 'Cyrex', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 20, maxPrice: 80, lastWinner: '🤌pizzatime🤌', lastWonAt: '28/05/2026, 14:08:34' },
-      { id: 'daily_13', name: 'Water Elemental', rarity: 'Covert', weapon: 'Glock-18', rarityLevel: 3, minPrice: 15, maxPrice: 50, lastWinner: 'player', lastWonAt: '28/05/2026, 18:28:58' },
-      { id: 'daily_14', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 50, maxPrice: 200, lastWinner: 'Ban da Ganância 乡', lastWonAt: '29/05/2026, 00:11:29' },
-      { id: 'daily_15', name: 'Aquamarine Revenge', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150, lastWinner: 'cpluki', lastWonAt: '28/05/2026, 17:41:16' },
-      { id: 'daily_16', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'AWP', rarityLevel: 4, minPrice: 60, maxPrice: 250, lastWinner: '𝔉𝔞𝔟𝔦𝔬_skins', lastWonAt: '28/05/2026, 20:33:28' },
-      { id: 'daily_17', name: 'Point Disarray', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150, lastWinner: 'elprime', lastWonAt: '28/05/2026, 22:34:20' },
-      { id: 'daily_18', name: 'Leaded Glass', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 30, maxPrice: 120, lastWinner: 'beat CS2SKINS.GIFT', lastWonAt: '28/05/2026, 18:28:16' },
+      { id: 'daily_1', name: 'Sand Dune', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
+      { id: 'daily_2', name: 'Sand Mesh', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
+      { id: 'daily_3', name: 'Desert Storm', rarity: 'Mil-Spec', weapon: 'G3SG1', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
+      { id: 'daily_4', name: 'Cold Fusion', rarity: 'Mil-Spec', weapon: 'Galil AR', rarityLevel: 0, minPrice: 0.02, maxPrice: 0.10 },
+      { id: 'daily_5', name: 'Freight', rarity: 'Mil-Spec', weapon: 'P90', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
+      { id: 'daily_6', name: 'Aloha', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
+      { id: 'daily_7', name: 'Necro Jr.', rarity: 'Mil-Spec', weapon: 'MP5-SD', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
+      { id: 'daily_8', name: 'Poultrygeist', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
+      { id: 'daily_9', name: 'Runic', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 0.50, maxPrice: 3 },
+      { id: 'daily_10', name: 'Violent Daimyo', rarity: 'Classified', weapon: 'Five-SeveN', rarityLevel: 2, minPrice: 5, maxPrice: 20 },
+      { id: 'daily_11', name: 'Weasel', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 5, maxPrice: 20 },
+      { id: 'daily_12', name: 'Cyrex', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 20, maxPrice: 80 },
+      { id: 'daily_13', name: 'Water Elemental', rarity: 'Covert', weapon: 'Glock-18', rarityLevel: 3, minPrice: 15, maxPrice: 50 },
+      { id: 'daily_14', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 50, maxPrice: 200 },
+      { id: 'daily_15', name: 'Aquamarine Revenge', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150 },
+      { id: 'daily_16', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'AWP', rarityLevel: 4, minPrice: 60, maxPrice: 250 },
+      { id: 'daily_17', name: 'Point Disarray', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150 },
+      { id: 'daily_18', name: 'Leaded Glass', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 30, maxPrice: 120 },
     ],
   },
   // ─── BUDGET ───
@@ -359,6 +357,7 @@ export default function CS2Cases({
   const [rarityFilter, setRarityFilter] = useState<number | null>(null);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [dailyCooldown, setDailyCooldown] = useState(0);
 
   useEffect(() => {
     const newPrices: Record<string, number> = {};
@@ -382,18 +381,23 @@ export default function CS2Cases({
   }, []);
 
   useEffect(() => {
-    try {
-      const winners = JSON.parse(localStorage.getItem('cs2DailyWinners') || '{}');
-      const dailyCase = ALL_CASES.find(c => c.id === 'daily');
-      if (dailyCase) {
-        dailyCase.items.forEach(item => {
-          if (winners[item.id]) {
-            item.lastWinner = winners[item.id].winner;
-            item.lastWonAt = winners[item.id].timestamp;
-          }
-        });
-      }
-    } catch {}
+    function check() {
+      try {
+        const last = localStorage.getItem('cs2DailyLastOpen');
+        if (last) {
+          const elapsed = Date.now() - parseInt(last);
+          const remaining = Math.max(0, 86400000 - elapsed);
+          setDailyCooldown(Math.ceil(remaining / 1000));
+        } else {
+          setDailyCooldown(0);
+        }
+      } catch { setDailyCooldown(0); }
+    }
+    check();
+    const tick = setInterval(() => {
+      setDailyCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(tick);
   }, []);
 
   const openCase = useCallback(() => {
@@ -403,6 +407,10 @@ export default function CS2Cases({
     setShowResult(false);
     setResult(null);
     if (selectedCase.price > 0) onUpdateBalance(-selectedCase.price);
+    if (selectedCase.tier === 'daily') {
+      try { localStorage.setItem('cs2DailyLastOpen', String(Date.now())); } catch {}
+      setDailyCooldown(86400);
+    }
 
     const winner = pickWeightedItem(selectedCase);
     const winnerIndex = 35 + Math.floor(Math.random() * 8);
@@ -445,15 +453,6 @@ export default function CS2Cases({
       quantity: 1,
     };
     onCollectionUpdate([card]);
-    if (selectedCase.tier === 'daily') {
-      const now = new Date();
-      const ts = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      try {
-        const winners = JSON.parse(localStorage.getItem('cs2DailyWinners') || '{}');
-        winners[result.id] = { winner: 'Você', timestamp: ts };
-        localStorage.setItem('cs2DailyWinners', JSON.stringify(winners));
-      } catch {}
-    }
     setShowResult(false);
     setResult(null);
   }, [result, selectedCase, onCollectionUpdate]);
@@ -619,15 +618,22 @@ export default function CS2Cases({
               {/* Open / rolling area */}
               <div className="relative" style={{ minHeight: rolling || showResult ? '320px' : 'auto' }}>
                 {!rolling && !showResult && (
-                  <button onClick={openCase} disabled={balance < selectedCase.price}
+                  <button onClick={openCase}
+                    disabled={balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)}
                     className={`w-full py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
-                      balance < selectedCase.price
+                      balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
                         : selectedCase.price === 0
                         ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]'
                         : 'bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)]'
                     }`}
-                  >{selectedCase.price === 0 ? '🎁 Abrir Caixa Grátis' : `Abrir Caixa — R$ ${selectedCase.price.toFixed(2)}`}</button>
+                  >
+                    {selectedCase.tier === 'daily' && dailyCooldown > 0
+                      ? `⏳ Disponível em ${Math.floor(dailyCooldown / 3600)}h ${Math.floor((dailyCooldown % 3600) / 60)}m ${dailyCooldown % 60}s`
+                      : selectedCase.price === 0
+                      ? '🎁 Abrir Caixa Grátis'
+                      : `Abrir Caixa — R$ ${selectedCase.price.toFixed(2)}`}
+                  </button>
                 )}
 
                 {(rolling || showResult) && (
@@ -712,20 +718,11 @@ export default function CS2Cases({
                       <div className="flex flex-wrap gap-1.5">
                         {items.map(s => {
                           const owned = collection.some(c => c.id === s.id && c.setSeries === 'CS2');
-                          const winner = s.lastWinner;
-                          const lastWon = s.lastWonAt;
                           return (
                             <div key={s.id}
-                              className={`text-[10px] px-2 py-1 rounded-lg border ${rColor.border} ${rColor.bg} ${owned ? 'opacity-60' : ''} relative group`}
+                              className={`text-[10px] px-2 py-1 rounded-lg border ${rColor.border} ${rColor.bg} ${owned ? 'opacity-60' : ''}`}
                             >
                               {s.weapon} | {s.name}{owned && <span className="text-brand ml-1">✓</span>}
-                              {selectedCase.tier === 'daily' && winner && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20">
-                                  <div className="bg-[#1a1d2d] border border-[#2a2d3d] rounded-lg px-2 py-1 text-[9px] text-slate-300 whitespace-nowrap shadow-lg">
-                                    Último: {winner} {lastWon !== '—' ? `(${lastWon})` : ''}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           );
                         })}
