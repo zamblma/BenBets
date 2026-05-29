@@ -386,15 +386,15 @@ export default function App() {
     <div className="min-h-screen bg-[#06070d] font-sans text-slate-100 flex flex-col justify-between">
       
       {/* 🇧🇷 NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#0c0d14]/90 border-b border-[#1c1e2d] backdrop-blur-md px-4 py-3 md:px-8 lg:px-12">
+      <header className="sticky top-0 z-40 bg-[#0c0d14]/90 border-b border-[#1c1e2d] backdrop-blur-md px-3 py-2.5 md:px-8 lg:px-12">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Slogan */}
           <button onClick={() => { setSelectedSport('Cassino'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
-            <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
+            <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)] hidden sm:block">
               BB
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="font-extrabold text-brand font-sans text-lg tracking-tight leading-none">
                 BenBets
               </h1>
@@ -507,10 +507,10 @@ export default function App() {
       </div>
 
       {/* MAIN CONTAINER GRID */}
-      <main className="max-w-[1600px] mx-auto px-4 py-6 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full">
+      <main className="max-w-[1600px] mx-auto px-3 py-4 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 w-full">
         
         {/* LEFT COLUMN: FILTERS & MATCHES/CASINO SELECT (COLS-8) */}
-        <section className="col-span-1 lg:col-span-8 space-y-6">
+        <section className="col-span-1 lg:col-span-8 space-y-4 lg:space-y-6">
           
           {/* Main Visual Category Switchers */}
           <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-3 py-1 pb-2 md:pb-3 justify-start scrollbar-thin">
@@ -527,7 +527,7 @@ export default function App() {
               <button
                 key={sport.id}
                 onClick={() => setSelectedSport(sport.id)}
-                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap cursor-pointer flex items-center gap-2 border leading-none ${
+                className={`py-2 md:py-2.5 px-3 md:px-4 rounded-xl text-[10px] md:text-xs font-bold transition-all duration-300 whitespace-nowrap cursor-pointer flex items-center gap-1.5 md:gap-2 border leading-none shrink-0 ${
                   selectedSport === sport.id
                     ? 'bg-brand text-slate-950 border-brand font-extrabold shadow-[0_0_15px_rgba(0,255,135,0.2)]'
                     : 'bg-[#0d0e16] hover:bg-[#141624] text-slate-300 border-[#1a1d2d]'
@@ -621,7 +621,7 @@ export default function App() {
                   filteredMatches.map((match) => (
                     <div 
                       key={match.id}
-                      className="bg-[#0b0c13]/90 border border-[#1b1e2e]/90 hover:border-[#2b2f47] rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 shadow-lg"
+                      className="bg-[#0b0c13]/90 border border-[#1b1e2e]/90 hover:border-[#2b2f47] rounded-2xl p-3 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 transition-all duration-300 shadow-lg"
                     >
                       {/* Left: League & Teams labels */}
                       <div className="flex-1 space-y-1.5">
@@ -748,7 +748,7 @@ export default function App() {
         </section>
 
         {/* RIGHT COLUMN: ACTIVE BET SLIP & PLACED HISTORY LEDGER */}
-        <section className="col-span-1 lg:col-span-4 space-y-6">
+        <section className="col-span-1 lg:col-span-4 space-y-4 lg:space-y-6">
           <BetHistoryList
             selections={selections}
             onRemoveSelection={handleRemoveSelection}

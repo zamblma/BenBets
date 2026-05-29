@@ -82,7 +82,7 @@ export default function BetHistoryList({
   };
 
   return (
-    <div className="bg-[#0b0c13] border border-[#1b1e2e] rounded-2xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.45)] flex flex-col h-[520px]">
+    <div className="bg-[#0b0c13] border border-[#1b1e2e] rounded-2xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.45)] flex flex-col h-[420px] lg:h-[520px]">
       {/* Header Tabs */}
       <div className="flex border-b border-[#1b1e2e] bg-[#07080f] p-1">
         <button
@@ -109,7 +109,7 @@ export default function BetHistoryList({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
+      <div className="flex-1 overflow-y-auto p-3 lg:p-4 flex flex-col justify-between">
         {/* SLIP Tab */}
         {activeTab === 'slip' && (
           <div className="flex-1 flex flex-col justify-between h-full">
