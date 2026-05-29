@@ -47,3 +47,13 @@ export interface Transaction {
   date: string;
   pixKey?: string;
 }
+
+export interface PokemonCard {
+  id: string;
+  name: string;
+  imageUrl: string;
+  rarity: string;
+  setName: string;
+  setSeries: string;
+  quantity: number;
+}

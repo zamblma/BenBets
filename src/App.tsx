@@ -23,17 +23,18 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 // Types
-import { Match, BetSelection, PlacedBet, Transaction } from './types';
+import { Match, BetSelection, PlacedBet, Transaction, PokemonCard } from './types';
 // Source data
 import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth } from './firebase/config';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
 import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
+import PokemonTCG from './components/PokemonTCG';
 import BetHistoryList from './components/BetHistoryList';
 import AuthScreen from './components/AuthScreen';
 
@@ -58,6 +59,7 @@ export default function App() {
   const [selections, setSelections] = useState<BetSelection[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
+  const [pokemonCollection, setPokemonCollection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -71,6 +73,7 @@ export default function App() {
           setBalance(data.balance);
           setPlacedBets(data.placedBets || []);
           setTransactions(data.transactions || []);
+          setPokemonCollection(data.pokemonCollection || []);
           setUserName(data.displayName || '');
           if (data.transactions.length === 0 && data.balance === 20) {
             setShowBonus(true);
@@ -280,6 +283,19 @@ export default function App() {
     if (firebaseUser) updateBet(firebaseUser.uid, betId, { status, potentialPayout: payOut }).catch(() => {});
   };
 
+  const handlePokemonCollectionUpdate = (cards: PokemonCard[]) => {
+    setPokemonCollection(prev => {
+      const merged = [...prev];
+      for (const newCard of cards) {
+        const idx = merged.findIndex(c => c.id === newCard.id);
+        if (idx >= 0) merged[idx].quantity += 1;
+        else merged.push(newCard);
+      }
+      if (firebaseUser) addPokemonCards(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
   // Filtered Matches selector
   const filteredMatches = matches.filter(match => {
     const matchesSearch = 
@@ -397,7 +413,8 @@ export default function App() {
                 { id: 'Basquete', label: 'Basquete', icon: '🏀' },
                 { id: 'Tênis', label: 'Tênis', icon: '🎾' },
                 { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
-                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' }
+                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+                { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' }
               ].map((sport) => (
                 <button
                   key={sport.id}
@@ -441,7 +458,8 @@ export default function App() {
               { id: 'Basquete', label: 'Basquete', icon: '🏀' },
               { id: 'Tênis', label: 'Tênis', icon: '🎾' },
               { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
-              { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' }
+              { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+              { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' }
             ].map((sport) => (
               <button
                 key={sport.id}
@@ -459,7 +477,17 @@ export default function App() {
           </div>
 
           {/* Sub Panels Based on Category */}
-          {selectedSport === 'Cassino' ? (
+          {selectedSport === 'Pokemon' ? (
+            <div className="space-y-6">
+              <PokemonTCG
+                balance={balance}
+                onUpdateBalance={handleDepositSuccess}
+                userId={firebaseUser?.uid || ''}
+                collection={pokemonCollection}
+                onCollectionUpdate={handlePokemonCollectionUpdate}
+              />
+            </div>
+          ) : selectedSport === 'Cassino' ? (
             <div className="space-y-6">
               
               {/* Nested Intro Header */}

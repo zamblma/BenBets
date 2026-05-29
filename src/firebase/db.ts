@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from './config';
-import type { PlacedBet, Transaction } from '../types';
+import type { PlacedBet, Transaction, PokemonCard } from '../types';
 
 export async function getUserData(uid: string) {
   const ref = doc(db, 'users', uid);
@@ -10,6 +10,7 @@ export async function getUserData(uid: string) {
     balance: number;
     placedBets: PlacedBet[];
     transactions: Transaction[];
+    pokemonCollection: PokemonCard[];
   };
 }
 
@@ -21,6 +22,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     balance: 20.00,
     placedBets: [],
     transactions: [],
+    pokemonCollection: [],
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -50,4 +52,24 @@ export async function updateBet(uid: string, betId: string, updates: Partial<Pla
 export async function addTransaction(uid: string, tx: Transaction) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, { transactions: arrayUnion(tx) });
+}
+
+export async function addPokemonCards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.pokemonCollection || [];
+  const merged: PokemonCard[] = [...existing];
+
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) {
+      merged[idx].quantity += 1;
+    } else {
+      merged.push(newCard);
+    }
+  }
+
+  await updateDoc(ref, { pokemonCollection: merged });
 }
