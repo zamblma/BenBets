@@ -303,10 +303,6 @@ const ALL_CASES: CS2CaseData[] = [
   },
 ];
 
-const ITEM_W = 80;
-const ITEM_GAP = 6;
-const ITEM_STEP = ITEM_W + ITEM_GAP;
-
 function pickWeightedItem(caseData: CS2CaseData): CSSkin {
   const roll = Math.random() * 100;
   let cumulative = 0;
@@ -360,7 +356,9 @@ export default function CS2Cases({
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const stripContainerRef = useRef<HTMLDivElement>(null);
+  const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
+  const animToken = useRef<number>(0);
 
   useEffect(() => {
     const newPrices: Record<string, number> = {};
@@ -383,16 +381,16 @@ export default function CS2Cases({
     return () => clearInterval(interval);
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = stripContainerRef.current;
-    if (el) setContainerWidth(el.clientWidth);
     if (!el) return;
+    setContainerWidth(el.clientWidth);
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) setContainerWidth(entry.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [tab, selectedCase]);
 
   useEffect(() => {
     function check() {
@@ -426,15 +424,31 @@ export default function CS2Cases({
       setDailyCooldown(86400);
     }
 
-    const cw = containerWidth;
     const winner = pickWeightedItem(selectedCase);
     const winnerIndex = 35 + Math.floor(Math.random() * 8);
     const items = generateStripItems(selectedCase, winner, winnerIndex);
     setStripItems(items);
-    setStripX(cw);
+    setStripX(containerWidth);
+    animToken.current = winnerIndex;
+  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
 
-    const targetX = cw / 2 - ITEM_W / 2 - winnerIndex * ITEM_STEP;
-    const startX = cw;
+  useLayoutEffect(() => {
+    if (!rolling || !stripContainerRef.current || !stripInnerRef.current) return;
+    const container = stripContainerRef.current;
+    const inner = stripInnerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const arrowX = containerRect.left + containerRect.width / 2;
+
+    const winnerIndex = animToken.current;
+    const winnerEl = inner.children[winnerIndex] as HTMLElement | undefined;
+    if (!winnerEl) return;
+    const winnerItem = stripItems[winnerIndex];
+    if (!winnerItem) return;
+
+    const itemRect = winnerEl.getBoundingClientRect();
+    const itemCenter = itemRect.left + itemRect.width / 2;
+
+    const targetX = containerWidth - (itemCenter - arrowX);
     const endX = targetX;
     const duration = 3500;
     const startTime = performance.now();
@@ -443,18 +457,18 @@ export default function CS2Cases({
       const elapsed = now - startTime;
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setStripX(startX + (endX - startX) * eased);
+      setStripX(containerWidth + (endX - containerWidth) * eased);
       if (p < 1) { requestAnimationFrame(animate); }
       else {
         setStripX(endX);
-        setResult(winner);
-        setResultPrice(Math.round((winner.minPrice + Math.random() * (winner.maxPrice - winner.minPrice)) * 100) / 100);
+        setResult(winnerItem);
+        setResultPrice(Math.round((winnerItem.minPrice + Math.random() * (winnerItem.maxPrice - winnerItem.minPrice)) * 100) / 100);
         setShowResult(true);
         setRolling(false);
       }
     }
     requestAnimationFrame(animate);
-  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
+  }, [rolling]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
@@ -657,7 +671,7 @@ export default function CS2Cases({
                         <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
                       </div>
                       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-24 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent rounded-full" />
-                      <div
+                      <div ref={stripInnerRef}
                         className="flex gap-1.5 items-center py-8 absolute"
                         style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
                       >
