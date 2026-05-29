@@ -603,33 +603,39 @@ export default function CS2Cases({
 
                     {showResult && result && (
                       <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 text-center"
+                        className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-6 text-center"
                       >
-                        <div className="text-xs text-slate-500 mb-2">Você ganhou!</div>
-                        <div className="flex justify-center mb-2">
+                        <div className="text-sm text-slate-400 mb-3">🎉 Você ganhou!</div>
+                        <div className="flex justify-center mb-3">
                           <div
-                            className={`w-20 h-20 rounded-xl border-2 flex items-center justify-center ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg}`}
-                            style={{ boxShadow: `0 0 20px ${rarityColor(result.rarityLevel).glow}` }}
+                            className={`w-36 h-36 rounded-2xl border-2 flex items-center justify-center ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} overflow-hidden`}
+                            style={{ boxShadow: `0 0 40px ${rarityColor(result.rarityLevel).glow}` }}
                           >
-                            <span className="text-3xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                            <img
+                              src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}`}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              alt={result.name}
+                              className="w-full h-full object-contain p-1"
+                            />
+                            <span className="text-4xl absolute opacity-30">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
                           </div>
                         </div>
-                        <div className={`text-xs font-mono ${rarityColor(result.rarityLevel).text} opacity-70`}>
+                        <div className={`text-sm font-mono ${rarityColor(result.rarityLevel).text} opacity-80 mb-0.5`}>
                           {result.weapon}
                         </div>
-                        <div className={`text-base font-bold ${rarityColor(result.rarityLevel).text} break-words px-2`}>
+                        <div className={`text-lg md:text-xl font-bold ${rarityColor(result.rarityLevel).text} px-4 max-w-xs mx-auto leading-tight`}>
                           {result.name}
                         </div>
-                        <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-70`}>
+                        <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-70 mt-0.5`}>
                           {rarityLabelShort(result.rarityLevel)}
                         </div>
-                        <div className="text-lg font-black text-brand mt-1">R$ {resultPrice.toFixed(2)}</div>
-                        <div className="flex gap-2 mt-3">
+                        <div className="text-xl font-black text-brand mt-2">R$ {resultPrice.toFixed(2)}</div>
+                        <div className="flex gap-2 mt-4">
                           <button onClick={handleSellNow}
-                            className="flex-1 py-2 bg-brand text-slate-950 rounded-xl text-xs font-bold hover:shadow-[0_0_12px_rgba(0,255,135,0.3)] transition-all cursor-pointer"
+                            className="flex-1 py-2.5 bg-brand text-slate-950 rounded-xl text-xs font-bold hover:shadow-[0_0_12px_rgba(0,255,135,0.3)] transition-all cursor-pointer"
                           >Vender por R$ {resultPrice.toFixed(2)}</button>
                           <button onClick={handleKeep}
-                            className="flex-1 py-2 bg-[#1a1d2d] text-slate-200 rounded-xl text-xs font-bold hover:bg-[#242738] transition-all cursor-pointer border border-[#2a2d3d]"
+                            className="flex-1 py-2.5 bg-[#1a1d2d] text-slate-200 rounded-xl text-xs font-bold hover:bg-[#242738] transition-all cursor-pointer border border-[#2a2d3d]"
                           >Guardar na Coleção</button>
                         </div>
                       </motion.div>
