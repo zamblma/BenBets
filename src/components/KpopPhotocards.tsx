@@ -3,7 +3,7 @@ import { Medal, Package, BookOpen, Star, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PokemonCard } from '../types';
 
-const PACK_PRICE = 5;
+const PACK_PRICE = 50;
 
 interface KpopMember {
   id: string;

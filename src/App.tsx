@@ -557,6 +557,7 @@ export default function App() {
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
               { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
+              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
               { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
               { id: 'Futebol', label: 'Futebol', icon: '⚽' },
               { id: 'Basquete', label: 'Basquete', icon: '🏀' },
