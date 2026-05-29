@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Medal, Package, BookOpen, Star, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PokemonCard } from '../types';
