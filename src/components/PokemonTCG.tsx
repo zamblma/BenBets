@@ -78,6 +78,11 @@ function getRarityLabel(rarity: string): string {
   return rarity;
 }
 
+const MODERN_SERIES = ['Sword & Shield', 'Scarlet & Violet', 'Sun & Moon'];
+function getSetTier(series: string): 'modern' | 'classic' {
+  return MODERN_SERIES.some(s => series.includes(s)) ? 'modern' : 'classic';
+}
+
 function generatePack(cards: TCGCard[], setName: string, setSeries: string, premium = false): PokemonCard[] {
   const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
   const uncommon = cards.filter(c => c.rarity === 'Uncommon');
@@ -137,6 +142,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [seriesFilter, setSeriesFilter] = useState<'todas' | 'classic' | 'modern'>('todas');
   const [filterRarity, setFilterRarity] = useState('todas');
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
@@ -426,19 +432,36 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       {/* SETS GRID */}
       {view === 'sets' && !selectedSet && (
         <div className="space-y-3">
-          <div className="flex gap-2 items-center bg-[#0d0e16] rounded-xl p-3 border border-[#1a1c2a]">
-            <Search className="w-4 h-4 text-slate-500 shrink-0" />
-            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar coleção..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
-            {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-[#0d0e16] rounded-xl p-3 border border-[#1a1c2a]">
+            <div className="flex items-center gap-2 flex-1">
+              <Search className="w-4 h-4 text-slate-500 shrink-0" />
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar coleção..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
+              {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
+            </div>
+            <div className="flex gap-1 text-[10px] font-bold">
+              <button onClick={() => setSeriesFilter('todas')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'todas' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>Todas</button>
+              <button onClick={() => setSeriesFilter('classic')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'classic' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🟦 Clássicas</button>
+              <button onClick={() => setSeriesFilter('modern')} className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${seriesFilter === 'modern' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}>🔥 Modernas</button>
+            </div>
           </div>
           {setsLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {sets.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.series.toLowerCase().includes(searchQuery.toLowerCase())).map(set => (
-                <button key={set.id} onClick={() => { setSelectedSet(set); fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group">
+              {sets.filter(s => {
+                if (seriesFilter !== 'todas' && getSetTier(s.series) !== seriesFilter) return false;
+                if (searchQuery && !s.name.toLowerCase().includes(searchQuery.toLowerCase()) && !s.series.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                return true;
+              }).map(set => {
+                const tier = getSetTier(set.series);
+                return (
+                <button key={set.id} onClick={() => { setSelectedSet(set); fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
+                  {tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
                   <div className="bg-[#07080f] rounded-lg p-3 flex items-center justify-center aspect-[2/1] mb-2 border border-[#1a1c2a]">
                     {set.images?.logo ? <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" /> : <Package className="w-8 h-8 text-slate-500" />}
+                  </div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${tier === 'modern' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>{tier === 'modern' ? '🔥 Moderno' : '🟦 Clássico'}</span>
                   </div>
                   <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
                   <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
@@ -460,7 +483,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   })()}
                   <div className="mt-2 bg-amber-500/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center">A partir de R$ 14,90</div>
                 </button>
-              ))}
+              );
+              })}
               {sets.length === 0 && <div className="col-span-full text-center text-slate-500 text-xs py-8">Nenhuma coleção encontrada.</div>}
             </div>
           )}
@@ -523,11 +547,13 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
           {/* Rarity odds info */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5">
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+              Chances por pacote — <span className={packTier === 'premium' ? 'text-purple-400' : 'text-amber-400'}>{packTier === 'premium' ? 'Premium' : 'Padrão'}</span>
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-slate-700">
-                <p className="text-lg font-extrabold text-slate-300">5</p>
-                <p className="text-[9px] text-slate-500 font-bold">Comuns</p>
+                <p className="text-lg font-extrabold text-slate-400">5</p>
+                <p className="text-[9px] text-slate-600 font-bold">Comuns</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-green-600/30">
                 <p className="text-lg font-extrabold text-green-400">3</p>
@@ -535,11 +561,19 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
                 <p className="text-lg font-extrabold text-amber-400">1</p>
-                <p className="text-[9px] text-amber-400/70 font-bold">Rara+</p>
+                <p className="text-[9px] text-amber-400/70 font-bold">Rara</p>
               </div>
-              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
-                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-amber-400'}`}>~{packTier === 'premium' ? '30' : '12'}%</p>
-                <p className={`text-[9px] font-bold ${packTier === 'premium' ? 'text-purple-400/70' : 'text-amber-400/70'}`}>Holo</p>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30">
+                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-yellow-300'}`}>~{packTier === 'premium' ? '30' : '12'}%</p>
+                <p className="text-[9px] text-yellow-400/70 font-bold">Holo</p>
+              </div>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-purple-400/30">
+                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-purple-400'}`}>~{packTier === 'premium' ? '25' : '5'}%</p>
+                <p className="text-[9px] text-purple-400/70 font-bold">Ultra</p>
+              </div>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-red-400/30">
+                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-red-400' : 'text-red-400'}`}>~{packTier === 'premium' ? '10' : '3'}%</p>
+                <p className="text-[9px] text-red-400/70 font-bold">Secreta</p>
               </div>
             </div>
             <p className="text-[9px] text-slate-600 mt-2 text-center">
