@@ -11,6 +11,12 @@ const PACK_OPTIONS = [
   { qty: 5, price: 59.90, label: '5 pacotes', badge: '−20%' },
   { qty: 10, price: 99.90, label: '10 pacotes', badge: '−33%' },
 ];
+const PREMIUM_OPTIONS = [
+  { qty: 1, price: 100, label: '1 premium' },
+  { qty: 3, price: 270, label: '3 premium', badge: '−10%' },
+  { qty: 5, price: 450, label: '5 premium', badge: '−10%' },
+  { qty: 10, price: 800, label: '10 premium', badge: '−20%' },
+];
 
 interface PokemonTCGProps {
   balance: number;
@@ -72,7 +78,7 @@ function getRarityLabel(rarity: string): string {
   return rarity;
 }
 
-function generatePack(cards: TCGCard[], setName: string, setSeries: string): PokemonCard[] {
+function generatePack(cards: TCGCard[], setName: string, setSeries: string, premium = false): PokemonCard[] {
   const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
   const uncommon = cards.filter(c => c.rarity === 'Uncommon');
   const rarePool = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
@@ -84,14 +90,26 @@ function generatePack(cards: TCGCard[], setName: string, setSeries: string): Pok
 
   const roll = Math.random();
   let rareCard: TCGCard;
-  if (roll < 0.55) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
-  } else if (roll < 0.78) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
-  } else if (roll < 0.92) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
+  if (premium) {
+    if (roll < 0.25) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
+    } else if (roll < 0.55) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
+    } else if (roll < 0.85) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
+    } else {
+      rareCard = pick(rarePool) || pick(cards);
+    }
   } else {
-    rareCard = pick(rarePool) || pick(cards);
+    if (roll < 0.65) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
+    } else if (roll < 0.83) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
+    } else if (roll < 0.93) {
+      rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
+    } else {
+      rareCard = pick(rarePool) || pick(cards);
+    }
   }
   result.push({ ...rareCard, quantity: 1, setName, setSeries, imageUrl: rareCard.images?.small || '' });
 
@@ -113,6 +131,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [selectedSet, setSelectedSet] = useState<TCGSets | null>(null);
   const [setCards, setSetCards] = useState<TCGCard[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
+  const [packTier, setPackTier] = useState<'standard' | 'premium'>('standard');
   const [packQty, setPackQty] = useState(1);
   const [packResult, setPackResult] = useState<PokemonCard[]>([]);
   const [revealingIndex, setRevealingIndex] = useState(-1);
@@ -171,7 +190,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     }
   }, [collection, getBasePrice]);
 
-  const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
+  const options = packTier === 'premium' ? PREMIUM_OPTIONS : PACK_OPTIONS;
+  const selectedOption = options.find(o => o.qty === packQty) || options[0];
   const canBuy = balance >= selectedOption.price && setCards.length > 0;
 
   const filteredCards = collection
@@ -230,9 +250,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     const cards = setCards;
     if (cards.length === 0) { setOpening(false); return; }
 
+    const isPremium = packTier === 'premium';
     const allCards: PokemonCard[] = [];
     for (let i = 0; i < packQty; i++) {
-      allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series));
+      allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series, isPremium));
     }
     allCards.sort((a, b) => getCardRarityLevel(b.rarity) - getCardRarityLevel(a.rarity));
     setPackResult(allCards);
@@ -517,18 +538,30 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-[9px] text-amber-400/70 font-bold">Rara+</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
-                <p className="text-lg font-extrabold text-amber-400">~23%</p>
-                <p className="text-[9px] text-amber-400/70 font-bold">Holo</p>
+                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-amber-400'}`}>~{packTier === 'premium' ? '30' : '18'}%</p>
+                <p className={`text-[9px] font-bold ${packTier === 'premium' ? 'text-purple-400/70' : 'text-amber-400/70'}`}>Holo</p>
               </div>
             </div>
-            <p className="text-[9px] text-slate-600 mt-2 text-center">55% Rara • 14% Ultra/Rainbow • 8% Secreta/Variada</p>
+            <p className="text-[9px] text-slate-600 mt-2 text-center">
+              {packTier === 'standard' ? '65% Rara • 18% Holo • 10% Ultra • 7% Secreta' : '25% Rara • 30% Holo • 30% Ultra • 15% Secreta'}
+            </p>
           </div>
 
-          {/* Quantity selector */}
+          {/* Tier selector + Quantity */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 space-y-3">
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quantidade de pacotes</p>
+            <div className="flex gap-2">
+              <button onClick={() => { setPackTier('standard'); setPackQty(1); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer ${packTier === 'standard' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-[#07080f] text-slate-400 border border-[#1a1c2a] hover:border-amber-500/30'}`}>
+                <span className="block text-sm">Padrão</span>
+                <span className="text-[9px] opacity-60">R$ 14,90</span>
+              </button>
+              <button onClick={() => { setPackTier('premium'); setPackQty(1); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer ${packTier === 'premium' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-[#07080f] text-slate-400 border border-[#1a1c2a] hover:border-purple-500/30'}`}>
+                <span className="block text-sm">Premium</span>
+                <span className="text-[9px] opacity-60">R$ 100,00</span>
+              </button>
+            </div>
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quantidade</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PACK_OPTIONS.map(opt => {
+              {options.map(opt => {
                 const selected = packQty === opt.qty;
                 const affordable = balance >= opt.price;
                 return (
@@ -537,24 +570,24 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                     onClick={() => setPackQty(opt.qty)}
                     disabled={!affordable}
                     className={`relative p-3 rounded-xl border text-center transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-                      selected ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-[#07080f] border-[#1a1c2a] text-slate-300 hover:border-amber-500/30'
+                      selected ? (packTier === 'premium' ? 'bg-purple-500/10 border-purple-500 text-purple-400' : 'bg-amber-500/10 border-amber-500 text-amber-400') : 'bg-[#07080f] border-[#1a1c2a] text-slate-300 hover:border-amber-500/30'
                     }`}
                   >
                     {opt.badge && (
-                      <span className={`absolute -top-2 -right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selected ? 'bg-amber-500 text-slate-950' : 'bg-green-500 text-white'}`}>
+                      <span className={`absolute -top-2 -right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selected ? (packTier === 'premium' ? 'bg-purple-500 text-white' : 'bg-amber-500 text-slate-950') : 'bg-green-500 text-white'}`}>
                         {opt.badge}
                       </span>
                     )}
                     <p className="text-sm font-extrabold">{opt.qty}x</p>
                     <p className="text-[10px] text-slate-400">{opt.label}</p>
-                    <p className={`text-[11px] font-bold mt-0.5 ${selected ? 'text-amber-400' : 'text-slate-300'}`}>R$ {opt.price.toFixed(2)}</p>
+                    <p className={`text-[11px] font-bold mt-0.5 ${selected ? (packTier === 'premium' ? 'text-purple-400' : 'text-amber-400') : 'text-slate-300'}`}>R$ {opt.price.toFixed(2)}</p>
                   </button>
                 );
               })}
             </div>
             <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-[#1a1c2a]">
               <span>Total: <span className="font-bold text-white">{selectedOption.qty} pacote{selectedOption.qty > 1 ? 's' : ''}</span></span>
-              <span className="font-mono font-bold text-amber-400 text-sm">R$ {selectedOption.price.toFixed(2)}</span>
+              <span className="font-mono font-bold text-sm" style={{ color: packTier === 'premium' ? '#a78bfa' : '#fbbf24' }}>R$ {selectedOption.price.toFixed(2)}</span>
             </div>
           </div>
 
