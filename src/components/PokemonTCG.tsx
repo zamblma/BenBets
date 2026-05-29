@@ -278,9 +278,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   useEffect(() => {
     if (packResult.length > 0 && revealingIndex >= packResult.length - 1) {
-      setSellTotal(packResult.reduce((s, c) => s + getBasePrice(c.rarity), 0));
+      const dupes = packResult.filter(c => collection.some(x => x.id === c.id));
+      setSellTotal(dupes.reduce((s, c) => s + getBasePrice(c.rarity), 0));
     }
-  }, [revealingIndex, packResult, getBasePrice]);
+  }, [revealingIndex, packResult, getBasePrice, collection]);
 
   const isSpecial = (r: string) => getCardRarityLevel(r) >= 3;
 
@@ -366,6 +367,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   const lvl = getCardRarityLevel(card.rarity);
                   const border = getRarityBorder(card.rarity);
                   const isRare = lvl >= 3;
+                  const isNew = !collection.some(c => c.id === card.id);
                   return (
                     <motion.div
                       key={`${card.id}-${idx}`}
@@ -381,6 +383,9 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                           transition={{ duration: 1.5, repeat: Infinity }}
                           className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none z-10"
                         />
+                      )}
+                      {isNew && revealingIndex >= idx && (
+                        <div className="absolute top-1 left-1 z-20 bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-lg">NEW</div>
                       )}
                       <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover relative z-0" loading="lazy" />
                       <div className="p-1.5 text-center relative z-10">
@@ -411,13 +416,15 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                       onClick={() => {
-                        onUpdateBalance(sellTotal);
+                        const newCards = packResult.filter(c => !collection.some(x => x.id === c.id));
+                        if (newCards.length > 0) onCollectionUpdate(newCards);
+                        if (sellTotal > 0) onUpdateBalance(sellTotal);
                         setOpening(false);
                         setPackResult([]);
                       }}
                       className="bg-green-500 hover:bg-green-400 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all cursor-pointer"
                     >
-                      <DollarSign className="w-4 h-4 inline mr-1.5" /> Vender Tudo — R$ {sellTotal.toFixed(2)}
+                      <DollarSign className="w-4 h-4 inline mr-1.5" /> Vender Repetidas — R$ {sellTotal.toFixed(2)}
                     </button>
                     <button
                       onClick={() => { onCollectionUpdate(packResult); setOpening(false); setPackResult([]); }}
