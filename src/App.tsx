@@ -37,6 +37,7 @@ import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
 import BlackjackGame from './components/BlackjackGame';
 import RouletteGame from './components/RouletteGame';
+import DiceGame from './components/DiceGame';
 import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
@@ -639,6 +640,7 @@ export default function App() {
               <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
               <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} />
               <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} />
+              <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} />
             </div>
           ) : selectedSport === 'Pokemon' ? (
             <div className="space-y-6">
