@@ -14,138 +14,137 @@ interface Player {
 
 const PACK_PRICE = 10;
 
-const TEAMS: { id: string; name: string; flag: string }[] = [
-  { id: 'bra', name: 'Brasil', flag: '🇧🇷' },
-  { id: 'arg', name: 'Argentina', flag: '🇦🇷' },
-  { id: 'uru', name: 'Uruguai', flag: '🇺🇾' },
-  { id: 'equ', name: 'Equador', flag: '🇪🇨' },
-  { id: 'col', name: 'Colômbia', flag: '🇨🇴' },
-  { id: 'par', name: 'Paraguai', flag: '🇵🇾' },
-  { id: 'ven', name: 'Venezuela', flag: '🇻🇪' },
-  { id: 'fra', name: 'França', flag: '🇫🇷' },
-  { id: 'ing', name: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-  { id: 'esp', name: 'Espanha', flag: '🇪🇸' },
-  { id: 'por', name: 'Portugal', flag: '🇵🇹' },
-  { id: 'ale', name: 'Alemanha', flag: '🇩🇪' },
-  { id: 'hol', name: 'Holanda', flag: '🇳🇱' },
-  { id: 'ita', name: 'Itália', flag: '🇮🇹' },
-  { id: 'bel', name: 'Bélgica', flag: '🇧🇪' },
-  { id: 'sui', name: 'Suíça', flag: '🇨🇭' },
-  { id: 'din', name: 'Dinamarca', flag: '🇩🇰' },
-  { id: 'cro', name: 'Croácia', flag: '🇭🇷' },
-  { id: 'srb', name: 'Sérvia', flag: '🇷🇸' },
-  { id: 'tur', name: 'Turquia', flag: '🇹🇷' },
-  { id: 'sue', name: 'Suécia', flag: '🇸🇪' },
-  { id: 'pol', name: 'Polônia', flag: '🇵🇱' },
-  { id: 'ukr', name: 'Ucrânia', flag: '🇺🇦' },
-  { id: 'eua', name: 'Estados Unidos', flag: '🇺🇸' },
-  { id: 'mex', name: 'México', flag: '🇲🇽' },
-  { id: 'can', name: 'Canadá', flag: '🇨🇦' },
-  { id: 'crc', name: 'Costa Rica', flag: '🇨🇷' },
-  { id: 'pan', name: 'Panamá', flag: '🇵🇦' },
-  { id: 'jam', name: 'Jamaica', flag: '🇯🇲' },
-  { id: 'hon', name: 'Honduras', flag: '🇭🇳' },
-  { id: 'jap', name: 'Japão', flag: '🇯🇵' },
-  { id: 'cor', name: 'Coreia do Sul', flag: '🇰🇷' },
-  { id: 'aus', name: 'Austrália', flag: '🇦🇺' },
-  { id: 'ira', name: 'Irã', flag: '🇮🇷' },
-  { id: 'ars', name: 'Arábia Saudita', flag: '🇸🇦' },
-  { id: 'qat', name: 'Catar', flag: '🇶🇦' },
-  { id: 'iraq', name: 'Iraque', flag: '🇮🇶' },
-  { id: 'sen', name: 'Senegal', flag: '🇸🇳' },
-  { id: 'mar', name: 'Marrocos', flag: '🇲🇦' },
-  { id: 'nig', name: 'Nigéria', flag: '🇳🇬' },
-  { id: 'egp', name: 'Egito', flag: '🇪🇬' },
-  { id: 'cam', name: 'Camarões', flag: '🇨🇲' },
-  { id: 'gan', name: 'Gana', flag: '🇬🇭' },
-  { id: 'tun', name: 'Tunísia', flag: '🇹🇳' },
-  { id: 'alg', name: 'Argélia', flag: '🇩🇿' },
-  { id: 'cos', name: 'Costa do Marfim', flag: '🇨🇮' },
-  { id: 'mali', name: 'Mali', flag: '🇲🇱' },
-  { id: 'nzl', name: 'Nova Zelândia', flag: '🇳🇿' },
+const TEAMS: { id: string; name: string; flag: string; group: string }[] = [
+  { id: 'mex', name: 'México', flag: '🇲🇽', group: 'A' },
+  { id: 'rsa', name: 'África do Sul', flag: '🇿🇦', group: 'A' },
+  { id: 'kor', name: 'Coreia do Sul', flag: '🇰🇷', group: 'A' },
+  { id: 'cze', name: 'Tchéquia', flag: '🇨🇿', group: 'A' },
+  { id: 'can', name: 'Canadá', flag: '🇨🇦', group: 'B' },
+  { id: 'bih', name: 'Bósnia e Herzegovina', flag: '🇧🇦', group: 'B' },
+  { id: 'qat', name: 'Catar', flag: '🇶🇦', group: 'B' },
+  { id: 'sui', name: 'Suíça', flag: '🇨🇭', group: 'B' },
+  { id: 'bra', name: 'Brasil', flag: '🇧🇷', group: 'C' },
+  { id: 'mar', name: 'Marrocos', flag: '🇲🇦', group: 'C' },
+  { id: 'hai', name: 'Haiti', flag: '🇭🇹', group: 'C' },
+  { id: 'sco', name: 'Escócia', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', group: 'C' },
+  { id: 'usa', name: 'Estados Unidos', flag: '🇺🇸', group: 'D' },
+  { id: 'par', name: 'Paraguai', flag: '🇵🇾', group: 'D' },
+  { id: 'aus', name: 'Austrália', flag: '🇦🇺', group: 'D' },
+  { id: 'tur', name: 'Turquia', flag: '🇹🇷', group: 'D' },
+  { id: 'ger', name: 'Alemanha', flag: '🇩🇪', group: 'E' },
+  { id: 'cuc', name: 'Curaçao', flag: '🇨🇼', group: 'E' },
+  { id: 'civ', name: 'Costa do Marfim', flag: '🇨🇮', group: 'E' },
+  { id: 'ecu', name: 'Equador', flag: '🇪🇨', group: 'E' },
+  { id: 'ned', name: 'Países Baixos', flag: '🇳🇱', group: 'F' },
+  { id: 'jpn', name: 'Japão', flag: '🇯🇵', group: 'F' },
+  { id: 'swe', name: 'Suécia', flag: '🇸🇪', group: 'F' },
+  { id: 'tun', name: 'Tunísia', flag: '🇹🇳', group: 'F' },
+  { id: 'bel', name: 'Bélgica', flag: '🇧🇪', group: 'G' },
+  { id: 'egy', name: 'Egito', flag: '🇪🇬', group: 'G' },
+  { id: 'irn', name: 'Irã', flag: '🇮🇷', group: 'G' },
+  { id: 'nzl', name: 'Nova Zelândia', flag: '🇳🇿', group: 'G' },
+  { id: 'esp', name: 'Espanha', flag: '🇪🇸', group: 'H' },
+  { id: 'cpv', name: 'Cabo Verde', flag: '🇨🇻', group: 'H' },
+  { id: 'ksa', name: 'Arábia Saudita', flag: '🇸🇦', group: 'H' },
+  { id: 'uru', name: 'Uruguai', flag: '🇺🇾', group: 'H' },
+  { id: 'fra', name: 'França', flag: '🇫🇷', group: 'I' },
+  { id: 'sen', name: 'Senegal', flag: '🇸🇳', group: 'I' },
+  { id: 'irq', name: 'Iraque', flag: '🇮🇶', group: 'I' },
+  { id: 'nor', name: 'Noruega', flag: '🇳🇴', group: 'I' },
+  { id: 'arg', name: 'Argentina', flag: '🇦🇷', group: 'J' },
+  { id: 'alg', name: 'Argélia', flag: '🇩🇿', group: 'J' },
+  { id: 'aut', name: 'Áustria', flag: '🇦🇹', group: 'J' },
+  { id: 'jor', name: 'Jordânia', flag: '🇯🇴', group: 'J' },
+  { id: 'por', name: 'Portugal', flag: '🇵🇹', group: 'K' },
+  { id: 'cod', name: 'RD Congo', flag: '🇨🇩', group: 'K' },
+  { id: 'uzb', name: 'Uzbequistão', flag: '🇺🇿', group: 'K' },
+  { id: 'col', name: 'Colômbia', flag: '🇨🇴', group: 'K' },
+  { id: 'eng', name: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: 'L' },
+  { id: 'cro', name: 'Croácia', flag: '🇭🇷', group: 'L' },
+  { id: 'gha', name: 'Gana', flag: '🇬🇭', group: 'L' },
+  { id: 'pan', name: 'Panamá', flag: '🇵🇦', group: 'L' },
 ];
+
+const SORTED_TEAMS = [...TEAMS].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
+
+const groupedTeams = SORTED_TEAMS.reduce((acc: Record<string, typeof TEAMS>, t) => {
+  (acc[t.group] ??= []).push(t);
+  return acc;
+}, {});
+const GROUPED_ENTRIES = Object.entries(groupedTeams).sort(([a], [b]) => a.localeCompare(b));
+
 
 const POSITIONS = ['GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MEI', 'AT'] as const;
 
-const NAME_POOLS: Record<string, { first: string[]; last: string[]; stars: string[] }> = {
+const NAME_POOLS: Record<string, { first: string[]; last: string[] }> = {
   brasil: {
-    first: ['Lucas', 'Gabriel', 'Rafael', 'Matheus', 'Felipe', 'Bruno', 'Pedro', 'João', 'Gustavo', 'Diego', 'Thiago', 'Carlos', 'Marcos', 'Alexandre', 'Eduardo'],
-    last: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Pereira', 'Almeida', 'Barbosa', 'Gomes', 'Ribeiro', 'Carvalho', 'Araújo', 'Melo', 'Nunes'],
-    stars: ['Vinicius Jr.', 'Rodrygo', 'Raphinha', 'Endrick', 'Alisson', 'Marquinhos', 'Bruno Guimarães', 'Gabriel Magalhães', 'Ederson', 'Paquetá'],
+    first: ['Lucas', 'Gabriel', 'Rafael', 'Matheus', 'Felipe', 'Bruno', 'Pedro', 'João', 'Gustavo', 'Diego', 'Thiago', 'Carlos', 'Marcos', 'Alexandre', 'Eduardo', 'Fábio', 'Igor', 'Renato', 'Wesley', 'Danilo', 'Vinícius', 'Rodrigo', 'André', 'Luan', 'Yuri'],
+    last: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Pereira', 'Almeida', 'Barbosa', 'Gomes', 'Ribeiro', 'Carvalho', 'Araújo', 'Melo', 'Nunes', 'Martins', 'Fernandes', 'Dias', 'Cavalcanti', 'Teixeira'],
   },
   argentina: {
-    first: ['Lionel', 'Julian', 'Lautaro', 'Enzo', 'Rodrigo', 'Alexis', 'Nicolas', 'Alejandro', 'Emiliano', 'Leandro', 'Giovani', 'Cristian', 'Nahuel', 'Marcos', 'Gonzalo'],
-    last: ['Martínez', 'Fernández', 'Álvarez', 'De Paul', 'Mac Allister', 'Romero', 'Molina', 'Tagliafico', 'Paredes', 'Lo Celso', 'Garnacho', 'Otamendi', 'Dybala', 'Di María', 'Acuña'],
-    stars: ['Lionel Messi', 'Julian Álvarez', 'Enzo Fernández', 'Alexis Mac Allister', 'Cristian Romero', 'Rodrigo De Paul', 'Lautaro Martínez', 'Alejandro Garnacho'],
+    first: ['Lionel', 'Julian', 'Lautaro', 'Enzo', 'Rodrigo', 'Alexis', 'Nicolas', 'Alejandro', 'Emiliano', 'Leandro', 'Giovani', 'Cristian', 'Nahuel', 'Marcos', 'Gonzalo', 'Facundo', 'Exequiel', 'Lautaro', 'Valentín', 'Guido'],
+    last: ['Martínez', 'Fernández', 'Álvarez', 'De Paul', 'Mac Allister', 'Romero', 'Molina', 'Tagliafico', 'Paredes', 'Lo Celso', 'Garnacho', 'Otamendi', 'Dybala', 'Di María', 'Acuña', 'Medina', 'Palacios', 'Barco', 'Carboni', 'Montiel'],
   },
   uefa: {
-    first: ['Harry', 'Jude', 'Bukayo', 'Phil', 'Declan', 'Cole', 'Anthony', 'Kieran', 'John', 'Jordan', 'Luke', 'Ezri', 'Conor', 'Jarrod', 'Marcus'],
-    last: ['Kane', 'Bellingham', 'Saka', 'Foden', 'Rice', 'Palmer', 'Gordon', 'Trippier', 'Stones', 'Pickford', 'Shaw', 'Konsa', 'Gallagher', 'Bowen', 'Rashford'],
-    stars: ['Harry Kane', 'Jude Bellingham', 'Bukayo Saka', 'Phil Foden', 'Declan Rice', 'Cole Palmer', 'Virgil van Dijk', 'Frenkie de Jong', 'Memphis Depay', 'Cody Gakpo'],
+    first: ['Harry', 'Jude', 'Bukayo', 'Phil', 'Declan', 'Cole', 'Anthony', 'Kieran', 'John', 'Jordan', 'Luke', 'Ezri', 'Conor', 'Jarrod', 'Marcus', 'Mason', 'James', 'Aaron', 'Ben', 'Levi', 'Eberechi', 'Morgan', 'Rico', 'Trent', 'Kobbie'],
+    last: ['Kane', 'Bellingham', 'Saka', 'Foden', 'Rice', 'Palmer', 'Gordon', 'Trippier', 'Stones', 'Pickford', 'Shaw', 'Konsa', 'Gallagher', 'Bowen', 'Rashford', 'Mount', 'Maddison', 'Ramsdale', 'White', 'Colwill', 'Eze', 'Rogers', 'Lewis', 'Alexander-Arnold', 'Mainoo'],
   },
   africa: {
-    first: ['Sadio', 'Mohamed', 'Victor', 'André', 'Achraf', 'Riyad', 'Nicolas', 'Wilfried', 'Edouard', 'Kalidou', 'Yves', 'Samuel', 'Kelechi', 'Ismaila', 'Franck'],
-    last: ['Mané', 'Salah', 'Osimhen', 'Ayew', 'Hakimi', 'Mahrez', 'Pépé', 'Zaha', 'Mendy', 'Koulibaly', 'Bissouma', 'Chukwueze', 'Iheanacho', 'Sarr', 'Kessié'],
-    stars: ['Sadio Mané', 'Mohamed Salah', 'Victor Osimhen', 'André Onana', 'Achraf Hakimi', 'Riyad Mahrez', 'Edouard Mendy', 'Kalidou Koulibaly'],
+    first: ['Sadio', 'Mohamed', 'Victor', 'André', 'Achraf', 'Riyad', 'Nicolas', 'Wilfried', 'Edouard', 'Kalidou', 'Yves', 'Samuel', 'Kelechi', 'Ismaila', 'Franck', 'Hakim', 'Azzedine', 'Sofiane', 'Islam', 'Mostafa', 'Ali', 'Amine', 'Bilal', 'Ibrahim', 'Mahdi'],
+    last: ['Mané', 'Salah', 'Osimhen', 'Ayew', 'Hakimi', 'Mahrez', 'Pépé', 'Zaha', 'Mendy', 'Koulibaly', 'Bissouma', 'Chukwueze', 'Iheanacho', 'Sarr', 'Kessié', 'Ziyech', 'Ounahi', 'Benzia', 'Slimani', 'Mohamed', 'El Ghazi', 'Hari', 'Ez Abde', 'Díaz', 'Camará'],
   },
   asia: {
-    first: ['Take', 'Min', 'Hee', 'Sho', 'Wataru', 'Daichi', 'Ritsu', 'Takefusa', 'Hiroki', 'Kaoru', 'Ao', 'Yuki', 'Sei', 'Kento', 'Gaku'],
-    last: ['Kubo', 'Minamino', 'Son', 'Endo', 'Kamada', 'Doan', 'Mitoma', 'Tanaka', 'Ito', 'Moriyasu', 'Tomiyasu', 'Soma', 'Muto', 'Nakamura', 'Haraguchi'],
-    stars: ['Son Heung-min', 'Takefusa Kubo', 'Wataru Endo', 'Daichi Kamada', 'Kaoru Mitoma', 'Mehdi Taremi', 'Sardar Azmoun', 'Alireza Jahanbakhsh'],
+    first: ['Take', 'Min', 'Hee', 'Sho', 'Wataru', 'Daichi', 'Ritsu', 'Takefusa', 'Hiroki', 'Kaoru', 'Ao', 'Yuki', 'Sei', 'Kento', 'Gaku', 'Takumi', 'Takashi', 'Koki', 'Mao', 'Kyogo', 'Reo', 'Kaishu', 'Hayao', 'Tsuyoshi', 'Kosei'],
+    last: ['Kubo', 'Minamino', 'Son', 'Endo', 'Kamada', 'Doan', 'Mitoma', 'Tanaka', 'Ito', 'Moriyasu', 'Tomiyasu', 'Soma', 'Muto', 'Nakamura', 'Haraguchi', 'Minamino', 'Usami', 'Machida', 'Hosoya', 'Furuhashi', 'Maeda', 'Seko', 'Kawamura', 'Ogawa', 'Tani'],
   },
   concacaf: {
-    first: ['Christian', 'Weston', 'Tyler', 'Gio', 'Tim', 'Matt', 'Antonee', 'Brenden', 'Ricardo', 'Sergiño', 'Folarin', 'Malik', 'Cade', 'Djordje', 'Zack'],
-    last: ['Pulisic', 'McKennie', 'Adams', 'Reyna', 'Weah', 'Turner', 'Robinson', 'Aaronson', 'Pepi', 'Dest', 'Balogun', 'Tillman', 'Cowell', 'Mihailovic', 'Steffen'],
-    stars: ['Christian Pulisic', 'Weston McKennie', 'Tyler Adams', 'Gio Reyna', 'Tim Weah', 'Folarin Balogun', 'Raúl Jiménez', 'Hirving Lozano'],
+    first: ['Christian', 'Weston', 'Tyler', 'Gio', 'Tim', 'Matt', 'Antonee', 'Brenden', 'Ricardo', 'Sergiño', 'Folarin', 'Malik', 'Cade', 'Djordje', 'Zack', 'Miles', 'Walker', 'Yunus', 'Luca', 'Paxten', 'Kevin', 'Brian', 'Auston', 'Haji', 'Ethan'],
+    last: ['Pulisic', 'McKennie', 'Adams', 'Reyna', 'Weah', 'Turner', 'Robinson', 'Aaronson', 'Pepi', 'Dest', 'Balogun', 'Tillman', 'Cowell', 'Mihailovic', 'Steffen', 'Robinson', 'Zimmerman', 'Musah', 'de la Torre', 'Aaronson', 'Paredes', 'White', 'Trusty', 'Wright', 'Horvath'],
   },
   others: {
-    first: ['James', 'Daniel', 'Oliver', 'William', 'Noah', 'Liam', 'Mason', 'Ethan', 'Alexander', 'Benjamin', 'Samuel', 'Ryan', 'Jack', 'Thomas', 'Leo'],
-    last: ['Middleton', 'Gray', 'Brown', 'Davies', 'Wilson', 'Taylor', 'Walker', 'Hall', 'Green', 'Clark', 'Johnson', 'Edwards', 'Smith', 'Moore', 'Reed'],
-    stars: ['Luka Modrić', 'Dominik Livaković', 'Joško Gvardiol', 'Marcelo Brozović', 'Mateo Kovačić', 'Andrej Kramarić', 'Ivan Perišić', 'Mislav Oršić'],
+    first: ['James', 'Daniel', 'Oliver', 'William', 'Noah', 'Liam', 'Mason', 'Ethan', 'Alexander', 'Benjamin', 'Samuel', 'Ryan', 'Jack', 'Thomas', 'Leo', 'Oscar', 'Victor', 'David', 'Michael', 'Chris', 'Andrew', 'George', 'Max', 'Toby', 'Finn'],
+    last: ['Andersen', 'Christensen', 'Højbjerg', 'Eriksen', 'Lindstrøm', 'Damsgaard', 'Skov', 'Jensen', 'Nørgaard', 'Mæhle', 'Kjær', 'Kristensen', 'Wass', 'Delaney', 'Olsen', 'Middleton', 'Gray', 'Brown', 'Davies', 'Wilson'],
   },
 };
 
 const regionMap: Record<string, keyof typeof NAME_POOLS> = {
-  bra: 'brasil', arg: 'argentina', uru: 'others', equ: 'others', col: 'others', par: 'others', ven: 'others',
-  fra: 'uefa', ing: 'uefa', esp: 'uefa', por: 'uefa', ale: 'uefa', hol: 'uefa', ita: 'uefa',
-  bel: 'uefa', sui: 'uefa', din: 'uefa', cro: 'others', srb: 'others', tur: 'others', sue: 'uefa', pol: 'others', ukr: 'others',
-  eua: 'concacaf', mex: 'concacaf', can: 'concacaf', crc: 'others', pan: 'others', jam: 'others', hon: 'others',
-  jap: 'asia', cor: 'asia', aus: 'asia', ira: 'asia', ars: 'asia', qat: 'asia', iraq: 'asia',
-  sen: 'africa', mar: 'africa', nig: 'africa', egp: 'africa', cam: 'africa', gan: 'africa', tun: 'africa', alg: 'africa', cos: 'africa', mali: 'africa',
-  nzl: 'others',
+  bra: 'brasil', arg: 'argentina',
+  mex: 'concacaf', can: 'concacaf', usa: 'concacaf', hai: 'others', pan: 'others', cuc: 'others',
+  rsa: 'africa', mar: 'africa', alg: 'africa', sen: 'africa', egy: 'africa', tun: 'africa',
+  civ: 'africa', cod: 'africa', gha: 'africa', cpv: 'africa',
+  kor: 'asia', qat: 'asia', irn: 'asia', jpn: 'asia', ksa: 'asia', irq: 'asia', uzb: 'asia', jor: 'asia', aus: 'asia',
+  cze: 'others', bih: 'others', sui: 'uefa', sco: 'uefa', par: 'others', tur: 'uefa',
+  ger: 'uefa', ecu: 'others', ned: 'uefa', swe: 'uefa', bel: 'uefa',
+  esp: 'uefa', uru: 'others', fra: 'uefa', nor: 'uefa', aut: 'uefa',
+  por: 'uefa', col: 'others', eng: 'uefa', cro: 'others', nzl: 'others',
 };
 
 function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 9301 + 49297) * 49297;
-  return x - Math.floor(x);
+  let s = seed * 16807 + 1;
+  s = (s * 1103515245 + 12345) & 0x7fffffff;
+  return s / 0x7fffffff;
 }
 
 function generateSquad(team: typeof TEAMS[number], teamIdx: number): Player[] {
   const region = regionMap[team.id] || 'others';
   const pool = NAME_POOLS[region];
   const players: Player[] = [];
-  const usedNames = new Set<string>();
 
+  const used = new Set<string>();
   for (let i = 0; i < 12; i++) {
-    const star = i < 2 || (i < 3 && region === 'brasil' || region === 'argentina');
-    const rarity: string = star ? (i === 0 ? 'Ultra Rare' : 'Rare') : (i < 5 ? "Uncommon" : "Common");
-    const pos = POSITIONS[i % POSITIONS.length];
-    let name: string;
-
-    if (star && i < pool.stars.length) {
-      name = pool.stars[i];
-    } else {
-      const r = seededRandom(teamIdx * 100 + i);
-      const fi = Math.floor(r * pool.first.length);
-      const li = Math.floor(seededRandom(teamIdx * 100 + i + 50) * pool.last.length);
+    const r1 = seededRandom(teamIdx * 1000 + i);
+    const r2 = seededRandom(teamIdx * 1000 + i + 500);
+    let fi = Math.floor(r1 * pool.first.length);
+    let li = Math.floor(r2 * pool.last.length);
+    let name = `${pool.first[fi]} ${pool.last[li]}`;
+    while (used.has(name)) {
+      li = (li + 1) % pool.last.length;
       name = `${pool.first[fi]} ${pool.last[li]}`;
     }
+    used.add(name);
 
-    const key = name + team.id;
-    if (usedNames.has(key)) {
-      name = name + ' Jr.';
-    }
-    usedNames.add(key);
+    const pos = POSITIONS[i % POSITIONS.length];
+    const rarity: string = i === 0 ? 'Ultra Rare' : i < 3 ? 'Rare' : i < 6 ? 'Uncommon' : 'Common';
 
     players.push({
       id: `${team.id}-${i}`,
@@ -321,7 +320,14 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
         </div>
       ) : (
         <div className="space-y-4">
-          {TEAMS.map(team => {
+          {GROUPED_ENTRIES.map(([group, teams]) => (
+            <div key={group}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 h-px bg-gradient-to-r from-green-900/60 to-transparent" />
+                <span className="text-xs font-extrabold text-green-500 tracking-widest">GRUPO {group}</span>
+                <div className="flex-1 h-px bg-gradient-to-l from-green-900/60 to-transparent" />
+              </div>
+              {teams.map(team => {
             const teamPlayers = ALL_PLAYERS.filter(p => p.teamName === team.name);
             const owned = teamPlayers.filter(p => collection.some(c => c.id === p.id));
             const ownedCount = owned.length;
@@ -363,7 +369,9 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
             );
           })}
         </div>
-      )}
+      ))}
     </div>
+  )}
+</div>
   );
 }
