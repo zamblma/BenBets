@@ -487,15 +487,15 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           </div>
 
-          {filteredCards.length === 0 ? (
+          {filteredCards.filter(c => c.quantity > 1).length === 0 ? (
             <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
               <TrendingUp className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm font-bold">Nenhuma carta encontrada</p>
-              <p className="text-slate-500 text-xs mt-1">Tente ajustar os filtros ou compre mais pacotes.</p>
+              <p className="text-slate-400 text-sm font-bold">Nenhuma carta repetida</p>
+              <p className="text-slate-500 text-xs mt-1">Compre mais pacotes para ter cartas repetidas para vender.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredCards.map(card => {
+              {filteredCards.filter(c => c.quantity > 1).map(card => {
                 const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
                 const canSell = card.quantity > 1;
                 return (
@@ -526,7 +526,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   </div>
                 );
               })}
-              <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20s • {filteredCards.length} carta{filteredCards.length > 1 ? 's' : ''}</p>
+              <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20s • {filteredCards.filter(c => c.quantity > 1).length} repetida{filteredCards.filter(c => c.quantity > 1).length > 1 ? 's' : ''}</p>
             </div>
           )}
         </div>
