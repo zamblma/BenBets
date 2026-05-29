@@ -131,6 +131,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
   const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: string; label: string }>({ show: false, rarity: '', label: '' });
+  const [sellTotal, setSellTotal] = useState(0);
 
   const pricesRef = useRef<Record<string, number>>({});
   const allCardIds = useRef<Set<string>>(new Set());
@@ -261,8 +262,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       await new Promise(r => setTimeout(r, delay));
       setRevealingIndex(i);
     }
-
-    if (!skipRef.current) onCollectionUpdate(allCards);
   };
 
   useEffect(() => {
@@ -276,6 +275,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       return () => clearTimeout(t);
     }
   }, [revealingIndex, packResult]);
+
+  useEffect(() => {
+    if (packResult.length > 0 && revealingIndex >= packResult.length - 1) {
+      setSellTotal(packResult.reduce((s, c) => s + getBasePrice(c.rarity), 0));
+    }
+  }, [revealingIndex, packResult, getBasePrice]);
 
   const isSpecial = (r: string) => getCardRarityLevel(r) >= 3;
 
@@ -354,7 +359,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-slate-500 text-xs">
                   {revealingIndex + 1} de {packResult.length} cartas reveladas
                 </p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 600); }} className="text-xs sm:text-sm text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-amber-500/5 hover:bg-amber-500/10">Pular</button>
+                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); setTimeout(() => setOpening(false), 600); }} className="text-xs sm:text-sm text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-amber-500/5 hover:bg-amber-500/10 ml-auto">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
                 {packResult.map((card, idx) => {
@@ -403,12 +408,24 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                       {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 's' : ''}! <Star className="w-5 h-5 fill-yellow-400" />
                     </motion.div>
                   )}
-                  <button
-                    onClick={() => { setOpening(false); setPackResult([]); }}
-                    className="mt-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 inline mr-1.5" /> Continuar
-                  </button>
+                  <div className="flex items-center justify-center gap-3 mt-4">
+                    <button
+                      onClick={() => {
+                        onUpdateBalance(sellTotal);
+                        setOpening(false);
+                        setPackResult([]);
+                      }}
+                      className="bg-green-500 hover:bg-green-400 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                    >
+                      <DollarSign className="w-4 h-4 inline mr-1.5" /> Vender Tudo — R$ {sellTotal.toFixed(2)}
+                    </button>
+                    <button
+                      onClick={() => { onCollectionUpdate(packResult); setOpening(false); setPackResult([]); }}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 inline mr-1.5" /> Guardar na Coleção
+                    </button>
+                  </div>
                 </motion.div>
               )}
               {revealingIndex < packResult.length - 1 && (
