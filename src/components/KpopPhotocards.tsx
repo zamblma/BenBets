@@ -113,7 +113,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
     onUpdateBalance(-PACK_PRICE); setOpening(true); setPackResult([]); setRevealingIndex(-1); skipRef.current = false; skipHandledRef.current = false;
     const allCards = genPack(); setPackResult(allCards);
     for (let i = 0; i < allCards.length; i++) {
-      if (skipRef.current) break; await new Promise(r => setTimeout(r, 300)); setRevealingIndex(i);
+      await new Promise(r => setTimeout(r, 300)); if (skipRef.current) break; setRevealingIndex(i);
     }
     if (!skipRef.current) onCollectionUpdate(allCards);
   };

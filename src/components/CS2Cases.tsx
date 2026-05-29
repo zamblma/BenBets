@@ -71,7 +71,7 @@ const ALL_CASES: CS2CaseData[] = [
   // ─── DAILY (FREE) ───
   {
     id: 'daily', name: 'Caixa Diária CSGOSKINS', image: '🎁', price: 0, tier: 'daily',
-    weights: [70.469, 1.254, 1.186, 0.014, 0.011],
+    weights: [89.88, 1.60, 1.51, 6, 1],
     items: [
       { id: 'daily_1', name: 'Sand Dune', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
       { id: 'daily_2', name: 'Sand Mesh', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
@@ -96,7 +96,7 @@ const ALL_CASES: CS2CaseData[] = [
   // ─── BUDGET ───
   {
     id: 'chroma2', name: 'Chroma 2 Case', image: '🎨', price: 5.90, tier: 'budget',
-    weights: [85, 12, 2.5, 0.5, 0],
+    weights: [79.45, 11.22, 2.34, 6, 1],
     items: [
       { id: 'ch2_1', name: 'Tigris', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
       { id: 'ch2_2', name: 'Facets', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
@@ -112,7 +112,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'falchion', name: 'Falchion Case', image: '⚔️', price: 7.90, tier: 'budget',
-    weights: [82, 13.5, 3, 1.5, 0],
+    weights: [77.40, 12.73, 2.83, 6, 1],
     items: [
       { id: 'fal_1', name: 'Copper Galaxy', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
       { id: 'fal_2', name: 'Colony', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
@@ -129,7 +129,7 @@ const ALL_CASES: CS2CaseData[] = [
   // ─── STANDARD ───
   {
     id: 'cs20', name: 'CS20 Case', image: '🎯', price: 12.90, tier: 'standard',
-    weights: [79.92, 15.98, 3.20, 0.64, 0.26],
+    weights: [75, 15, 3, 6, 1],
     items: [
       { id: 'cs20_1', name: 'Stalker', rarity: 'Mil-Spec', weapon: 'AUG', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
       { id: 'cs20_2', name: 'Verdigris', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
@@ -148,7 +148,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'fracture', name: 'Fracture Case', image: '💥', price: 12.90, tier: 'standard',
-    weights: [79.92, 15.98, 3.20, 0.64, 0.26],
+    weights: [75, 15, 3, 6, 1],
     items: [
       { id: 'frc_1', name: 'Fragments', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
       { id: 'frc_2', name: 'Mount Fuji', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
@@ -166,7 +166,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'snakebite', name: 'Snakebite Case', image: '🐍', price: 12.90, tier: 'standard',
-    weights: [79.92, 15.98, 3.20, 0.64, 0.26],
+    weights: [75, 15, 3, 6, 1],
     items: [
       { id: 'snk_1', name: 'Distressed', rarity: 'Mil-Spec', weapon: 'CZ75-Auto', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
       { id: 'snk_2', name: 'Epicenter', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
@@ -183,7 +183,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'dreams', name: 'Dreams & Nightmares', image: '🌙', price: 12.90, tier: 'standard',
-    weights: [79.92, 15.98, 3.20, 0.64, 0.26],
+    weights: [75, 15, 3, 6, 1],
     items: [
       { id: 'dr_1', name: 'Dream', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
       { id: 'dr_2', name: 'Sakkaku', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
@@ -203,7 +203,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'kilowatt', name: 'Kilowatt Case', image: '⚡', price: 12.90, tier: 'standard',
-    weights: [79.92, 15.98, 3.20, 0.64, 0.26],
+    weights: [75, 15, 3, 6, 1],
     items: [
       { id: 'kw_1', name: 'X-Ray', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
       { id: 'kw_2', name: 'Power Load', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
@@ -221,7 +221,7 @@ const ALL_CASES: CS2CaseData[] = [
   // ─── PREMIUM ───
   {
     id: 'prisma', name: 'Prisma Case', image: '🌈', price: 24.90, tier: 'premium',
-    weights: [65, 22, 8, 3.5, 1.5],
+    weights: [63.63, 21.54, 7.83, 6, 1],
     items: [
       { id: 'prs_1', name: 'Flashback', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
       { id: 'prs_2', name: 'Drift Wood', rarity: 'Mil-Spec', weapon: 'AUG', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
@@ -241,7 +241,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'spectrum', name: 'Spectrum 2 Case', image: '💎', price: 39.90, tier: 'premium',
-    weights: [55, 25, 12, 5, 3],
+    weights: [55.60, 25.27, 12.13, 6, 1],
     items: [
       { id: 'sp2_1', name: 'Jungle Slipstream', rarity: 'Mil-Spec', weapon: 'SSG 08', rarityLevel: 0, minPrice: 1, maxPrice: 6 },
       { id: 'sp2_2', name: 'Tread', rarity: 'Mil-Spec', weapon: 'PP-Bizon', rarityLevel: 0, minPrice: 1, maxPrice: 6 },
@@ -262,7 +262,7 @@ const ALL_CASES: CS2CaseData[] = [
   // ─── HIGH RISK ───
   {
     id: 'riptide', name: 'Operation Riptide', image: '🌊', price: 59.90, tier: 'high',
-    weights: [45, 28, 15, 8, 4],
+    weights: [47.56, 29.59, 15.85, 6, 1],
     items: [
       { id: 'rip_1', name: 'M.A.C.', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 2, maxPrice: 8 },
       { id: 'rip_2', name: 'Spray', rarity: 'Mil-Spec', weapon: 'MAG-7', rarityLevel: 0, minPrice: 2, maxPrice: 8 },
@@ -283,7 +283,7 @@ const ALL_CASES: CS2CaseData[] = [
   },
   {
     id: 'bravo', name: 'Operation Bravo Case', image: '🏆', price: 99.90, tier: 'high',
-    weights: [35, 28, 20, 12, 5],
+    weights: [39.22, 31.37, 22.41, 6, 1],
     items: [
       { id: 'bra_1', name: 'Sandstorm', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 3, maxPrice: 10 },
       { id: 'bra_2', name: 'Death Head', rarity: 'Mil-Spec', weapon: 'SSG 08', rarityLevel: 0, minPrice: 3, maxPrice: 10 },

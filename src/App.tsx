@@ -35,6 +35,8 @@ import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
 import CrashGame from './components/CrashGame';
 import SlotGame from './components/SlotGame';
+import BlackjackGame from './components/BlackjackGame';
+import RouletteGame from './components/RouletteGame';
 import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
@@ -635,6 +637,8 @@ export default function App() {
               </div>
               <SlotGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
               <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
+              <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} />
+              <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} />
             </div>
           ) : selectedSport === 'Pokemon' ? (
             <div className="space-y-6">
@@ -904,8 +908,6 @@ export default function App() {
             onClose={() => setIsPixOpen(false)} 
             balance={balance}
             onDeposit={handleDepositSuccess}
-            onWithdraw={handleWithdrawSuccess}
-            transactions={transactions}
             onAddTransaction={handleAddTransaction}
           />
         )}

@@ -145,12 +145,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   // Generate base price from rarity
   const getBasePrice = useCallback((rarity: string): number => {
     const lvl = getCardRarityLevel(rarity);
-    if (lvl === 0) return 0.02 + Math.random() * 0.08;
-    if (lvl === 1) return 0.05 + Math.random() * 0.15;
-    if (lvl === 2) return 0.10 + Math.random() * 0.40;
-    if (lvl === 3) return 1.00 + Math.random() * 5.00;
-    if (lvl === 4) return 10.00 + Math.random() * 50.00;
-    if (lvl === 5) return 50.00 + Math.random() * 300.00;
+    if (lvl === 0) return 0.02 * 1.05 + Math.random() * (0.08 * 1.05);
+    if (lvl === 1) return 0.05 * 1.05 + Math.random() * (0.15 * 1.05);
+    if (lvl === 2) return 0.10 * 1.05 + Math.random() * (0.40 * 1.05);
+    if (lvl === 3) return 1.00 * 1.05 + Math.random() * (5.00 * 1.05);
+    if (lvl === 4) return 10.00 * 1.05 + Math.random() * (50.00 * 1.05);
+    if (lvl === 5) return 50.00 * 1.05 + Math.random() * (300.00 * 1.05);
     return 0.10;
   }, []);
 
@@ -258,8 +258,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     skipRef.current = false;
     const delay = allCards.length <= 9 ? 350 : 200;
     for (let i = 0; i < allCards.length; i++) {
-      if (skipRef.current) break;
       await new Promise(r => setTimeout(r, delay));
+      if (skipRef.current) break;
       setRevealingIndex(i);
     }
   };
