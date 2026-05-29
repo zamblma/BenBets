@@ -206,6 +206,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
   const [opening, setOpening] = useState(false);
   const [revealingIndex, setRevealingIndex] = useState(-1);
   const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [filterRarity, setFilterRarity] = useState('todas');
   const skipRef = useRef(false);
   const fetchedRef = useRef(false);
 
@@ -280,7 +281,16 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400 flex items-center gap-2"><BookOpen className="w-3.5 h-3.5 text-green-400" /> Sua coleção</p>
-        {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer">Vender Repetidas</button>}
+        <div className="flex items-center gap-2">
+          <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-green-500/50">
+            <option value="todas">Todas raridades</option>
+            <option value="0">Comum</option>
+            <option value="1">Incomum</option>
+            <option value="2">Rara</option>
+            <option value="3">Super Rara</option>
+          </select>
+          {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer">Vender Repetidas</button>}
+        </div>
       </div>
 
       <AnimatePresence>
@@ -290,7 +300,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
               <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-green-400 font-extrabold text-lg mb-2">🎴 Pacote de Figurinhas</motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <p className="text-slate-500 text-xs">{revealingIndex + 1} de {packResult.length} figurinhas</p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-[10px] text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer">Pular</button>
+                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 800); }} className="text-xs sm:text-sm text-green-400/60 hover:text-green-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-green-500/5 hover:bg-green-500/10">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 justify-items-center">
                 {packResult.map((card, idx) => {
@@ -328,20 +338,25 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                 <div className="flex-1 h-px bg-gradient-to-l from-green-900/60 to-transparent" />
               </div>
               {teams.map(team => {
-            const teamPlayers = ALL_PLAYERS.filter(p => p.teamName === team.name);
-            const owned = teamPlayers.filter(p => collection.some(c => c.id === p.id));
-            const ownedCount = owned.length;
+            const allTeam = ALL_PLAYERS.filter(p => p.teamName === team.name);
+            const filteredTeamPlayers = filterRarity === 'todas' ? allTeam : allTeam.filter(p => getRarityLevel(p.rarity) === parseInt(filterRarity));
+            const owned = allTeam.filter(p => collection.some(c => c.id === p.id));
+            const ownedFiltered = owned.filter(p => filterRarity === 'todas' || getRarityLevel(p.rarity) === parseInt(filterRarity));
+            const ownedCount = ownedFiltered.length;
+            const totalCount = filteredTeamPlayers.length;
+            if (totalCount === 0) return null;
             return (
               <div key={team.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden">
                 <div className="px-4 py-3 flex items-center justify-between bg-[#07080f] border-b border-[#1a1c2a]">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{team.flag}</span>
                     <span className="text-xs font-bold text-slate-200">{team.name}</span>
+                    {filterRarity !== 'todas' && <span className="text-[9px] text-slate-500">({allTeam.length} no total)</span>}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500">{ownedCount}/{teamPlayers.length}</span>
+                  <span className="text-[10px] font-bold text-slate-500">{ownedCount}/{totalCount}</span>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-3">
-                  {teamPlayers.map(player => {
+                  {filteredTeamPlayers.map(player => {
                     const sticker = collection.find(c => c.id === player.id);
                     const isRare = getRarityLevel(player.rarity) >= 2;
                     return (

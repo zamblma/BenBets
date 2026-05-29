@@ -284,7 +284,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-slate-500 text-xs">
                   {revealingIndex + 1} de {packResult.length} cartas reveladas
                 </p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 600); }} className="text-[10px] text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer">Pular</button>
+                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); onCollectionUpdate(packResult); setTimeout(() => setOpening(false), 600); }} className="text-xs sm:text-sm text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-amber-500/5 hover:bg-amber-500/10">Pular</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
                 {packResult.map((card, idx) => {
