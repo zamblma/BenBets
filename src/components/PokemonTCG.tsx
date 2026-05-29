@@ -218,11 +218,19 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   }, []);
 
   const fetchSetCards = useCallback(async (setId: string) => {
+    const cacheKey = `pokemonCards_${setId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached) as TCGCard[];
+      if (parsed.length > 0) { setSetCards(parsed); return; }
+    }
     setCardsLoading(true);
     try {
       const r = await fetch(`${API_BASE}/cards?q=set.id:${setId}&pageSize=250`);
       const d = await r.json();
-      setSetCards(d.data || []);
+      const cards = d.data || [];
+      setSetCards(cards);
+      sessionStorage.setItem(cacheKey, JSON.stringify(cards));
     } catch {}
     setCardsLoading(false);
   }, []);
@@ -446,7 +454,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   { key: 'secret', has: cap.secret, icon: '⭐', color: 'text-red-400' },
                 ];
                 return (
-                <button key={set.id} onClick={() => { setSelectedSet(set); fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
+                <button key={set.id} onClick={() => { setSelectedSet(set); if (selectedSet?.id !== set.id || setCards.length === 0) fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
                   {cap.tier === 'premium' && <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
                   {cap.tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-bl-full" />}
                   {cap.tier === 'ultra' && <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full" />}
