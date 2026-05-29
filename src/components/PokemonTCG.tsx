@@ -91,21 +91,21 @@ function generatePack(cards: TCGCard[], setName: string, setSeries: string, prem
   const roll = Math.random();
   let rareCard: TCGCard;
   if (premium) {
-    if (roll < 0.25) {
+    if (roll < 0.35) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
-    } else if (roll < 0.55) {
+    } else if (roll < 0.65) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
-    } else if (roll < 0.85) {
+    } else if (roll < 0.90) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
     } else {
       rareCard = pick(rarePool) || pick(cards);
     }
   } else {
-    if (roll < 0.65) {
+    if (roll < 0.80) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
-    } else if (roll < 0.83) {
+    } else if (roll < 0.92) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
-    } else if (roll < 0.93) {
+    } else if (roll < 0.97) {
       rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
     } else {
       rareCard = pick(rarePool) || pick(cards);
@@ -154,13 +154,13 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   // Generate base price from rarity
   const getBasePrice = useCallback((rarity: string): number => {
     const lvl = getCardRarityLevel(rarity);
-    if (lvl === 0) return 0.10 + Math.random() * 0.40;
-    if (lvl === 1) return 0.30 + Math.random() * 0.70;
-    if (lvl === 2) return 0.50 + Math.random() * 1.50;
-    if (lvl === 3) return 1.00 + Math.random() * 4.00;
-    if (lvl === 4) return 3.00 + Math.random() * 12.00;
-    if (lvl === 5) return 5.00 + Math.random() * 25.00;
-    return 0.30;
+    if (lvl === 0) return 0.02 + Math.random() * 0.08;
+    if (lvl === 1) return 0.05 + Math.random() * 0.15;
+    if (lvl === 2) return 0.10 + Math.random() * 0.40;
+    if (lvl === 3) return 1.00 + Math.random() * 5.00;
+    if (lvl === 4) return 10.00 + Math.random() * 50.00;
+    if (lvl === 5) return 50.00 + Math.random() * 300.00;
+    return 0.10;
   }, []);
 
   // Market price simulation: update prices every 20s
@@ -538,12 +538,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-[9px] text-amber-400/70 font-bold">Rara+</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
-                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-amber-400'}`}>~{packTier === 'premium' ? '30' : '18'}%</p>
+                <p className={`text-lg font-extrabold ${packTier === 'premium' ? 'text-purple-400' : 'text-amber-400'}`}>~{packTier === 'premium' ? '30' : '12'}%</p>
                 <p className={`text-[9px] font-bold ${packTier === 'premium' ? 'text-purple-400/70' : 'text-amber-400/70'}`}>Holo</p>
               </div>
             </div>
             <p className="text-[9px] text-slate-600 mt-2 text-center">
-              {packTier === 'standard' ? '65% Rara • 18% Holo • 10% Ultra • 7% Secreta' : '25% Rara • 30% Holo • 30% Ultra • 15% Secreta'}
+              {packTier === 'standard' ? '80% Rara • 12% Holo • 5% Ultra • 3% Secreta' : '35% Rara • 30% Holo • 25% Ultra • 10% Secreta'}
             </p>
           </div>
 

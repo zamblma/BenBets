@@ -244,7 +244,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
 
   const handleSell = (cardId: string) => { const card = collection.find(c => c.id === cardId); if (card) onSellCard(cardId, getBasePrice(card.rarity)); };
   const handleSellAll = () => { const prices: Record<string, number> = {}; for (const c of collection) if (c.quantity > 1) prices[c.id] = getBasePrice(c.rarity); onSellAllDuplicates(prices); };
-  const getBasePrice = (r: string): number => { const l = getRarityLevel(r); return l === 0 ? 0.10 + Math.random() * 0.40 : l === 1 ? 0.30 + Math.random() * 0.70 : l === 2 ? 0.50 + Math.random() * 1.50 : l === 3 ? 1.00 + Math.random() * 4.00 : 0.30; };
+  const getBasePrice = (r: string): number => { const l = getRarityLevel(r); return l === 0 ? 0.02 + Math.random() * 0.08 : l === 1 ? 0.05 + Math.random() * 0.15 : l === 2 ? 0.10 + Math.random() * 0.40 : l === 3 ? 5.00 + Math.random() * 25.00 : 0.10; };
 
   const totalPlayers = ALL_PLAYERS.length;
   const uniqueCount = collection.length;
