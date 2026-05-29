@@ -54,6 +54,7 @@ export default function App() {
 
   // Navigation & Category states
   const [selectedSport, setSelectedSport] = useState<string>('Cassino');
+  const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // Custom modals/drawers
@@ -625,22 +626,57 @@ export default function App() {
           {/* Sub Panels Based on Category */}
           {selectedSport === 'Cassino' ? (
             <div className="space-y-6">
-              
-              {/* Nested Intro Header */}
-              <div className="bg-gradient-to-r from-[#161a2b]/40 via-[#0e1017] to-[#161a2b]/20 p-5 rounded-2xl border border-indigo-950/45 flex items-center gap-4">
-                <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
-                  <Flame className="w-6 h-6 animate-pulse text-brand" />
-                </div>
+              {selectedCasinoGame === null ? (
+                <>
+                  <div className="bg-gradient-to-r from-[#161a2b]/40 via-[#0e1017] to-[#161a2b]/20 p-5 rounded-2xl border border-indigo-950/45 flex items-center gap-4">
+                    <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
+                      <Flame className="w-6 h-6 animate-pulse text-brand" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-white text-base">Arena de Cassino e Jogos Crash</h3>
+                      <p className="text-slate-400 text-xs">Simulador regulado de geradores de números (RNG). Teste jogos de slots e crash de forma auditada.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      { id: 'slots', name: 'Slots da Sorte', icon: '🎰', desc: 'Caça-níqueis com 6 símbolos', color: 'from-violet-600/20 to-violet-900/10 border-violet-500/30' },
+                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente até estourar', color: 'from-cyan-600/20 to-cyan-900/10 border-cyan-500/30' },
+                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Bata o dealer sem estourar 21', color: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30' },
+                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números ou cores', color: 'from-rose-600/20 to-rose-900/10 border-rose-500/30' },
+                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', color: 'from-amber-600/20 to-amber-900/10 border-amber-500/30' },
+                    ].map(game => (
+                      <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
+                        className={`bg-gradient-to-br ${game.color} rounded-2xl p-4 border text-left transition-all hover:scale-[1.02] cursor-pointer group`}>
+                        <span className="text-3xl block mb-2">{game.icon}</span>
+                        <h4 className="text-sm font-bold text-white group-hover:text-brand transition-colors">{game.name}</h4>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
                 <div>
-                  <h3 className="font-extrabold text-white text-base">Arena de Cassino e Jogos Crash</h3>
-                  <p className="text-slate-400 text-xs">Simulador regulado de geradores de números (RNG). Teste jogos de slots e crash de forma auditada.</p>
+                  <button onClick={() => setSelectedCasinoGame(null)}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand mb-4 transition-colors cursor-pointer">
+                    ← Voltar ao Menu de Cassino
+                  </button>
+                  {selectedCasinoGame === 'slots' && (
+                    <SlotGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
+                  {selectedCasinoGame === 'aviator' && (
+                    <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
+                  {selectedCasinoGame === 'blackjack' && (
+                    <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
+                  {selectedCasinoGame === 'roulette' && (
+                    <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
+                  {selectedCasinoGame === 'dice' && (
+                    <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
                 </div>
-              </div>
-              <SlotGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
-              <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} userId={firebaseUser?.uid || ''} />
-              <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} />
-              <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} />
-              <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} />
+              )}
             </div>
           ) : selectedSport === 'Pokemon' ? (
             <div className="space-y-6">

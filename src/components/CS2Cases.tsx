@@ -355,6 +355,7 @@ export default function CS2Cases({
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
+  const [resultImgError, setResultImgError] = useState(false);
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -463,6 +464,7 @@ export default function CS2Cases({
         setStripX(endX);
         setResult(winnerItem);
         setResultPrice(Math.round((winnerItem.minPrice + Math.random() * (winnerItem.maxPrice - winnerItem.minPrice)) * 100) / 100);
+        setResultImgError(false);
         setShowResult(true);
         setRolling(false);
       }
@@ -698,16 +700,19 @@ export default function CS2Cases({
                         <div className="text-sm text-slate-400 mb-3">🎉 Você ganhou!</div>
                         <div className="flex justify-center mb-3">
                           <div
-                            className={`w-36 h-36 rounded-2xl border-2 flex items-center justify-center ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} overflow-hidden`}
+                            className={`w-36 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} overflow-hidden`}
                             style={{ boxShadow: `0 0 40px ${rarityColor(result.rarityLevel).glow}` }}
                           >
-                            <img
-                              src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}`}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              alt={result.name}
-                              className="w-full h-full object-contain p-1"
-                            />
-                            <span className="text-4xl absolute opacity-30">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                            {resultImgError ? (
+                              <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                            ) : (
+                              <img
+                                src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}`}
+                                onError={() => setResultImgError(true)}
+                                alt={result.name}
+                                className="w-full h-full object-contain p-1"
+                              />
+                            )}
                           </div>
                         </div>
                         <div className={`text-sm font-mono ${rarityColor(result.rarityLevel).text} opacity-80 mb-0.5`}>
