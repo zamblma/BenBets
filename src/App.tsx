@@ -677,26 +677,30 @@ export default function App() {
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
-                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente, saia antes de estourar', gradient: 'from-cyan-600/20 via-cyan-800/10 to-cyan-900/5', border: 'border-cyan-500/30', glow: 'rgba(6,182,212,0.15)', chip: '✈️' },
-                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-600/20 via-emerald-800/10 to-emerald-900/5', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)', chip: '♠️' },
-                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-600/20 via-rose-800/10 to-rose-900/5', border: 'border-rose-500/30', glow: 'rgba(225,29,72,0.15)', chip: '🔴' },
-                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-600/20 via-amber-800/10 to-amber-900/5', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)', chip: '⚀' },
-                      { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: '3×3 com multiplicador do tigre da sorte', gradient: 'from-yellow-600/20 via-red-800/10 to-red-900/5', border: 'border-yellow-500/30', glow: 'rgba(234,179,8,0.15)', chip: '🧧' },
+                      { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: 'Slot 3×3 com multiplicador do tigre da sorte', gradient: 'from-yellow-500 via-amber-600 to-red-700', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🧧', badge: '🔥 Popular' },
+                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente — saia antes de estourar', gradient: 'from-cyan-400 via-blue-500 to-indigo-600', accent: 'rgba(6,182,212,0.4)', glow: 'rgba(6,182,212,0.2)', chip: '✈️', badge: '' },
+                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-400 via-green-500 to-teal-600', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '♠️', badge: '' },
+                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-400 via-red-500 to-red-700', accent: 'rgba(225,29,72,0.4)', glow: 'rgba(225,29,72,0.2)', chip: '🔴', badge: '' },
+                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-400 via-yellow-500 to-orange-600', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '⚀', badge: '' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
-                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-3 sm:p-4 border text-left cursor-pointer group"
-                        style={{ backgroundImage: `linear-gradient(to bottom right, ${game.gradient})`, borderColor: game.border.split(' ')[0] }}>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                          style={{ boxShadow: `inset 0 0 40px ${game.glow}` }} />
-                        <div className="flex items-start justify-between mb-2 sm:mb-3">
-                          <span className="text-2xl sm:text-3xl">{game.icon}</span>
-                          <span className="text-sm sm:text-base opacity-40 group-hover:opacity-80 transition-opacity">{game.chip}</span>
-                        </div>
-                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-brand transition-colors">{game.name}</h4>
-                        <p className="text-[8px] sm:text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
-                        <div className="mt-2 sm:mt-3 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                          <span className="text-[7px] sm:text-[8px] text-brand/60 uppercase tracking-wider font-bold">Jogar Agora</span>
+                        className="game-card relative p-4 sm:p-5 text-left cursor-pointer group"
+                        style={{ '--card-accent': game.accent, '--card-glow': game.glow } as React.CSSProperties}>
+                        <div className="game-card-corner" style={{ background: game.accent.replace('0.4', '0.06') }} />
+                        <div className="relative z-10">
+                          <div className="flex items-start justify-between mb-3 sm:mb-4">
+                            <span className="text-3xl sm:text-4xl game-card-icon">{game.icon}</span>
+                            <span className="text-lg sm:text-xl game-card-chip">{game.chip}</span>
+                          </div>
+                          <h4 className="text-sm sm:text-base font-extrabold text-white group-hover:text-yellow-400 transition-colors mb-1">{game.name}</h4>
+                          <p className="text-[9px] sm:text-[11px] text-slate-400 leading-relaxed mb-3">{game.desc}</p>
+                          {game.badge && (
+                            <span className="inline-block text-[8px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full mb-3">{game.badge}</span>
+                          )}
+                          <div className="flex items-center gap-1.5 game-card-play">
+                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                            <span className="text-[8px] sm:text-[9px] text-yellow-400/70 uppercase tracking-[0.1em] font-bold">Jogar</span>
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -745,26 +749,31 @@ export default function App() {
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
-                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', gradient: 'from-yellow-600/20 to-yellow-900/10', border: 'border-yellow-500/30', glow: 'rgba(234,179,8,0.15)' },
-                      { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Pacotes de cartas com raridades e mercado', gradient: 'from-amber-600/20 to-amber-900/10', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)' },
-                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins do Counter-Strike', gradient: 'from-orange-600/20 to-orange-900/10', border: 'border-orange-500/30', glow: 'rgba(249,115,22,0.15)' },
-                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards colecionáveis dos seus grupos favoritos', gradient: 'from-pink-600/20 to-pink-900/10', border: 'border-pink-500/30', glow: 'rgba(236,72,153,0.15)' },
-                      { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa do Mundo 2026', gradient: 'from-emerald-600/20 to-emerald-900/10', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)' },
-                      { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Baús de League of Legends com champions e skins', gradient: 'from-blue-600/20 to-blue-900/10', border: 'border-blue-500/30', glow: 'rgba(59,130,246,0.15)' },
+                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', gradient: 'from-yellow-400 via-amber-500 to-orange-500', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🎴', badge: '' },
+                      { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', gradient: 'from-amber-400 via-yellow-500 to-red-500', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: '' },
+                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins do CS', gradient: 'from-orange-400 via-amber-500 to-yellow-600', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: '' },
+                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards dos seus grupos favoritos', gradient: 'from-pink-400 via-fuchsia-500 to-purple-500', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: '' },
+                      { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa 2026', gradient: 'from-emerald-400 via-green-500 to-teal-500', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '⚽', badge: '' },
+                      { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Champions e skins de League of Legends', gradient: 'from-blue-400 via-indigo-500 to-purple-600', accent: 'rgba(59,130,246,0.4)', glow: 'rgba(59,130,246,0.2)', chip: '🏆', badge: '' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedColecionavel(game.id)}
-                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-3 sm:p-4 border text-left cursor-pointer group"
-                        style={{ backgroundImage: `linear-gradient(to bottom right, ${game.gradient})`, borderColor: game.border.split(' ')[0] }}>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                          style={{ boxShadow: `inset 0 0 40px ${game.glow}` }} />
-                        <div className="flex items-start justify-between mb-2 sm:mb-3">
-                          <span className="text-2xl sm:text-3xl">{game.icon}</span>
-                        </div>
-                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-400 transition-colors">{game.name}</h4>
-                        <p className="text-[8px] sm:text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
-                        <div className="mt-2 sm:mt-3 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                          <span className="text-[7px] sm:text-[8px] text-purple-400/60 uppercase tracking-wider font-bold">Abrir</span>
+                        className="game-card relative p-4 sm:p-5 text-left cursor-pointer group"
+                        style={{ '--card-accent': game.accent, '--card-glow': game.glow } as React.CSSProperties}>
+                        <div className="game-card-corner" style={{ background: game.accent.replace('0.4', '0.06') }} />
+                        <div className="relative z-10">
+                          <div className="flex items-start justify-between mb-3 sm:mb-4">
+                            <span className="text-3xl sm:text-4xl game-card-icon">{game.icon}</span>
+                            <span className="text-lg sm:text-xl game-card-chip">{game.chip}</span>
+                          </div>
+                          <h4 className="text-sm sm:text-base font-extrabold text-white group-hover:text-purple-400 transition-colors mb-1">{game.name}</h4>
+                          <p className="text-[9px] sm:text-[11px] text-slate-400 leading-relaxed mb-3">{game.desc}</p>
+                          {game.badge && (
+                            <span className="inline-block text-[8px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full mb-3">{game.badge}</span>
+                          )}
+                          <div className="flex items-center gap-1.5 game-card-play">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                            <span className="text-[8px] sm:text-[9px] text-purple-400/70 uppercase tracking-[0.1em] font-bold">Abrir</span>
+                          </div>
                         </div>
                       </button>
                     ))}

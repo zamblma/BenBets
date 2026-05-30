@@ -140,4 +140,71 @@ body {
   transform: translateY(-4px) scale(1.02);
 }
 
+/* Enhanced game card with gradient border */
+.game-card {
+  position: relative;
+  background: linear-gradient(145deg, rgba(15,16,23,0.95), rgba(10,11,18,0.98));
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 1rem;
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.game-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--card-accent, rgba(255,255,255,0.1)), transparent 50%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.game-card:hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 0 30px var(--card-glow, rgba(0,255,135,0.15)), 0 20px 40px rgba(0,0,0,0.4);
+}
+.game-card:hover .game-card-icon {
+  transform: scale(1.15) rotate(-3deg);
+}
+.game-card:hover .game-card-chip {
+  opacity: 1;
+  transform: translate(0, 0) rotate(0deg);
+}
+.game-card:hover .game-card-play {
+  opacity: 1;
+  letter-spacing: 0.15em;
+}
+
+/* Game card icon bounce on hover */
+.game-card-icon {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Game card corner chip */
+.game-card-chip {
+  opacity: 0.4;
+  transform: translate(5px, -5px) rotate(12deg);
+  transition: all 0.3s ease;
+}
+
+/* Play indicator */
+.game-card-play {
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+/* Decorative corner accent */
+.game-card-corner {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 0 1rem 0 60%;
+  background: var(--card-accent, rgba(255,255,255,0.03));
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
+
 
