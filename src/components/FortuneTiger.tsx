@@ -17,12 +17,12 @@ interface SymbolDef {
 }
 
 const SYMBOLS: SymbolDef[] = [
-  { char: '🐯', name: 'Tigre', weight: 7, payouts: { 3: 15, 4: 30, 5: 60, 6: 100 } },
-  { char: '💎', name: 'Diamante', weight: 10, payouts: { 3: 8, 4: 20, 5: 40, 6: 60 } },
-  { char: '🐟', name: 'Peixe', weight: 15, payouts: { 3: 4, 4: 8, 5: 15, 6: 25 } },
-  { char: '🐢', name: 'Tartaruga', weight: 18, payouts: { 3: 2, 4: 3, 5: 6, 6: 10 } },
-  { char: '☯️', name: 'Yin Yang', weight: 22, payouts: { 3: 1, 4: 2, 5: 4, 6: 6 } },
-  { char: '🪙', name: 'Moeda', weight: 28, payouts: { 3: 0.5, 4: 1, 5: 2, 6: 3 } },
+  { char: '🐯', name: 'Tigre', weight: 3, payouts: { 3: 12, 4: 25, 5: 50, 6: 80 } },
+  { char: '💎', name: 'Diamante', weight: 6, payouts: { 3: 6, 4: 15, 5: 30, 6: 50 } },
+  { char: '🐟', name: 'Peixe', weight: 12, payouts: { 3: 3, 4: 6, 5: 12, 6: 20 } },
+  { char: '🐢', name: 'Tartaruga', weight: 17, payouts: { 3: 1.5, 4: 3, 5: 5, 6: 8 } },
+  { char: '☯️', name: 'Yin Yang', weight: 28, payouts: { 3: 0.5, 4: 1, 5: 2, 6: 4 } },
+  { char: '🪙', name: 'Moeda', weight: 34, payouts: { 3: 0.3, 4: 0.5, 5: 1, 6: 2 } },
 ];
 
 const pickSymbol = (): SymbolDef => {
@@ -113,7 +113,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
       let mult = bestMult;
       let fMult = 0;
       if (tCount > 0) {
-        fMult = 1 + tCount * (0.2 + Math.random() * 0.6);
+        fMult = 1 + tCount * (0.1 + Math.random() * 0.3);
         fMult = parseFloat(fMult.toFixed(2));
         mult = parseFloat((bestMult * fMult).toFixed(2));
         setFortuneMult(fMult);
@@ -215,7 +215,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
           <span className="text-[9px] text-yellow-500/80 font-bold uppercase tracking-wider flex items-center gap-1">
             <Award className="w-3 h-3 text-yellow-500" /> Pagamentos (3+)
           </span>
-          <span className="text-[8px] text-yellow-600/50 font-mono">🐯 Fortuna ×{tigerCount > 0 ? fortuneMult : '1-3'}x</span>
+          <span className="text-[8px] text-yellow-600/50 font-mono">🐯 Fortuna ×1-1.4x por tigre</span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {SYMBOLS.map((sy, i) => (

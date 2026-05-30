@@ -34,7 +34,6 @@ import { getUserData, createUserData, updateBalance, addBet, updateBet, addTrans
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
 import CrashGame from './components/CrashGame';
-import SlotGame from './components/SlotGame';
 import BlackjackGame from './components/BlackjackGame';
 import RouletteGame from './components/RouletteGame';
 import DiceGame from './components/DiceGame';
@@ -677,7 +676,6 @@ export default function App() {
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
-                      { id: 'slots', name: 'Slots da Sorte', icon: '🎰', desc: 'Caça-níqueis com símbolos clássicos', gradient: 'from-violet-600/20 via-violet-800/10 to-violet-900/5', border: 'border-violet-500/30', glow: 'rgba(139,92,246,0.15)', chip: '💎' },
                       { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente, saia antes de estourar', gradient: 'from-cyan-600/20 via-cyan-800/10 to-cyan-900/5', border: 'border-cyan-500/30', glow: 'rgba(6,182,212,0.15)', chip: '✈️' },
                       { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-600/20 via-emerald-800/10 to-emerald-900/5', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)', chip: '♠️' },
                       { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-600/20 via-rose-800/10 to-rose-900/5', border: 'border-rose-500/30', glow: 'rgba(225,29,72,0.15)', chip: '🔴' },
@@ -709,9 +707,6 @@ export default function App() {
                     className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand mb-4 transition-colors cursor-pointer">
                     ← Voltar ao Menu de Cassino
                   </button>
-                  {selectedCasinoGame === 'slots' && (
-                    <SlotGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
-                  )}
                   {selectedCasinoGame === 'aviator' && (
                     <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
                   )}
