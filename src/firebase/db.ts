@@ -14,6 +14,7 @@ export async function getUserData(uid: string) {
     worldCupCollection: PokemonCard[];
     kpopCollection: PokemonCard[];
     cs2Collection: PokemonCard[];
+    animeCollection: PokemonCard[];
   };
 }
 
@@ -29,6 +30,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     worldCupCollection: [],
     kpopCollection: [],
     cs2Collection: [],
+    animeCollection: [],
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -177,4 +179,62 @@ export async function removeCS2Card(uid: string, cardId: string) {
   const existing: PokemonCard[] = data.cs2Collection || [];
   const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
   await updateDoc(ref, { cs2Collection: updated });
+}
+
+export async function getAnimeGachaPackData(uid: string): Promise<{ count: number; firstPackTime: number }> {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { count: 0, firstPackTime: 0 };
+  const data = snap.data();
+  return {
+    count: data.animeGachaPacksOpened || 0,
+    firstPackTime: data.animeGachaFirstPackTime || 0,
+  };
+}
+
+export async function recordAnimeGachaPack(uid: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const now = Date.now();
+  const firstPackTime = data.animeGachaFirstPackTime || 0;
+  const count = data.animeGachaPacksOpened || 0;
+  const HOUR_MS = 3600000;
+
+  if (now - firstPackTime >= HOUR_MS) {
+    await updateDoc(ref, { animeGachaFirstPackTime: now, animeGachaPacksOpened: 1 });
+  } else {
+    await updateDoc(ref, { animeGachaPacksOpened: count + 1 });
+  }
+}
+
+export async function addAnimeCards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.animeCollection || [];
+  const merged: PokemonCard[] = [...existing];
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) { merged[idx].quantity += 1; }
+    else { merged.push(newCard); }
+  }
+  await updateDoc(ref, { animeCollection: merged });
+}
+
+export async function removeAnimeCard(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.animeCollection || [];
+  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  await updateDoc(ref, { animeCollection: updated });
+}
+
+export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { animeCollection: cards });
 }
