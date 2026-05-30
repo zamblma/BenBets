@@ -946,6 +946,7 @@ export default function App() {
             onClose={() => setIsPixOpen(false)} 
             balance={balance}
             onDeposit={handleDepositSuccess}
+            transactions={transactions}
             onAddTransaction={handleAddTransaction}
           />
         )}

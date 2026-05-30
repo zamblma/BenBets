@@ -35,15 +35,11 @@ const SUM_BETS: SumBet[] = [
   { type: 'sum', value: 12, label: '12', payout: 35 },
 ];
 
-function DiceFace({ value, rolling }: { value: number; rolling: boolean }) {
+function DiceFace({ value }: { value: number }) {
   return (
-    <motion.div
-      animate={rolling ? { rotateX: [0, 360], rotateY: [0, 360] } : {}}
-      transition={{ repeat: rolling ? Infinity : 0, duration: 0.3 }}
-      className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-slate-100 to-slate-300 rounded-xl border-2 border-slate-400 flex items-center justify-center shadow-lg"
-    >
+    <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-slate-100 to-slate-300 rounded-xl border-2 border-slate-400 flex items-center justify-center shadow-lg">
       <span className="text-3xl md:text-4xl select-none">{DICE_FACES[value]}</span>
-    </motion.div>
+    </div>
   );
 }
 
@@ -84,18 +80,21 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
     setPayout(0);
     setStats(s => ({ ...s, totalRolls: s.totalRolls + 1 }));
 
-    let ticks = 0;
+    let rollCount = 0;
+    const maxRolls = 20; // 20 rolls at 50ms = 1 second
     const interval = setInterval(() => {
       setDice1(Math.floor(Math.random() * 6) + 1);
       setDice2(Math.floor(Math.random() * 6) + 1);
-      ticks++;
-      if (ticks > 12) {
+      rollCount++;
+      if (rollCount >= maxRolls) {
         clearInterval(interval);
+        setRolling(false);
+        
+        // Final roll
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
         setDice1(d1);
         setDice2(d2);
-        setRolling(false);
         setLastSum(d1 + d2);
 
         const multiplier = checkWin(d1, d2, selectedBet);
@@ -144,7 +143,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
           }
         }
       }
-    }, 80);
+    }, 50);
   };
 
   return (
@@ -162,9 +161,9 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
       {/* Dice Display */}
       <div className="bg-gradient-to-b from-[#0d0e16] to-[#06070d] rounded-2xl p-6 border border-[#1a1c2a] flex flex-col items-center gap-4">
         <div className="flex gap-6 items-center">
-          <DiceFace value={dice1} rolling={rolling} />
+          <DiceFace value={dice1} />
           <span className="text-2xl text-slate-500 font-bold">+</span>
-          <DiceFace value={dice2} rolling={rolling} />
+          <DiceFace value={dice2} />
         </div>
         {lastSum !== null && !rolling && (
           <div className="text-center">
