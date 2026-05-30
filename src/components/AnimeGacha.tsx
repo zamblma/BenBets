@@ -74,6 +74,8 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   const skipRef = useRef(false);
   const [starBurst, setStarBurst] = useState<{ show: boolean; rarity: number }>({ show: false, rarity: 0 });
   const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: number; label: string }>({ show: false, rarity: 0, label: '' });
+  const [cardRevealed, setCardRevealed] = useState(false);
+  const [canClose, setCanClose] = useState(false);
 
   const packsUsed = packData.count;
   const nextReset = packData.firstPackTime > 0 ? packData.firstPackTime + HOUR_MS : null;
@@ -144,7 +146,8 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
     if (userId) getAnimeGachaPackData(userId).then(setPackData);
     setOpening(true);
     setPackResult([]);
-    setRevealingIndex(-1);
+    setCardRevealed(false);
+    setCanClose(false);
     skipRef.current = false;
 
     const result: AnimeChar[] = [];
@@ -153,18 +156,22 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
 
     const bestRarity = Math.max(...result.map(c => c.rarity));
 
+    await new Promise(r => setTimeout(r, 600));
+    setCardRevealed(true);
+
     if (bestRarity >= 3) {
+      const labels = ['', '', '', '✨ Super Raro!', '⭐ Lendário!'];
+      setRareFlash({ show: true, rarity: bestRarity, label: labels[bestRarity] });
       setStarBurst({ show: true, rarity: bestRarity });
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 2500));
       setStarBurst(prev => ({ ...prev, show: false }));
+      await new Promise(r => setTimeout(r, 500));
+      setRareFlash(prev => ({ ...prev, show: false }));
+    } else {
+      await new Promise(r => setTimeout(r, 800));
     }
 
-    const delay = 400;
-    for (let i = 0; i < PACK_SIZE; i++) {
-      await new Promise(r => setTimeout(r, delay));
-      if (skipRef.current) break;
-      setRevealingIndex(i);
-    }
+    setCanClose(true);
 
     const newCards: PokemonCard[] = result.map(c => ({
       id: c.id,
@@ -187,20 +194,14 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
         type: 'casino', outcomeValue: RARITY[rar],
       });
     }
-
-    setTimeout(() => { setOpening(false); setPackResult([]); }, 600);
   };
 
-  useEffect(() => {
-    if (revealingIndex < 0 || revealingIndex >= packResult.length) return;
-    const card = packResult[revealingIndex];
-    if (card.rarity >= 3) {
-      const labels = ['', '', '', '✨ Super Raro!', '⭐ Lendário!'];
-      setRareFlash({ show: true, rarity: card.rarity, label: labels[card.rarity] });
-      const t = setTimeout(() => setRareFlash(prev => ({ ...prev, show: false })), 1200);
-      return () => clearTimeout(t);
-    }
-  }, [revealingIndex, packResult]);
+  const closePack = () => {
+    setOpening(false);
+    setPackResult([]);
+    setCardRevealed(false);
+    setCanClose(false);
+  };
 
   const handleSellDuplicates = () => {
     const prices: Record<string, number> = {};
@@ -287,37 +288,53 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/60"
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none"
           >
+            {/* Background radial gradient */}
+            <div className={`absolute inset-0 ${starBurst.rarity === 4 ? 'bg-red-900/40' : 'bg-orange-900/40'}`} />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,200,0,0.15),transparent_70%)]" />
+
+            {/* Expanding rings */}
+            {[0, 0.3, 0.6].map((delay, i) => (
+              <div key={i} className={`absolute w-40 h-40 rounded-full border-2 ${starBurst.rarity === 4 ? 'border-red-400/40' : 'border-orange-400/40'} pulse-ring`} style={{ animationDelay: `${delay}s` }} />
+            ))}
+
+            {/* Floating star particles */}
+            <div className="absolute">
+              {['⭐', '✨', '💫', '🌟', '⭐'].map((emoji, i) => (
+                <span key={i} className={`absolute text-2xl float-p${i + 1}`}
+                  style={{ left: `${(i - 2) * 30}px`, top: '20px' }}>
+                  {emoji}
+                </span>
+              ))}
+            </div>
+
+            {/* Central star */}
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
-              animate={{
-                scale: [0, 1.5, 0.8, 1.2, 1],
-                rotate: [-180, 0, 360, 720, 1080],
-              }}
-              transition={{ duration: 1.8, times: [0, 0.3, 0.5, 0.7, 1] }}
+              animate={{ scale: [0, 1.8, 1], rotate: [-180, 0, 360] }}
+              transition={{ duration: 1.2, times: [0, 0.6, 1], ease: 'easeOut' }}
+              className="relative z-10"
             >
-              <motion.span
-                animate={{
-                  scale: [1, 1.4, 0.9, 1.3, 1],
-                  opacity: [0, 1, 0.5, 1, 0],
-                }}
-                transition={{ duration: 1.8, times: [0, 0.1, 0.3, 0.5, 1] }}
-                className="text-8xl sm:text-9xl block"
-                style={{ filter: 'drop-shadow(0 0 80px rgba(255,200,0,0.8))' }}
-              >
-                ⭐
-              </motion.span>
+              <span className="text-8xl sm:text-9xl block"
+                style={{ filter: 'drop-shadow(0 0 60px rgba(255,200,0,0.9)) drop-shadow(0 0 120px rgba(255,200,0,0.4))' }}>
+                {starBurst.rarity === 4 ? '👑' : '⭐'}
+              </span>
             </motion.div>
+
+            {/* Text label */}
             <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: [0, 1, 1, 0], y: [50, 0, 0, -30] }}
-              transition={{ duration: 1.8, times: [0, 0.15, 0.6, 1] }}
-              className="absolute bottom-[30%] text-center"
+              initial={{ opacity: 0, y: 60, scale: 0.5 }}
+              animate={{ opacity: [0, 1, 1, 1, 0], y: [60, 0, 0, 0, -20], scale: [0.5, 1.1, 1, 1, 0.9] }}
+              transition={{ duration: 2.2, times: [0, 0.15, 0.3, 0.8, 1] }}
+              className="absolute bottom-[25%] text-center z-20"
             >
-              <span className={`text-3xl sm:text-5xl font-black drop-shadow-[0_0_40px_rgba(255,255,255,0.6)] ${starBurst.rarity === 4 ? 'text-red-400' : 'text-orange-400'}`}>
+              <span className={`text-4xl sm:text-6xl font-black block ${starBurst.rarity === 4 ? 'text-red-400' : 'text-orange-400'}`}
+                style={{ textShadow: `0 0 40px ${starBurst.rarity === 4 ? 'rgba(239,68,68,0.8)' : 'rgba(251,146,60,0.8)'}, 0 0 80px ${starBurst.rarity === 4 ? 'rgba(239,68,68,0.4)' : 'rgba(251,146,60,0.4)'}` }}>
                 {starBurst.rarity === 4 ? '⭐ LENDÁRIO!' : '✨ SUPER RARO!'}
               </span>
+              <span className="text-sm text-white/60 mt-2 block font-bold">Personagem de altíssima raridade!</span>
             </motion.div>
           </motion.div>
         )}
@@ -328,26 +345,44 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
         {rareFlash.show && (
           <motion.div
             key="rareflash"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: [0, 1, 1, 0], scale: [0.5, 1.3, 1.1, 1] }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
-            className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] pointer-events-none screen-shake"
           >
+            {/* Color flash */}
             <motion.div
-              animate={{ opacity: [0, 0.6, 0.4, 0] }}
-              transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
-              className={`absolute inset-0 ${rareFlash.rarity === 4 ? 'bg-red-500' : 'bg-orange-500'}`}
+              animate={{ opacity: [0, 0.5, 0.3, 0] }}
+              transition={{ duration: 1.5, times: [0, 0.08, 0.3, 1] }}
+              className={`absolute inset-0 ${rareFlash.rarity === 4 ? 'bg-gradient-radial from-red-500/60' : 'bg-gradient-radial from-orange-500/60'}`}
+              style={{ background: `radial-gradient(circle at center, ${rareFlash.rarity === 4 ? 'rgba(239,68,68,0.5)' : 'rgba(251,146,60,0.5)'}, transparent 70%)` }}
             />
-            <motion.span
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: [0, 1, 1, 0], y: [30, 0, 0, -20] }}
-              transition={{ duration: 1.2, times: [0, 0.15, 0.5, 1] }}
-              className="relative z-10 text-center px-4"
-            >
-              <span className="text-5xl sm:text-7xl block mb-2">{rareFlash.rarity === 4 ? '⭐' : '✨'}</span>
-              <span className="text-2xl sm:text-4xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.5)]">{rareFlash.label}</span>
-            </motion.span>
+
+            {/* Expanding ring */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={`w-32 h-32 rounded-full border-2 ${rareFlash.rarity === 4 ? 'border-red-400' : 'border-orange-400'} pulse-ring`} />
+              <div className={`absolute w-32 h-32 rounded-full border ${rareFlash.rarity === 4 ? 'border-red-400/50' : 'border-orange-400/50'} pulse-ring`} style={{ animationDelay: '0.2s' }} />
+            </div>
+
+            {/* Content */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <motion.span
+                initial={{ opacity: 0, y: 40, scale: 0.3 }}
+                animate={{ opacity: [0, 1, 1, 0], y: [40, 0, 0, -15], scale: [0.3, 1.2, 1, 0.95] }}
+                transition={{ duration: 1.5, times: [0, 0.12, 0.6, 1] }}
+                className="text-center relative z-10"
+              >
+                <span className="text-6xl sm:text-7xl block mb-3"
+                  style={{ filter: `drop-shadow(0 0 30px ${rareFlash.rarity === 4 ? 'rgba(239,68,68,0.8)' : 'rgba(251,146,60,0.8)'})` }}>
+                  {rareFlash.rarity === 4 ? '👑' : '✨'}
+                </span>
+                <span className={`text-3xl sm:text-5xl font-black block ${rareFlash.rarity === 4 ? 'text-red-400' : 'text-orange-400'}`}
+                  style={{ textShadow: `0 0 30px ${rareFlash.rarity === 4 ? 'rgba(239,68,68,0.8)' : 'rgba(251,146,60,0.8)'}` }}>
+                  {rareFlash.label}
+                </span>
+              </motion.span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -410,97 +445,113 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
+                  transition={{ duration: 0.3 }}
+                  className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+                  onClick={() => canClose && closePack()}
                 >
-                  <div className="text-center max-w-2xl w-full py-4">
+                  <div className="text-center max-w-sm w-full">
                     <motion.h3
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="text-yellow-400 font-extrabold text-lg mb-2"
+                      initial={{ y: -20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                      className="text-yellow-400/70 font-bold text-xs mb-6 uppercase tracking-widest"
                     >
                       🎴 Pacote de Personagens
                     </motion.h3>
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <p className="text-slate-500 text-xs">
-                        {revealingIndex + 1} de {packResult.length} personagens revelados
-                      </p>
-                      <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); }}
-                        className="text-xs sm:text-sm text-yellow-400/60 hover:text-yellow-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-yellow-500/5 hover:bg-yellow-500/10 ml-auto">
-                          Pular
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
-                      {packResult.map((char, idx) => {
-                        const isRare = isSpecial(char.rarity);
-                        const isNew = !collection.some(c => c.id === char.id);
-                        return (
-                        <motion.div key={idx}
-                          initial={{ rotateY: 180, opacity: 0, scale: 0.3, y: 40 }}
-                          animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1, y: 0 } : {}}
-                          transition={{ type: 'spring', stiffness: 180, damping: 18, delay: 0 }}
-                          className={`bg-gradient-to-b ${RARITY_BG[char.rarity]} border-[2px] ${getRarityBorder(char.rarity)} rounded-xl overflow-hidden relative`}
-                          style={{ boxShadow: `0 0 15px ${RARITY_GLOW[char.rarity]}` }}>
-                          {isRare && (
+
+                    {/* Single centered card */}
+                    {packResult.map((char, idx) => {
+                      const isRare = isSpecial(char.rarity);
+                      const isNew = !collection.some(c => c.id === char.id);
+                      const glowColor = getRarityGlowColor(char.rarity);
+                      return (
+                        <motion.div
+                          key={idx}
+                          initial={{ rotateY: 180, opacity: 0, scale: 0.6 }}
+                          animate={cardRevealed ? { rotateY: 0, opacity: 1, scale: 1 } : {}}
+                          transition={{ type: 'spring', stiffness: 120, damping: 15, delay: 0 }}
+                          className={`relative mx-auto w-56 sm:w-64 bg-gradient-to-b ${RARITY_BG[char.rarity]} border-[3px] ${getRarityBorder(char.rarity)} rounded-2xl overflow-hidden ${isRare ? 'card-glow-pulse' : ''}`}
+                          style={{ '--glow-color': glowColor } as React.CSSProperties}
+                        >
+                          {/* Shimmer overlay for rare */}
+                          {isRare && cardRevealed && (
                             <motion.div
                               initial={{ opacity: 0 }}
-                              animate={idx <= revealingIndex ? { opacity: [0, 0.5, 0.3] } : {}}
-                              transition={{ duration: 1.5, repeat: Infinity }}
-                              className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none z-10"
+                              animate={{ opacity: [0, 0.4, 0.2, 0.4] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className={`absolute inset-0 z-10 pointer-events-none ${char.rarity === 4 ? 'bg-gradient-to-t from-red-500/20 via-transparent to-red-500/10' : 'bg-gradient-to-t from-yellow-400/20 via-transparent to-yellow-400/10'}`}
                             />
                           )}
-                          {isNew && revealingIndex >= idx && (
-                            <div className="absolute top-1 left-1 z-20 bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-lg">NEW</div>
+
+                          {/* NEW badge */}
+                          {isNew && cardRevealed && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: 'spring', delay: 0.3 }}
+                              className="absolute top-2 left-2 z-20 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded-full shadow-lg"
+                            >
+                              NEW
+                            </motion.div>
                           )}
+
+                          {/* Character image */}
                           <div className="aspect-[3/4] bg-[#06070d] relative overflow-hidden">
                             {char.image ? (
                               <img src={char.image} alt={char.name}
-                                className={`w-full h-full object-cover relative z-0 ${isRare ? 'opacity-90' : ''}`}
+                                className={`w-full h-full object-cover relative z-0 ${isRare ? 'brightness-110 saturate-110' : ''}`}
                                 onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             ) : null}
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-3xl font-black text-white/30">{initials(char.name)}</span>
+                              <span className="text-4xl font-black text-white/20">{initials(char.name)}</span>
                             </div>
+                            {/* Gradient overlay at bottom of image */}
+                            <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
                           </div>
-                          <div className="p-2 text-center relative z-10">
-                            <p className="text-[9px] font-bold text-slate-200 truncate">{char.name}</p>
-                            <p className="text-[7px] text-slate-400 truncate">{char.series}</p>
-                            <div className={`text-[8px] font-bold mt-0.5 ${RARITY_COLORS[char.rarity]}`}>
-                              {'⭐'.repeat(char.rarity + 1)}
+
+                          {/* Card info */}
+                          <div className="p-3 text-center relative z-10 bg-gradient-to-t from-[#0a0b12] to-transparent">
+                            <p className="text-sm font-bold text-white truncate">{char.name}</p>
+                            <p className="text-[9px] text-slate-400 truncate mt-0.5">{char.series}</p>
+                            <div className={`text-xs font-bold mt-1.5 ${RARITY_COLORS[char.rarity]}`}>
+                              {'⭐'.repeat(char.rarity + 1)} <span className="text-[9px] ml-1">{RARITY[char.rarity]}</span>
                             </div>
                           </div>
                         </motion.div>
-                      )})}
-                    </div>
-                    {revealingIndex >= packResult.length - 1 && (
-                      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                        {packResult.some(c => isSpecial(c.rarity)) && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: [0, 1.2, 1] }}
-                            transition={{ type: 'spring', stiffness: 200 }}
-                            className="text-yellow-400 font-extrabold text-sm mt-4 flex items-center justify-center gap-2"
-                          >
-                            <Star className="w-5 h-5 fill-yellow-400" /> Personagem&nbsp;
-                            {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 'Especiais' : 'Especial'} Encontrado
-                            {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 's' : ''}! <Star className="w-5 h-5 fill-yellow-400" />
-                          </motion.div>
-                        )}
-                        <div className="flex items-center justify-center gap-3 mt-4">
+                      );
+                    })}
+
+                    {/* Close instruction */}
+                    <AnimatePresence>
+                      {canClose && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.2 }}
+                          className="mt-8"
+                        >
+                          {packResult.some(c => isSpecial(c.rarity)) && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: [0, 1.15, 1] }}
+                              transition={{ type: 'spring', stiffness: 200 }}
+                              className="text-yellow-400 font-extrabold text-sm mb-4 flex items-center justify-center gap-2"
+                            >
+                              <Star className="w-4 h-4 fill-yellow-400" />
+                              Personagem Especial Encontrado!
+                              <Star className="w-4 h-4 fill-yellow-400" />
+                            </motion.div>
+                          )}
                           <button
-                            onClick={() => {
-                              setOpening(false);
-                              setPackResult([]);
-                            }}
-                            className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); closePack(); }}
+                            className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black px-8 py-3 rounded-xl text-sm transition-all cursor-pointer shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)]"
                           >
                             <Sparkles className="w-4 h-4 inline mr-1.5" /> Fechar
                           </button>
-                        </div>
-                      </motion.div>
-                    )}
-                    {revealingIndex < packResult.length - 1 && (
-                      <p className="mt-4 text-yellow-400/60 text-xs animate-pulse">✨ Revelando personagens...</p>
-                    )}
+                          <p className="text-slate-500 text-[9px] mt-3 animate-pulse">Toque em qualquer lugar para fechar</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </motion.div>
               )}
