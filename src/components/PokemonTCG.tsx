@@ -11,6 +11,12 @@ const PACK_OPTIONS = [
   { qty: 5, price: 59.90, label: '5 pacotes', badge: '−20%' },
   { qty: 10, price: 99.90, label: '10 pacotes', badge: '−33%' },
 ];
+
+const SPECIAL_BASE = [
+  { rarity: 'Rare Secret', weight: 0.003 },
+  { rarity: 'Rare Ultra', weight: 0.03 },
+  { rarity: 'Rare Holo', weight: 0.08 },
+];
 interface PokemonTCGProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
@@ -80,52 +86,54 @@ function getSetCapabilities(series: string): { tier: string; label: string; colo
   return { tier: 'classic', label: '🟦 Clássico', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20', holo: false, ultra: false, secret: false };
 }
 
-function generatePack(cards: TCGCard[], setName: string, setSeries: string): PokemonCard[] {
-  const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
-  const uncommon = cards.filter(c => c.rarity === 'Uncommon');
-  const rarePool = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
-  const pick = (pool: TCGCard[], exclude?: Set<string>) => {
-    const available = exclude ? pool.filter(c => !exclude.has(c.id)) : pool;
-    if (available.length === 0) return pool[Math.floor(Math.random() * pool.length)];
-    return available[Math.floor(Math.random() * available.length)];
-  };
+function categorizeRarity(rarity: string | undefined): string {
+  if (!rarity || rarity === 'Common') return 'Common';
+  if (rarity === 'Uncommon') return 'Uncommon';
+  if (rarity.includes('Secret')) return 'Rare Secret';
+  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow') return 'Rare Ultra';
+  if (rarity.includes('Holo')) return 'Rare Holo';
+  if (rarity.includes('Rare')) return 'Rare';
+  return 'Common';
+}
 
-  const result: PokemonCard[] = [];
-  const used = new Set<string>();
+function generatePack(cards: TCGCard[], setName: string, setSeries: string, packCount: number): PokemonCard[] {
+  const pick = (pool: TCGCard[]) => pool[Math.floor(Math.random() * pool.length)];
 
-  for (let i = 0; i < 5; i++) {
-    const c = pick(common, used);
-    if (c) { used.add(c.id); }
-    result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c?.images?.small || '' });
-  }
-  for (let i = 0; i < 3; i++) {
-    const c = pick(uncommon, used);
-    if (c) { used.add(c.id); }
-    result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c?.images?.small || '' });
+  const qtyFactor = 0.5 + 0.5 * Math.sqrt(packCount);
+
+  const specials: string[] = [];
+  for (const s of SPECIAL_BASE) {
+    const chance = Math.min(s.weight * qtyFactor, 0.50);
+    if (Math.random() < chance) specials.push(s.rarity);
   }
 
-  const roll = Math.random();
-  let rareCard: TCGCard;
-  if (roll < 0.80) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare')) || pick(rarePool);
-  } else if (roll < 0.92) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Holo' || c.rarity?.includes('Rare Holo'))) || pick(rarePool);
-  } else if (roll < 0.97) {
-    rareCard = pick(rarePool.filter(c => c.rarity === 'Rare Ultra' || c.rarity === 'Rare Rainbow')) || pick(rarePool);
-  } else {
-    rareCard = pick(rarePool) || pick(cards);
+  const nonSpecial: string[] = [];
+  for (let i = 0; i < 6 - specials.length; i++) {
+    const r = Math.random();
+    if (r < 0.45) nonSpecial.push('Common');
+    else if (r < 0.80) nonSpecial.push('Uncommon');
+    else nonSpecial.push('Rare');
   }
-  result.push({ ...rareCard, quantity: 1, setName, setSeries, imageUrl: rareCard.images?.small || '' });
 
-  return result.map(c => ({
-    id: c.id,
-    name: c.name,
-    imageUrl: c.imageUrl,
-    rarity: c.rarity || 'Common',
-    setName: c.setName as string,
-    setSeries: c.setSeries as string,
-    quantity: 1,
-  }));
+  const allRarities = [...specials, ...nonSpecial];
+  for (let i = allRarities.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allRarities[i], allRarities[j]] = [allRarities[j], allRarities[i]];
+  }
+
+  return allRarities.map(rarity => {
+    const pool = cards.filter(c => categorizeRarity(c.rarity) === rarity);
+    const c = pool.length > 0 ? pick(pool) : pick(cards);
+    return {
+      id: c.id,
+      name: c.name,
+      imageUrl: c.images?.small || '',
+      rarity: c.rarity || 'Common',
+      setName,
+      setSeries,
+      quantity: 1,
+    } as PokemonCard;
+  });
 }
 
 export default function PokemonTCG({ balance, onUpdateBalance, userId, collection, onCollectionUpdate, onSellCard, onSellAllDuplicates }: PokemonTCGProps) {
@@ -145,6 +153,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
   const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: string; label: string }>({ show: false, rarity: '', label: '' });
+  const [starBurst, setStarBurst] = useState<{ show: boolean; label: string; isSecret: boolean }>({ show: false, label: '', isSecret: false });
   const [sellTotal, setSellTotal] = useState(0);
 
   const pricesRef = useRef<Record<string, number>>({});
@@ -164,8 +173,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     if (lvl === 1) return 0.05 * 1.05 + Math.random() * (0.15 * 1.05);
     if (lvl === 2) return 0.10 * 1.05 + Math.random() * (0.40 * 1.05);
     if (lvl === 3) return 1.00 * 1.05 + Math.random() * (5.00 * 1.05);
-    if (lvl === 4) return 10.00 * 1.05 + Math.random() * (50.00 * 1.05);
-    if (lvl === 5) return 50.00 * 1.05 + Math.random() * (300.00 * 1.05);
+    if (lvl === 4) return 15.00 * 1.05 + Math.random() * (80.00 * 1.05);
+    if (lvl === 5) return 200.00 + Math.random() * 1300.00;
     return 0.10;
   }, []);
 
@@ -269,13 +278,23 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
     const allCards: PokemonCard[] = [];
     for (let i = 0; i < packQty; i++) {
-      allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series));
+      allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series, packQty));
     }
     allCards.sort((a, b) => getCardRarityLevel(b.rarity) - getCardRarityLevel(a.rarity));
     setPackResult(allCards);
 
     skipRef.current = false;
-    const delay = allCards.length <= 9 ? 350 : 200;
+
+    const bestLevel = Math.max(...allCards.map(c => getCardRarityLevel(c.rarity)));
+    if (bestLevel >= 3) {
+      const isSecret = allCards.some(c => c.rarity === 'Rare Secret');
+      const label = isSecret ? '⭐ SECRETA!' : bestLevel >= 4 ? '💎 ULTRA RARA!' : '✨ HOLO!';
+      setStarBurst({ show: true, label, isSecret });
+      await new Promise(r => setTimeout(r, 2000));
+      setStarBurst(prev => ({ ...prev, show: false }));
+    }
+
+    const delay = 350;
     for (let i = 0; i < allCards.length; i++) {
       await new Promise(r => setTimeout(r, delay));
       if (skipRef.current) break;
@@ -339,6 +358,49 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
           >
+            {/* Star burst overlay */}
+            <AnimatePresence>
+              {starBurst.show && (
+                <motion.div
+                  key="starburst"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/60"
+                >
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{
+                      scale: [0, 1.5, 0.8, 1.2, 1],
+                      rotate: [-180, 0, 360, 720, 1080],
+                    }}
+                    transition={{ duration: 1.8, times: [0, 0.3, 0.5, 0.7, 1] }}
+                  >
+                    <motion.span
+                      animate={{
+                        scale: [1, 1.4, 0.9, 1.3, 1],
+                        opacity: [0, 1, 0.5, 1, 0],
+                      }}
+                      transition={{ duration: 1.8, times: [0, 0.1, 0.3, 0.5, 1] }}
+                      className="text-8xl sm:text-9xl block"
+                      style={{ filter: 'drop-shadow(0 0 80px rgba(255,200,0,0.8))' }}
+                    >
+                      {starBurst.isSecret ? '⭐' : '💎'}
+                    </motion.span>
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: [0, 1, 1, 0], y: [50, 0, 0, -30] }}
+                    transition={{ duration: 1.8, times: [0, 0.15, 0.6, 1] }}
+                    className="absolute bottom-[30%] text-center"
+                  >
+                    <span className={`text-3xl sm:text-5xl font-black drop-shadow-[0_0_40px_rgba(255,255,255,0.6)] ${starBurst.isSecret ? 'text-red-400' : 'text-purple-400'}`}>
+                      {starBurst.label}
+                    </span>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* Rare flash overlay */}
             <AnimatePresence>
               {rareFlash.show && (
@@ -597,31 +659,31 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-slate-700">
-                <p className="text-lg font-extrabold text-slate-400">5</p>
-                <p className="text-[9px] text-slate-600 font-bold">Comuns</p>
+                <p className="text-lg font-extrabold text-slate-400">45%</p>
+                <p className="text-[9px] text-slate-600 font-bold">Comum</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-green-600/30">
-                <p className="text-lg font-extrabold text-green-400">3</p>
-                <p className="text-[9px] text-green-400/70 font-bold">Incomuns</p>
+                <p className="text-lg font-extrabold text-green-400">35%</p>
+                <p className="text-[9px] text-green-400/70 font-bold">Incomum</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-amber-500/30">
-                <p className="text-lg font-extrabold text-amber-400">1</p>
+                <p className="text-lg font-extrabold text-amber-400">20%</p>
                 <p className="text-[9px] text-amber-400/70 font-bold">Rara</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30">
-                <p className="text-lg font-extrabold text-yellow-300">~12%</p>
+                <p className="text-lg font-extrabold text-yellow-300">8%</p>
                 <p className="text-[9px] text-yellow-400/70 font-bold">Holo</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-purple-400/30">
-                <p className="text-lg font-extrabold text-purple-400">~5%</p>
+                <p className="text-lg font-extrabold text-purple-400">3%</p>
                 <p className="text-[9px] text-purple-400/70 font-bold">Ultra</p>
               </div>
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-red-400/30">
-                <p className="text-lg font-extrabold text-red-400">~3%</p>
+                <p className="text-lg font-extrabold text-red-400">0,3%</p>
                 <p className="text-[9px] text-red-400/70 font-bold">Secreta</p>
               </div>
             </div>
-            <p className="text-[9px] text-slate-600 mt-2 text-center">80% Rara • 12% Holo • 5% Ultra • 3% Secreta</p>
+            <p className="text-[9px] text-slate-600 mt-2 text-center">Máx 1 Holo + 1 Ultra + 1 Secret por pacote • chances sobem com mais pacotes (√qty)</p>
           </div>
 
           {/* Quantity selector */}

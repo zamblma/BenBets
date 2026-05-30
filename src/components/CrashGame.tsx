@@ -236,7 +236,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
   };
 
   return (
-    <div className="bg-gradient-to-b from-[#0a0b12] to-[#07080f] border border-[#1b1e2e] rounded-2xl p-5 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+    <div className="bg-gradient-to-b from-[#0a0b12] to-[#07080f] border border-[#1b1e2e] rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
       {/* History strip */}
       <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none border-b border-[#141521] pb-3">
         <History className="w-3.5 h-3.5 text-slate-500 shrink-0" />

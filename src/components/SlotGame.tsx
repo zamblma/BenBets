@@ -151,7 +151,7 @@ export default function SlotGame({ balance, onUpdateBalance, onAddBetHistory }: 
   const winRate = totalSpins > 0 ? ((totalWins / totalSpins) * 100).toFixed(1) : '0.0';
 
   return (
-    <div className="relative bg-gradient-to-b from-[#0a0b12] to-[#06070d] border border-[#1b1e2e] rounded-2xl p-5 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)] overflow-hidden">
+    <div className="relative bg-gradient-to-b from-[#0a0b12] to-[#06070d] border border-[#1b1e2e] rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)] overflow-hidden">
       {/* Win overlay */}
       <AnimatePresence>
         {showWinOverlay && (

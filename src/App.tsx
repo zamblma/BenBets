@@ -38,6 +38,7 @@ import SlotGame from './components/SlotGame';
 import BlackjackGame from './components/BlackjackGame';
 import RouletteGame from './components/RouletteGame';
 import DiceGame from './components/DiceGame';
+import FortuneTiger from './components/FortuneTiger';
 import LoLChests from './components/LoLChests';
 import AnimeGacha from './components/AnimeGacha';
 import PokemonTCG from './components/PokemonTCG';
@@ -59,6 +60,7 @@ export default function App() {
   const [selectedSport, setSelectedSport] = useState<string>('Home');
   const [sportFilter, setSportFilter] = useState<string>('todas');
   const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
+  const [selectedColecionavel, setSelectedColecionavel] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // Custom modals/drawers
@@ -513,7 +515,7 @@ export default function App() {
           
           {/* Logo & Slogan */}
           <button onClick={() => { setSelectedSport('Home'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
-            <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2.5 rounded-xl font-black tracking-tighter text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)] hidden sm:block">
+            <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2 rounded-xl font-black tracking-tighter text-xs sm:text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
               BB
             </div>
             <div className="hidden sm:block">
@@ -538,7 +540,7 @@ export default function App() {
 
             {/* Balance Component */}
             <div className="bg-[#07080f] px-3 py-1.5 md:px-4 md:py-2 rounded-xl border border-[#1b1e2e] flex items-center gap-2.5">
-              <div className="p-1 bg-brand/10 rounded-lg text-brand md:block hidden animate-pulse">
+              <div className="p-1 bg-brand/10 rounded-lg text-brand hidden sm:block">
                 <Wallet className="w-4 h-4" />
               </div>
               <div className="text-right">
@@ -589,22 +591,17 @@ export default function App() {
             exit={{ opacity: 0, height: 0 }}
             className="lg:hidden bg-[#0c0d14] border-b border-[#1c1e2d] overflow-hidden"
           >
-            <div className="px-4 py-3 flex flex-wrap gap-2">
+            <div className="px-3 py-2 flex flex-wrap gap-1.5 max-h-[50vh] overflow-y-auto">
               {[
                 { id: 'Home', label: 'Menu', icon: '🏠' },
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-                { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
-                { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
-                { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-                { id: 'Kpop', label: 'K-pop', icon: '🎤' },
-                { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
-                { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
+                { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
                 { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
               ].map((sport) => (
                 <button
                   key={sport.id}
-                  onClick={() => { setSelectedSport(sport.id); setIsMobileMenuOpen(false); }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border leading-none ${
+                  onClick={() => { setSelectedSport(sport.id); setSelectedCasinoGame(null); setSelectedColecionavel(null); setIsMobileMenuOpen(false); }}
+                  className={`py-1.5 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border leading-none ${
                     selectedSport === sport.id
                       ? 'bg-brand text-slate-950 border-brand shadow-[0_0_10px_rgba(0,255,135,0.2)]'
                       : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
@@ -620,38 +617,33 @@ export default function App() {
       </AnimatePresence>
 
       {/* Hero Brazil Regulatory Header Notice */}
-      <div className="bg-[#0b0c13] border-b border-[#1b1d2c]/60 py-2.5 px-4 text-xs text-center text-slate-300">
-        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-center gap-2">
-          <span className="bg-brand/10 border border-brand/20 text-brand px-2 py-0.5 rounded text-[10px] font-bold font-mono">COMPLIANCE NACIONAL</span>
-          <p className="text-[11px] font-medium text-slate-300">
+      <div className="bg-[#0b0c13] border-b border-[#1b1d2c]/60 py-1.5 sm:py-2.5 px-3 text-[10px] sm:text-xs text-center text-slate-300">
+        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+          <span className="bg-brand/10 border border-brand/20 text-brand px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold font-mono">COMPLIANCE NACIONAL</span>
+          <p className="text-[9px] sm:text-[11px] font-medium text-slate-300">
             Apostas operadas de acordo com as regras de Jogo Seguro. Domínio exclusivo <span className="font-bold text-brand">.bet.br</span> outorga SPA/MF.
           </p>
         </div>
       </div>
 
       {/* MAIN CONTAINER GRID */}
-      <main className="max-w-[1600px] mx-auto px-3 py-4 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 w-full">
+      <main className="max-w-[1600px] mx-auto px-2 sm:px-3 py-3 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-8 w-full">
         
         {/* LEFT COLUMN: FILTERS & MATCHES/CASINO SELECT (COLS-8) */}
         <section className="col-span-1 lg:col-span-8 space-y-4 lg:space-y-6">
           
           {/* Main Visual Category Switchers */}
-          <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-3 py-1 pb-2 md:pb-3 justify-start scrollbar-thin">
+          <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-2 py-1 pb-2 md:pb-3 justify-start scrollbar-thin snap-x snap-mandatory -mx-3 md:mx-0 px-3 md:px-0">
             {[
               { id: 'Home', label: 'Menu', icon: '🏠' },
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
-              { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
-              { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
-              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
-              { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
+              { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
               { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
             ].map((sport) => (
               <button
                 key={sport.id}
-                onClick={() => setSelectedSport(sport.id)}
-                className={`py-2 md:py-2.5 px-3 md:px-4 rounded-xl text-[10px] md:text-xs font-bold transition-all duration-300 whitespace-nowrap cursor-pointer flex items-center gap-1.5 md:gap-2 border leading-none shrink-0 ${
+                onClick={() => { setSelectedSport(sport.id); setSelectedCasinoGame(null); setSelectedColecionavel(null); }}
+                className={`py-2 md:py-2.5 px-3 md:px-4 rounded-xl text-[10px] md:text-xs font-bold transition-all duration-300 whitespace-nowrap cursor-pointer flex items-center gap-1.5 md:gap-2 border leading-none shrink-0 snap-al-start ${
                   selectedSport === sport.id
                     ? 'bg-brand text-slate-950 border-brand font-extrabold shadow-[0_0_15px_rgba(0,255,135,0.2)]'
                     : 'bg-[#0d0e16] hover:bg-[#141624] text-slate-300 border-[#1a1d2d]'
@@ -665,46 +657,47 @@ export default function App() {
 
           {/* Sub Panels Based on Category */}
           {selectedSport === 'Home' ? (
-            <HomeMenu onSelect={(section) => setSelectedSport(section)} />
+            <HomeMenu onSelect={(section) => { setSelectedSport(section); setSelectedCasinoGame(null); setSelectedColecionavel(null); }} />
           ) : selectedSport === 'Cassino' ? (
             <div className="space-y-6">
               {selectedCasinoGame === null ? (
                 <>
-                  <div className="relative overflow-hidden bg-gradient-to-r from-[#161a2b]/60 via-[#0e1017] to-[#161a2b]/30 p-5 rounded-2xl border border-[#1c1f32]">
+                  <div className="relative overflow-hidden bg-gradient-to-r from-[#161a2b]/60 via-[#0e1017] to-[#161a2b]/30 p-3 sm:p-5 rounded-2xl border border-[#1c1f32]">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.08),transparent_60%)] pointer-events-none" />
-                    <div className="flex items-center gap-4 relative z-10">
-                      <div className="bg-gradient-to-br from-brand/20 to-emerald-900/20 p-3 rounded-xl border border-brand/20 animate-neon-pulse">
-                        <Flame className="w-6 h-6 text-brand" />
+                    <div className="flex items-center gap-3 sm:gap-4 relative z-10">
+                      <div className="bg-gradient-to-br from-brand/20 to-emerald-900/20 p-2 sm:p-3 rounded-xl border border-brand/20 animate-neon-pulse">
+                        <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-brand" />
                       </div>
                       <div>
-                        <h3 className="font-extrabold text-white text-base">🎰 Cassino BenBets</h3>
-                        <p className="text-slate-400 text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
+                        <h3 className="font-extrabold text-white text-sm sm:text-base">🎰 Cassino BenBets</h3>
+                        <p className="text-slate-400 text-[10px] sm:text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { id: 'slots', name: 'Slots da Sorte', icon: '🎰', desc: 'Caça-níqueis com símbolos clássicos', gradient: 'from-violet-600/20 via-violet-800/10 to-violet-900/5', border: 'border-violet-500/30', glow: 'rgba(139,92,246,0.15)', chip: '💎' },
                       { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente, saia antes de estourar', gradient: 'from-cyan-600/20 via-cyan-800/10 to-cyan-900/5', border: 'border-cyan-500/30', glow: 'rgba(6,182,212,0.15)', chip: '✈️' },
                       { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-600/20 via-emerald-800/10 to-emerald-900/5', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)', chip: '♠️' },
                       { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-600/20 via-rose-800/10 to-rose-900/5', border: 'border-rose-500/30', glow: 'rgba(225,29,72,0.15)', chip: '🔴' },
                       { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-600/20 via-amber-800/10 to-amber-900/5', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)', chip: '⚀' },
+                      { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: '3×3 com multiplicador do tigre da sorte', gradient: 'from-yellow-600/20 via-red-800/10 to-red-900/5', border: 'border-yellow-500/30', glow: 'rgba(234,179,8,0.15)', chip: '🧧' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
-                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-4 border text-left cursor-pointer group"
+                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-3 sm:p-4 border text-left cursor-pointer group"
                         style={{ backgroundImage: `linear-gradient(to bottom right, ${game.gradient})`, borderColor: game.border.split(' ')[0] }}>
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                           style={{ boxShadow: `inset 0 0 40px ${game.glow}` }} />
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="text-3xl">{game.icon}</span>
-                          <span className="text-[16px] opacity-40 group-hover:opacity-80 transition-opacity">{game.chip}</span>
+                        <div className="flex items-start justify-between mb-2 sm:mb-3">
+                          <span className="text-2xl sm:text-3xl">{game.icon}</span>
+                          <span className="text-sm sm:text-base opacity-40 group-hover:opacity-80 transition-opacity">{game.chip}</span>
                         </div>
-                        <h4 className="text-sm font-bold text-white group-hover:text-brand transition-colors">{game.name}</h4>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
-                        <div className="mt-3 flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-brand transition-colors">{game.name}</h4>
+                        <p className="text-[8px] sm:text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
+                        <div className="mt-2 sm:mt-3 flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                          <span className="text-[8px] text-brand/60 uppercase tracking-wider font-bold">Jogar Agora</span>
+                          <span className="text-[7px] sm:text-[8px] text-brand/60 uppercase tracking-wider font-bold">Jogar Agora</span>
                         </div>
                       </button>
                     ))}
@@ -731,70 +724,128 @@ export default function App() {
                   {selectedCasinoGame === 'dice' && (
                     <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
                   )}
+                  {selectedCasinoGame === 'fortunetiger' && (
+                    <FortuneTiger balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
                 </div>
               )}
             </div>
-          ) : selectedSport === 'Pokemon' ? (
+          ) : selectedSport === 'Colecionaveis' ? (
             <div className="space-y-6">
-              <PokemonTCG
-                balance={balance}
-                onUpdateBalance={handleDepositSuccess}
-                userId={firebaseUser?.uid || ''}
-                collection={pokemonCollection}
-                onCollectionUpdate={handlePokemonCollectionUpdate}
-                onSellCard={handleSellPokemonCard}
-                onSellAllDuplicates={handleSellAllDuplicates}
-              />
+              {selectedColecionavel === null ? (
+                <>
+                  <div className="relative overflow-hidden bg-gradient-to-r from-purple-900/20 via-[#0e1017] to-purple-900/10 p-3 sm:p-5 rounded-2xl border border-purple-950/40">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(168,85,247,0.08),transparent_60%)] pointer-events-none" />
+                    <div className="flex items-center gap-3 sm:gap-4 relative z-10">
+                      <div className="bg-gradient-to-br from-purple-500/20 to-purple-900/20 p-2 sm:p-3 rounded-xl border border-purple-500/20">
+                        <Star className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-white text-sm sm:text-base">💎 Colecionáveis & Gacha</h3>
+                        <p className="text-slate-400 text-[10px] sm:text-xs">Abra pacotes, colecione personagens, cartas, skins e muito mais!</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+                    {[
+                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', gradient: 'from-yellow-600/20 to-yellow-900/10', border: 'border-yellow-500/30', glow: 'rgba(234,179,8,0.15)' },
+                      { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Pacotes de cartas com raridades e mercado', gradient: 'from-amber-600/20 to-amber-900/10', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)' },
+                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins do Counter-Strike', gradient: 'from-orange-600/20 to-orange-900/10', border: 'border-orange-500/30', glow: 'rgba(249,115,22,0.15)' },
+                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards colecionáveis dos seus grupos favoritos', gradient: 'from-pink-600/20 to-pink-900/10', border: 'border-pink-500/30', glow: 'rgba(236,72,153,0.15)' },
+                      { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa do Mundo 2026', gradient: 'from-emerald-600/20 to-emerald-900/10', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)' },
+                      { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Baús de League of Legends com champions e skins', gradient: 'from-blue-600/20 to-blue-900/10', border: 'border-blue-500/30', glow: 'rgba(59,130,246,0.15)' },
+                    ].map(game => (
+                      <button key={game.id} onClick={() => setSelectedColecionavel(game.id)}
+                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-3 sm:p-4 border text-left cursor-pointer group"
+                        style={{ backgroundImage: `linear-gradient(to bottom right, ${game.gradient})`, borderColor: game.border.split(' ')[0] }}>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                          style={{ boxShadow: `inset 0 0 40px ${game.glow}` }} />
+                        <div className="flex items-start justify-between mb-2 sm:mb-3">
+                          <span className="text-2xl sm:text-3xl">{game.icon}</span>
+                        </div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-400 transition-colors">{game.name}</h4>
+                        <p className="text-[8px] sm:text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
+                        <div className="mt-2 sm:mt-3 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                          <span className="text-[7px] sm:text-[8px] text-purple-400/60 uppercase tracking-wider font-bold">Abrir</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <button onClick={() => setSelectedColecionavel(null)}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-purple-400 mb-4 transition-colors cursor-pointer">
+                    ← Voltar aos Colecionáveis
+                  </button>
+                  {selectedColecionavel === 'Pokemon' && (
+                    <PokemonTCG
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      userId={firebaseUser?.uid || ''}
+                      collection={pokemonCollection}
+                      onCollectionUpdate={handlePokemonCollectionUpdate}
+                      onSellCard={handleSellPokemonCard}
+                      onSellAllDuplicates={handleSellAllDuplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'CS2' && (
+                    <CS2Cases
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      userId={firebaseUser?.uid || ''}
+                      collection={cs2Collection}
+                      onCollectionUpdate={handleCS2CollectionUpdate}
+                      onSellCard={handleSellCS2Card}
+                      onSellAllDuplicates={handleSellAllCS2Duplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'Copa' && (
+                    <WorldCupAlbum
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      userId={firebaseUser?.uid || ''}
+                      collection={worldCupCollection}
+                      onCollectionUpdate={handleWorldCupCollectionUpdate}
+                      onSellCard={handleSellWorldCupSticker}
+                      onSellAllDuplicates={handleSellAllWorldCupDuplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'Kpop' && (
+                    <KpopPhotocards
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      userId={firebaseUser?.uid || ''}
+                      collection={kpopCollection}
+                      onCollectionUpdate={handleKpopCollectionUpdate}
+                      onSellCard={handleSellKpopCard}
+                      onSellAllDuplicates={handleSellAllKpopDuplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'Anime' && (
+                    <AnimeGacha
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
+                      userId={firebaseUser?.uid || ''}
+                      collection={animeCollection}
+                      onCollectionUpdate={handleAnimeCollectionUpdate}
+                      onSellCard={handleSellAnimeCard}
+                      onSellAllDuplicates={handleSellAllAnimeDuplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'LoL' && (
+                    <LoLChests
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
+                    />
+                  )}
+                </div>
+              )}
             </div>
-          ) : selectedSport === 'CS2' ? (
-            <div className="space-y-6">
-              <CS2Cases
-                balance={balance}
-                onUpdateBalance={handleDepositSuccess}
-                userId={firebaseUser?.uid || ''}
-                collection={cs2Collection}
-                onCollectionUpdate={handleCS2CollectionUpdate}
-                onSellCard={handleSellCS2Card}
-                onSellAllDuplicates={handleSellAllCS2Duplicates}
-              />
-            </div>
-          ) : selectedSport === 'Copa' ? (
-            <WorldCupAlbum
-              balance={balance}
-              onUpdateBalance={handleDepositSuccess}
-              userId={firebaseUser?.uid || ''}
-              collection={worldCupCollection}
-              onCollectionUpdate={handleWorldCupCollectionUpdate}
-              onSellCard={handleSellWorldCupSticker}
-              onSellAllDuplicates={handleSellAllWorldCupDuplicates}
-            />
-          ) : selectedSport === 'Kpop' ? (
-            <KpopPhotocards
-              balance={balance}
-              onUpdateBalance={handleDepositSuccess}
-              userId={firebaseUser?.uid || ''}
-              collection={kpopCollection}
-              onCollectionUpdate={handleKpopCollectionUpdate}
-              onSellCard={handleSellKpopCard}
-              onSellAllDuplicates={handleSellAllKpopDuplicates}
-            />
-          ) : selectedSport === 'Anime' ? (
-            <AnimeGacha
-              balance={balance}
-              onUpdateBalance={handleDepositSuccess}
-              onAddBetHistory={handleAddPlacedBet}
-              userId={firebaseUser?.uid || ''}
-              collection={animeCollection}
-              onCollectionUpdate={handleAnimeCollectionUpdate}
-              onSellCard={handleSellAnimeCard}
-              onSellAllDuplicates={handleSellAllAnimeDuplicates}
-            />
-          ) : selectedSport === 'LoL' ? (
-            <LoLChests
-              balance={balance}
-              onUpdateBalance={handleDepositSuccess}
-              onAddBetHistory={handleAddPlacedBet}
-            />
           ) : (
             // SPORTS BOOK LIST DISPLAY
             <div className="space-y-4">
