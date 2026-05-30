@@ -143,9 +143,9 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
       cum += RARITY_WEIGHTS[i];
       if (r < cum) { rar = i; break; }
     }
-    const pool = chars.filter(c => c.rarity === rar);
-    if (pool.length === 0) return { ...chars[Math.floor(Math.random() * chars.length)] };
-    return { ...pool[Math.floor(Math.random() * pool.length)] };
+    const c = { ...chars[Math.floor(Math.random() * chars.length)] };
+    c.rarity = rar;
+    return c;
   };
 
   const handleOpenPack = async () => {
