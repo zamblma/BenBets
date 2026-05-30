@@ -554,9 +554,9 @@ export default function App() {
             <div className="px-4 py-3 flex flex-wrap gap-2">
               {[
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+                { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
                 { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
                 { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-                { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
                 { id: 'Kpop', label: 'K-pop', icon: '🎤' },
                 { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
                 { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
@@ -600,9 +600,9 @@ export default function App() {
           <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-3 py-1 pb-2 md:pb-3 justify-start scrollbar-thin">
             {[
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
               { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
               { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
               { id: 'Kpop', label: 'K-pop', icon: '🎤' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
@@ -638,29 +638,6 @@ export default function App() {
                         <h3 className="font-extrabold text-white text-base">🎰 Cassino BenBets</h3>
                         <p className="text-slate-400 text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Simulated recent winners ticker */}
-                  <div className="bg-[#0a0b12] border border-[#1c1f32] rounded-xl p-3 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">🏆 Últimos Ganhadores</span>
-                    </div>
-                    <div className="flex gap-4 overflow-x-auto scrollbar-thin">
-                      {[
-                        { name: 'Ana S.', game: 'Slots', amount: 'R$ 2.450,00', time: 'há 2 min' },
-                        { name: 'Lucas M.', game: 'Roleta', amount: 'R$ 1.200,00', time: 'há 5 min' },
-                        { name: 'Pedro R.', game: 'Aviator', amount: 'R$ 8.700,00', time: 'há 8 min' },
-                        { name: 'Carla F.', game: 'Dados', amount: 'R$ 350,00', time: 'há 12 min' },
-                        { name: 'João P.', game: 'Slots', amount: 'R$ 5.200,00', time: 'há 15 min' },
-                      ].map((w, i) => (
-                        <div key={i} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-2.5 shrink-0 min-w-[140px]">
-                          <div className="text-[11px] font-bold text-white">{w.name}</div>
-                          <div className="text-[9px] text-slate-400">{w.game}</div>
-                          <div className="text-xs font-bold text-brand font-mono mt-1">{w.amount}</div>
-                          <div className="text-[8px] text-slate-500 mt-0.5">{w.time}</div>
-                        </div>
-                      ))}
                     </div>
                   </div>
 

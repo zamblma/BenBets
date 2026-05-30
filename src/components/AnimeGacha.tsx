@@ -28,7 +28,7 @@ const RARITY_GLOW: Record<number, string> = {
   3: 'rgba(251,146,60,0.25)',
   4: 'rgba(239,68,68,0.3)',
 };
-const RARITY_WEIGHTS = [0.50, 0.25, 0.14, 0.08, 0.03];
+const RARITY_WEIGHTS = [0.55, 0.28, 0.11, 0.05, 0.01];
 
 const PACK_PRICE = 14.90;
 const PACK_SIZE = 5;
@@ -130,24 +130,30 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory }
   };
 
   const handleSellDuplicates = () => {
-    const seen = new Map<string, number>();
-    collection.forEach(c => seen.set(c.id, (seen.get(c.id) || 0) + 1));
-    let total = 0;
+    const seen = new Map<string, { count: number; rarity: number }>();
+    collection.forEach(c => {
+      const e = seen.get(c.id);
+      if (e) e.count++;
+      else seen.set(c.id, { count: 1, rarity: c.rarity });
+    });
+    let profit = 0;
     const kept: AnimeChar[] = [];
     collection.forEach(c => {
-      const count = seen.get(c.id) || 0;
-      if (count > 1) {
-        total += (c.rarity + 1) * 150;
-        seen.set(c.id, 1);
+      const e = seen.get(c.id);
+      if (!e) return;
+      if (e.count > 1 && e.rarity === 4) {
+        profit += (e.count - 1) * 300;
+        e.count = 1;
         kept.push(c);
+      } else if (e.count > 1) {
+        e.count--;
       } else {
         kept.push(c);
       }
     });
-    if (total > 0) {
-      onUpdateBalance(total);
-      setCollection(kept);
-    }
+    if (profit > 0) onUpdateBalance(profit);
+    setCollection(kept);
+    if (profit > 0) alert(`Você vendeu repetidas de 5⭐ por R$ ${profit.toFixed(2)}`);
   };
 
   const uniqueCollection = useMemo(() => {
@@ -176,6 +182,12 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory }
   const hasDuplicates = useMemo(() => {
     const ids = collection.map(c => c.id);
     return new Set(ids).size !== ids.length;
+  }, [collection]);
+
+  const hasLegendaryDuplicates = useMemo(() => {
+    const seen = new Map<string, number>();
+    collection.forEach(c => { if (c.rarity === 4) seen.set(c.id, (seen.get(c.id) || 0) + 1); });
+    return Array.from(seen.values()).some(v => v > 1);
   }, [collection]);
 
   const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -326,7 +338,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory }
                 {hasDuplicates && (
                   <button onClick={handleSellDuplicates}
                     className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors">
-                    Vender Repetidas por Essência
+                    {hasLegendaryDuplicates ? 'Vender Repetidas (apenas 5⭐ dá lucro)' : 'Limpar Repetidas (sem lucro — só 5⭐ vale)'}
                   </button>
                 )}
 
