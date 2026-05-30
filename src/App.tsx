@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Flame,
   Award,
-  LogOut
+  LogOut,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
