@@ -56,6 +56,7 @@ export default function App() {
 
   // Navigation & Category states
   const [selectedSport, setSelectedSport] = useState<string>('Cassino');
+  const [sportFilter, setSportFilter] = useState<string>('todas');
   const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -447,6 +448,7 @@ export default function App() {
       match.league.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (selectedSport === 'Todos') {
+      if (sportFilter !== 'todas') return match.sport === sportFilter && matchesSearch;
       return matchesSearch;
     }
     return match.sport === selectedSport && matchesSearch;
@@ -554,14 +556,11 @@ export default function App() {
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
                 { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
                 { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
-              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
-              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
-                { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
-                { id: 'Futebol', label: 'Futebol', icon: '⚽' },
-                { id: 'Basquete', label: 'Basquete', icon: '🏀' },
-                { id: 'Tênis', label: 'Tênis', icon: '🎾' },
-                { id: 'E-Sports', label: 'E-Sports', icon: '🎮' }
+                { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
+                { id: 'Kpop', label: 'K-pop', icon: '🎤' },
+                { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
+                { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
+                { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
               ].map((sport) => (
                 <button
                   key={sport.id}
@@ -603,14 +602,11 @@ export default function App() {
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
               { id: 'Pokemon', label: 'Pokémon TCG', icon: '🃏' },
               { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
-              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
-              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
               { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
-              { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
-              { id: 'Futebol', label: 'Futebol', icon: '⚽' },
-              { id: 'Basquete', label: 'Basquete', icon: '🏀' },
-              { id: 'Tênis', label: 'Tênis', icon: '🎾' },
-              { id: 'E-Sports', label: 'E-Sports', icon: '🎮' }
+              { id: 'Kpop', label: 'K-pop', icon: '🎤' },
+              { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
+              { id: 'LoL', label: 'Baús LoL', icon: '⚔️' },
+              { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
             ].map((sport) => (
               <button
                 key={sport.id}
@@ -675,7 +671,6 @@ export default function App() {
                       { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-600/20 via-emerald-800/10 to-emerald-900/5', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)', chip: '♠️' },
                       { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-600/20 via-rose-800/10 to-rose-900/5', border: 'border-rose-500/30', glow: 'rgba(225,29,72,0.15)', chip: '🔴' },
                       { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-600/20 via-amber-800/10 to-amber-900/5', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)', chip: '⚀' },
-                      { id: 'lolchests', name: 'Baús LoL', icon: '🏆', desc: 'Abra baús como no League of Legends', gradient: 'from-blue-600/20 via-blue-800/10 to-blue-900/5', border: 'border-blue-500/30', glow: 'rgba(37,99,235,0.15)', chip: '🔮' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
                         className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-4 border text-left cursor-pointer group"
@@ -716,9 +711,6 @@ export default function App() {
                   )}
                   {selectedCasinoGame === 'dice' && (
                     <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
-                  )}
-                  {selectedCasinoGame === 'lolchests' && (
-                    <LoLChests balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
                   )}
                 </div>
               )}
@@ -773,10 +765,36 @@ export default function App() {
               onUpdateBalance={handleDepositSuccess}
               onAddBetHistory={handleAddPlacedBet}
             />
+          ) : selectedSport === 'LoL' ? (
+            <LoLChests
+              balance={balance}
+              onUpdateBalance={handleDepositSuccess}
+              onAddBetHistory={handleAddPlacedBet}
+            />
           ) : (
             // SPORTS BOOK LIST DISPLAY
             <div className="space-y-4">
-              
+
+              {/* Sport sub-tabs for Todos os Esportes */}
+              {selectedSport === 'Todos' && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {[
+                    { id: 'todas', label: 'Todas as Modalidades', icon: '📋' },
+                    { id: 'Futebol', label: 'Futebol', icon: '⚽' },
+                    { id: 'Basquete', label: 'Basquete', icon: '🏀' },
+                    { id: 'Tênis', label: 'Tênis', icon: '🎾' },
+                    { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
+                  ].map(s => (
+                    <button key={s.id} onClick={() => setSportFilter(s.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                        sportFilter === s.id ? 'bg-brand text-slate-950 border-brand' : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:border-brand/30'
+                      }`}>
+                      {s.icon} {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Search match input */}
               <div className="flex gap-2.5 items-center bg-[#0d0e16] rounded-xl p-3 border border-[#1a1c2a]">
                 <Search className="w-4 h-4 text-slate-500 shrink-0" />

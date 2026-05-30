@@ -197,7 +197,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   }, [collection, getBasePrice]);
 
   const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
-  const canBuy = balance >= selectedOption.price && setCards.length > 0;
+  const canBuy = !opening && !cardsLoading && selectedSet && balance >= selectedOption.price && setCards.length > 0;
 
   const filteredCards = collection
     .filter(c => {
@@ -255,6 +255,11 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   const handleOpenPack = async () => {
     if (!selectedSet || !canBuy) return;
+
+    onUpdateBalance(-selectedOption.price);
+    setOpening(true);
+    setPackResult([]);
+    setRevealingIndex(-1);
 
     let cards = setCards;
     if (cards.length === 0 || cardsSetIdRef.current !== selectedSet.id) {

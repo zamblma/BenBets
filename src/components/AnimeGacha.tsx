@@ -46,12 +46,12 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory }
   const skipRef = useRef(false);
 
   useEffect(() => {
-    const cache = sessionStorage.getItem('animeGachaChars3');
-    if (cache) { try { const p = JSON.parse(cache); if (p.length >= 100) { setChars(p); return; } } catch {} }
+    const cache = sessionStorage.getItem('animeGachaChars4');
+    if (cache) { try { const p = JSON.parse(cache); if (p.length >= 200) { setChars(p); return; } } catch {} }
     const ab = new AbortController();
     const all: AnimeChar[] = [];
     let done = 0;
-    const totalPages = 4;
+    const totalPages = 10;
     for (let page = 1; page <= totalPages; page++) {
       fetch(`https://api.jikan.moe/v4/top/characters?page=${page}&limit=25`, { signal: ab.signal })
         .then(r => r.json()).then(d => {
@@ -69,7 +69,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory }
           if (done >= totalPages) {
             const weighted = all.map(c => ({ ...c, rarity: rollRarity() }));
             setChars(weighted);
-            sessionStorage.setItem('animeGachaChars3', JSON.stringify(weighted));
+            sessionStorage.setItem('animeGachaChars4', JSON.stringify(weighted));
           }
         });
     }

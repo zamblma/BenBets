@@ -372,13 +372,13 @@ export default function CS2Cases({
         const updated = { ...prev };
         ALL_CASES.forEach(c => c.items.forEach(s => {
           const current = updated[s.id] ?? (s.minPrice + s.maxPrice) / 2;
-          const change = (Math.random() - 0.5) * 1.5;
-          const newPrice = Math.max(s.minPrice * 0.5, Math.min(s.maxPrice * 1.5, current + change));
+          const change = (Math.random() - 0.5) * 0.3;
+          const newPrice = Math.max(s.minPrice * 0.8, Math.min(s.maxPrice * 1.2, current + change));
           updated[s.id] = Math.round(newPrice * 100) / 100;
         }));
         return updated;
       });
-    }, 20000);
+    }, 3600000);
     return () => clearInterval(interval);
   }, []);
 
