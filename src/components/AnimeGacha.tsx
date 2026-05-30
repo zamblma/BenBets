@@ -36,14 +36,6 @@ const RARITY_GLOW: Record<number, string> = {
 };
 const RARITY_WEIGHTS = [0.60, 0.275, 0.10, 0.02, 0.005];
 const RARITY_PRICES = [0.50, 1.50, 5.00, 25.00, 100.00];
-const RARITY_FAV_THRESHOLDS = [
-  { max: 49, rarity: 0 },
-  { max: 299, rarity: 1 },
-  { max: 999, rarity: 2 },
-  { max: 4999, rarity: 3 },
-  { max: Infinity, rarity: 4 },
-];
-
 const PACK_PRICE = 24.99;
 const PACK_SIZE = 1;
 const MAX_PACKS_PER_HOUR = 5;
@@ -51,13 +43,6 @@ const HOUR_MS = 3600000;
 
 function getCardValue(rarity: number): number {
   return RARITY_PRICES[rarity] || 0;
-}
-
-function rarityFromFavorites(fav: number): number {
-  for (const t of RARITY_FAV_THRESHOLDS) {
-    if (fav <= t.max) return t.rarity;
-  }
-  return 0;
 }
 
 function getRarityBorder(rarity: number): string {
@@ -102,36 +87,38 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   useEffect(() => {
     const cache = sessionStorage.getItem('animeGachaChars4');
     if (cache) { try { const p = JSON.parse(cache); if (p.length >= 200) { setChars(p); return; } } catch {} }
-    const ab = new AbortController();
+    let cancelled = false;
     const all: AnimeChar[] = [];
-    let done = 0;
-    const totalPages = 20;
-    for (let page = 1; page <= totalPages; page++) {
-      const delay = page === 1 ? 0 : 350;
-      setTimeout(() => {
-        if (ab.signal.aborted) return;
-        fetch(`https://api.jikan.moe/v4/top/characters?page=${page}&limit=25`, { signal: ab.signal })
-          .then(r => r.json()).then(d => {
-            if (d?.data) d.data.forEach((c: any) => {
-              const fav = c.favorites ?? 0;
-              all.push({
-                id: `anime_${c.mal_id}`,
-                name: c.name,
-                series: c.anime?.[0]?.name || c.manga?.[0]?.name || 'Desconhecido',
-                image: c.images?.jpg?.image_url || '',
-                rarity: fav > 0 ? rarityFromFavorites(fav) : 0,
-              });
+    const MAX_PAGES = 200;
+
+    const load = async () => {
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        if (cancelled) return;
+        if (page > 1) await new Promise(r => setTimeout(r, 450));
+        try {
+          const res = await fetch(`https://api.jikan.moe/v4/top/characters?page=${page}&limit=25`);
+          if (res.status === 429) { await new Promise(r => setTimeout(r, 1000)); page--; continue; }
+          const d = await res.json();
+          if (!d?.data || d.data.length === 0) break;
+          d.data.forEach((c: any) => {
+            all.push({
+              id: `anime_${c.mal_id}`,
+              name: c.name,
+              series: c.anime?.[0]?.name || c.manga?.[0]?.name || 'Desconhecido',
+              image: c.images?.jpg?.image_url || '',
+              rarity: 0,
             });
-          }).catch(() => {}).finally(() => {
-            done++;
-            if (done >= totalPages) {
-              setChars(all);
-              sessionStorage.setItem('animeGachaChars4', JSON.stringify(all));
-            }
           });
-      }, delay);
-    }
-    return () => ab.abort();
+          if (all.length % 250 === 0) setChars([...all]);
+        } catch {}
+      }
+      if (!cancelled) {
+        setChars(all);
+        sessionStorage.setItem('animeGachaChars4', JSON.stringify(all));
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const pick = (): AnimeChar => {
