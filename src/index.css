@@ -63,4 +63,12 @@ body {
 .shimmer-gold { animation: shimmer-gold 1.5s ease-in-out infinite; }
 .shimmer-rainbow { animation: shimmer-rainbow 2s linear infinite; }
 
+/* Casino card hover effect */
+.casino-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.casino-card:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
 

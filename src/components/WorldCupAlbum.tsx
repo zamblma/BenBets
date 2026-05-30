@@ -213,24 +213,30 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
 
   useEffect(() => {
     if (fetchedRef.current) return; fetchedRef.current = true;
-    const cache = sessionStorage.getItem('wcPlayerPhotos');
+    const cache = sessionStorage.getItem('wcPlayerPhotos2');
     if (cache) { try { setPhotos(JSON.parse(cache)); return; } catch {} }
     const results: Record<string, string> = {};
-    let done = ALL_PLAYERS.length;
-    for (const p of ALL_PLAYERS.slice(0, 30)) {
-      done--;
+    const MAX_FETCH = 40;
+    let done = MAX_FETCH;
+    for (const p of ALL_PLAYERS.slice(0, MAX_FETCH)) {
       const name = encodeURIComponent(p.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${name}`).then(r => r.json()).then(d => { if (d?.player?.[0]?.strThumb) results[p.id] = d.player[0].strThumb + '/preview'; }).catch(() => {}).finally(() => { if (done <= 0) { setPhotos({ ...results }); sessionStorage.setItem('wcPlayerPhotos', JSON.stringify(results)); } });
+      fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${name}`)
+        .then(r => r.json()).then(d => {
+          if (d?.player?.[0]?.strThumb) results[p.id] = d.player[0].strThumb + '/preview';
+        }).catch(() => {}).finally(() => {
+          done--;
+          if (done <= 0) { setPhotos({ ...results }); sessionStorage.setItem('wcPlayerPhotos2', JSON.stringify(results)); }
+        });
     }
   }, []);
 
-  const getPlayerImage = (player: Player): string => {
+  const initials = (name: string) => {
+    return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  };
+
+  const getPlayerImage = (player: Player): string | null => {
     if (photos[player.id]) return photos[player.id];
-    const colors = ['1e3a5f', '2d5a27', '5a2d2d', '2d3a5a', '4a2d5a', '5a4a2d', '2d5a4a', '5a2d3a'];
-    const hash = player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    const bg = colors[hash % colors.length];
-    const initials = player.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${bg}&color=fff&size=128&bold=true&font-size=0.4`;
+    return null;
   };
 
   const handleOpenPack = async () => {
@@ -307,12 +313,20 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                 {packResult.map((card, idx) => {
                   const player = ALL_PLAYERS.find(p => p.id === card.id);
                   const isRare = getRarityLevel(card.rarity) >= 2;
-                  return (
-                    <motion.div key={idx} initial={{ rotateY: 180, opacity: 0, scale: 0.3 }} animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}} transition={{ type: 'spring', stiffness: 180, damping: 18 }} className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} shadow-lg ${isRare ? 'relative' : ''}`}>
-                      {isRare && <div className="absolute -top-1 -right-1 z-10"><Star className={`w-4 h-4 ${getRarityLevel(card.rarity) >= 3 ? 'text-purple-300' : 'text-amber-400'}`} fill="currentColor" /></div>}
-                      <div className="bg-[#07080f] p-3 flex items-center justify-center w-full aspect-[3/4]">
-                        {player && <img src={getPlayerImage(player)} alt={card.name} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${card.name.split(' ').map(w => w[0]).join('')}&background=1e3a5f&color=fff&size=128`; }} />}
+                  const pColor = ['#1e3a5f', '#2d5a27', '#5a2d2d', '#2d3a5a', '#4a2d5a', '#5a4a2d', '#2d5a4a', '#5a2d3a'];
+                const colorIdx = card.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % pColor.length;
+                const cardInits = card.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                return (
+                  <motion.div key={idx} initial={{ rotateY: 180, opacity: 0, scale: 0.3 }} animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}} transition={{ type: 'spring', stiffness: 180, damping: 18 }} className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} shadow-lg ${isRare ? 'relative' : ''}`}>
+                    {isRare && <div className="absolute -top-1 -right-1 z-10"><Star className={`w-4 h-4 ${getRarityLevel(card.rarity) >= 3 ? 'text-purple-300' : 'text-amber-400'}`} fill="currentColor" /></div>}
+                    <div className="bg-[#07080f] p-3 flex items-center justify-center w-full aspect-[3/4]">
+                      {player && getPlayerImage(player) ? (
+                        <img src={getPlayerImage(player)!} alt={card.name} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target.parentElement!.querySelector('.fallback') as HTMLElement)?.classList.remove('hidden'); }} />
+                      ) : null}
+                      <div className={`fallback ${player && getPlayerImage(player) ? 'hidden' : ''} flex flex-col items-center justify-center w-full h-full`}>
+                        <div className="text-2xl font-black text-white/70" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{cardInits}</div>
                       </div>
+                    </div>
                       {idx <= revealingIndex && <div className="p-2 text-center"><p className="text-[9px] font-bold text-slate-200 truncate">{card.name}</p><p className={`text-[7px] font-bold ${isRare ? 'text-amber-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p></div>}
                     </motion.div>
                   );
@@ -360,26 +374,30 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                   {filteredTeamPlayers.map(player => {
                     const sticker = collection.find(c => c.id === player.id);
                     const isRare = getRarityLevel(player.rarity) >= 2;
-                    return (
-                      <div key={player.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all group relative ${sticker ? (isRare ? getRarityBorder(player.rarity) : 'border-green-600/30') : 'border-[#1a1c2a] opacity-40'}`}>
-                        <div className="p-1.5 flex items-center justify-center aspect-[3/4]">
-                          {sticker ? (
-                            <img src={getPlayerImage(player)} alt={player.name} className="w-full h-full object-contain" loading="lazy" onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${player.name.split(' ').map(w => w[0]).join('')}&background=1e3a5f&color=fff&size=128`; }} />
-                          ) : (
-                            <div className="flex flex-col items-center gap-0.5"><span className="text-lg">{player.flag}</span><span className="text-[6px] text-slate-600 text-center leading-tight">???</span></div>
-                          )}
-                        </div>
-                        <div className="p-1 text-center">
-                          <p className={`text-[7px] font-bold truncate ${sticker ? 'text-slate-200' : 'text-slate-600'}`}>{sticker ? player.name : '???'}</p>
-                          {sticker && <p className={`text-[6px] font-bold ${isRare ? 'text-amber-400' : 'text-slate-400'}`}>{getRarityLabel(player.rarity)}</p>}
-                          {sticker && sticker.quantity > 1 && <span className="text-[7px] text-slate-500">×{sticker.quantity}</span>}
-                        </div>
-                        {sticker && sticker.quantity > 1 && (
-                          <button onClick={() => handleSell(sticker.id)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">R$ {getBasePrice(player.rarity).toFixed(2)}</button>
-                        )}
+                const colInits = player.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                const colColors = ['#1e3a5f', '#2d5a27', '#5a2d2d', '#2d3a5a', '#4a2d5a', '#5a4a2d', '#2d5a4a', '#5a2d3a'];
+                const colColor = colColors[player.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colColors.length];
+                return (
+                  <div key={player.id} className={`bg-[#07080f] rounded-lg border overflow-hidden group relative ${isRare ? getRarityBorder(player.rarity) : 'border-[#1a1c2a]'}`}>
+                    <div className="p-1.5 flex items-center justify-center aspect-[3/4] relative overflow-hidden" style={{ backgroundColor: colColor }}>
+                      {getPlayerImage(player) ? (
+                        <img src={getPlayerImage(player)!} alt={player.name} className="w-full h-full object-contain" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : null}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-2xl font-black text-white/70" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{colInits}</span>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <div className="p-1 text-center">
+                      <p className={`text-[7px] font-bold truncate ${sticker ? 'text-slate-200' : 'text-slate-600'}`}>{sticker ? player.name : '???'}</p>
+                      {sticker && <p className={`text-[6px] font-bold ${isRare ? 'text-amber-400' : 'text-slate-400'}`}>{getRarityLabel(player.rarity)}</p>}
+                      {sticker && sticker.quantity > 1 && <span className="text-[7px] text-slate-500">×{sticker.quantity}</span>}
+                    </div>
+                    {sticker && sticker.quantity > 1 && (
+                      <button onClick={() => handleSell(sticker.id)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">R$ {getBasePrice(player.rarity).toFixed(2)}</button>
+                    )}
+                  </div>
+                );
+              })}
                 </div>
               </div>
             );

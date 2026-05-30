@@ -38,6 +38,8 @@ import SlotGame from './components/SlotGame';
 import BlackjackGame from './components/BlackjackGame';
 import RouletteGame from './components/RouletteGame';
 import DiceGame from './components/DiceGame';
+import LoLChests from './components/LoLChests';
+import AnimeGacha from './components/AnimeGacha';
 import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
@@ -554,6 +556,7 @@ export default function App() {
                 { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'Kpop', label: 'K-pop', icon: '🎤' },
+              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
                 { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
                 { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                 { id: 'Basquete', label: 'Basquete', icon: '🏀' },
@@ -602,6 +605,7 @@ export default function App() {
               { id: 'CS2', label: 'CS2 Cases', icon: '🔫' },
               { id: 'Copa', label: 'Copa do Mundo', icon: '🌍' },
               { id: 'Kpop', label: 'K-pop', icon: '🎤' },
+              { id: 'Anime', label: 'Anime Gacha', icon: '⭐' },
               { id: 'Todos', label: 'Todos Esportes', icon: '⚽' },
               { id: 'Futebol', label: 'Futebol', icon: '⚽' },
               { id: 'Basquete', label: 'Basquete', icon: '🏀' },
@@ -628,28 +632,66 @@ export default function App() {
             <div className="space-y-6">
               {selectedCasinoGame === null ? (
                 <>
-                  <div className="bg-gradient-to-r from-[#161a2b]/40 via-[#0e1017] to-[#161a2b]/20 p-5 rounded-2xl border border-indigo-950/45 flex items-center gap-4">
-                    <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
-                      <Flame className="w-6 h-6 animate-pulse text-brand" />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-white text-base">Arena de Cassino e Jogos Crash</h3>
-                      <p className="text-slate-400 text-xs">Simulador regulado de geradores de números (RNG). Teste jogos de slots e crash de forma auditada.</p>
+                  <div className="relative overflow-hidden bg-gradient-to-r from-[#161a2b]/60 via-[#0e1017] to-[#161a2b]/30 p-5 rounded-2xl border border-[#1c1f32]">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.08),transparent_60%)] pointer-events-none" />
+                    <div className="flex items-center gap-4 relative z-10">
+                      <div className="bg-gradient-to-br from-brand/20 to-emerald-900/20 p-3 rounded-xl border border-brand/20 animate-neon-pulse">
+                        <Flame className="w-6 h-6 text-brand" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-white text-base">🎰 Cassino BenBets</h3>
+                        <p className="text-slate-400 text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Simulated recent winners ticker */}
+                  <div className="bg-[#0a0b12] border border-[#1c1f32] rounded-xl p-3 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">🏆 Últimos Ganhadores</span>
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto scrollbar-thin">
+                      {[
+                        { name: 'Ana S.', game: 'Slots', amount: 'R$ 2.450,00', time: 'há 2 min' },
+                        { name: 'Lucas M.', game: 'Roleta', amount: 'R$ 1.200,00', time: 'há 5 min' },
+                        { name: 'Pedro R.', game: 'Aviator', amount: 'R$ 8.700,00', time: 'há 8 min' },
+                        { name: 'Carla F.', game: 'Dados', amount: 'R$ 350,00', time: 'há 12 min' },
+                        { name: 'João P.', game: 'Slots', amount: 'R$ 5.200,00', time: 'há 15 min' },
+                      ].map((w, i) => (
+                        <div key={i} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-2.5 shrink-0 min-w-[140px]">
+                          <div className="text-[11px] font-bold text-white">{w.name}</div>
+                          <div className="text-[9px] text-slate-400">{w.game}</div>
+                          <div className="text-xs font-bold text-brand font-mono mt-1">{w.amount}</div>
+                          <div className="text-[8px] text-slate-500 mt-0.5">{w.time}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {[
-                      { id: 'slots', name: 'Slots da Sorte', icon: '🎰', desc: 'Caça-níqueis com 6 símbolos', color: 'from-violet-600/20 to-violet-900/10 border-violet-500/30' },
-                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente até estourar', color: 'from-cyan-600/20 to-cyan-900/10 border-cyan-500/30' },
-                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Bata o dealer sem estourar 21', color: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30' },
-                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números ou cores', color: 'from-rose-600/20 to-rose-900/10 border-rose-500/30' },
-                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', color: 'from-amber-600/20 to-amber-900/10 border-amber-500/30' },
+                      { id: 'slots', name: 'Slots da Sorte', icon: '🎰', desc: 'Caça-níqueis com símbolos clássicos', gradient: 'from-violet-600/20 via-violet-800/10 to-violet-900/5', border: 'border-violet-500/30', glow: 'rgba(139,92,246,0.15)', chip: '💎' },
+                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente, saia antes de estourar', gradient: 'from-cyan-600/20 via-cyan-800/10 to-cyan-900/5', border: 'border-cyan-500/30', glow: 'rgba(6,182,212,0.15)', chip: '✈️' },
+                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-600/20 via-emerald-800/10 to-emerald-900/5', border: 'border-emerald-500/30', glow: 'rgba(16,185,129,0.15)', chip: '♠️' },
+                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-600/20 via-rose-800/10 to-rose-900/5', border: 'border-rose-500/30', glow: 'rgba(225,29,72,0.15)', chip: '🔴' },
+                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-600/20 via-amber-800/10 to-amber-900/5', border: 'border-amber-500/30', glow: 'rgba(245,158,11,0.15)', chip: '⚀' },
+                      { id: 'lolchests', name: 'Baús LoL', icon: '🏆', desc: 'Abra baús como no League of Legends', gradient: 'from-blue-600/20 via-blue-800/10 to-blue-900/5', border: 'border-blue-500/30', glow: 'rgba(37,99,235,0.15)', chip: '🔮' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
-                        className={`bg-gradient-to-br ${game.color} rounded-2xl p-4 border text-left transition-all hover:scale-[1.02] cursor-pointer group`}>
-                        <span className="text-3xl block mb-2">{game.icon}</span>
+                        className="casino-card bg-gradient-to-br relative overflow-hidden rounded-2xl p-4 border text-left cursor-pointer group"
+                        style={{ backgroundImage: `linear-gradient(to bottom right, ${game.gradient})`, borderColor: game.border.split(' ')[0] }}>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                          style={{ boxShadow: `inset 0 0 40px ${game.glow}` }} />
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="text-3xl">{game.icon}</span>
+                          <span className="text-[16px] opacity-40 group-hover:opacity-80 transition-opacity">{game.chip}</span>
+                        </div>
                         <h4 className="text-sm font-bold text-white group-hover:text-brand transition-colors">{game.name}</h4>
                         <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{game.desc}</p>
+                        <div className="mt-3 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+                          <span className="text-[8px] text-brand/60 uppercase tracking-wider font-bold">Jogar Agora</span>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -674,6 +716,9 @@ export default function App() {
                   )}
                   {selectedCasinoGame === 'dice' && (
                     <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                  )}
+                  {selectedCasinoGame === 'lolchests' && (
+                    <LoLChests balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
                   )}
                 </div>
               )}
@@ -721,6 +766,12 @@ export default function App() {
               onCollectionUpdate={handleKpopCollectionUpdate}
               onSellCard={handleSellKpopCard}
               onSellAllDuplicates={handleSellAllKpopDuplicates}
+            />
+          ) : selectedSport === 'Anime' ? (
+            <AnimeGacha
+              balance={balance}
+              onUpdateBalance={handleDepositSuccess}
+              onAddBetHistory={handleAddPlacedBet}
             />
           ) : (
             // SPORTS BOOK LIST DISPLAY

@@ -91,13 +91,13 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
     let done = GROUPS.length;
     for (const g of GROUPS) {
       const wikiMap: Record<string, string> = {
-        'BTS': 'BTS', 'BLACKPINK': 'BLACKPINK', 'TWICE': 'Twice',
-        'NewJeans': 'NewJeans', 'Stray Kids': 'Stray_Kids', '(G)I-DLE': '(G)I-DLE',
+        'BTS': 'BTS', 'BLACKPINK': 'Blackpink', 'TWICE': 'Twice',
+        'NewJeans': 'NewJeans', 'Stray Kids': 'Stray_Kids', '(G)I-DLE': '(G)I-dle',
         'LE SSERAFIM': 'Le_Sserafim', 'aespa': 'Aespa', 'ENHYPEN': 'ENHYPEN',
         'ITZY': 'Itzy', 'SEVENTEEN': 'Seventeen_(South_Korean_band)', 'NCT 127': 'NCT_127',
         'EXO': 'Exo', 'Red Velvet': 'Red_Velvet_(group)', 'MAMAMOO': 'Mamamoo',
         'IVE': 'Ive_(group)', 'ATEEZ': 'Ateez', 'Dreamcatcher': 'Dreamcatcher_(group)',
-        'ZEROBASEONE': 'ZB1', 'RIIZE': 'Riize',
+        'ZEROBASEONE': 'Zerobaseone', 'RIIZE': 'Riize',
       };
       const wikiTitle = wikiMap[g.name] || g.name.replace(/ /g, '_');
       fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`)
@@ -204,7 +204,9 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
                     <motion.div key={idx} initial={{ rotateY: 180, opacity: 0, scale: 0.3 }} animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}} transition={{ type: 'spring', stiffness: 180, damping: 18 }} className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} shadow-lg ${isRare ? 'relative' : ''}`}>
                       {isRare && <div className="absolute -top-1 -right-1 z-10"><Star className={`w-4 h-4 ${getRarityLevel(card.rarity) >= 3 ? 'text-purple-300' : 'text-pink-400'}`} fill="currentColor" /></div>}
                       <div className={`${getColor(card.setName)} p-3 flex items-center justify-center w-full aspect-[3/4] relative overflow-hidden`}>
-                        {photos[card.setName] && <img src={photos[card.setName]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" />}
+                        {photos[card.setName] ? (
+                          <img src={photos[card.setName]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : null}
                         <span className="text-3xl font-black text-white/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] relative">{card.name[0]}</span>
                       </div>
                       {idx <= revealingIndex && <div className="p-2 text-center"><p className="text-[9px] font-bold text-slate-200 truncate">{card.name}</p><p className={`text-[7px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p></div>}
@@ -244,7 +246,9 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
                     return (
                       <div key={card.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all group relative ${isRare ? getRarityBorder(card.rarity) : 'border-[#1a1c2a]'}`}>
                         <div className={`${getColor(card.setName)} p-1.5 flex items-center justify-center aspect-[3/4] relative overflow-hidden`}>
-                          {photos[card.setName] && <img src={photos[card.setName]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" />}
+                          {photos[card.setName] ? (
+                            <img src={photos[card.setName]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : null}
                           <span className="text-2xl font-black text-white/80 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] relative">{card.name[0]}</span>
                         </div>
                         <div className="p-1 text-center">

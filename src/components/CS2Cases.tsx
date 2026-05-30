@@ -707,7 +707,7 @@ export default function CS2Cases({
                               <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
                             ) : (
                               <img
-                                src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}`}
+                                src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}?t=${Date.now()}`}
                                 onError={() => setResultImgError(true)}
                                 alt={result.name}
                                 className="w-full h-full object-contain p-1"

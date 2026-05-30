@@ -84,11 +84,25 @@ function generatePack(cards: TCGCard[], setName: string, setSeries: string): Pok
   const common = cards.filter(c => !c.rarity || c.rarity === 'Common');
   const uncommon = cards.filter(c => c.rarity === 'Uncommon');
   const rarePool = cards.filter(c => c.rarity && !['Common', 'Uncommon'].includes(c.rarity));
-  const pick = (pool: TCGCard[]) => pool[Math.floor(Math.random() * pool.length)];
+  const pick = (pool: TCGCard[], exclude?: Set<string>) => {
+    const available = exclude ? pool.filter(c => !exclude.has(c.id)) : pool;
+    if (available.length === 0) return pool[Math.floor(Math.random() * pool.length)];
+    return available[Math.floor(Math.random() * available.length)];
+  };
 
   const result: PokemonCard[] = [];
-  for (let i = 0; i < 5; i++) { const c = pick(common); result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c.images?.small || '' }); }
-  for (let i = 0; i < 3; i++) { const c = pick(uncommon); result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c.images?.small || '' }); }
+  const used = new Set<string>();
+
+  for (let i = 0; i < 5; i++) {
+    const c = pick(common, used);
+    if (c) { used.add(c.id); }
+    result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c?.images?.small || '' });
+  }
+  for (let i = 0; i < 3; i++) {
+    const c = pick(uncommon, used);
+    if (c) { used.add(c.id); }
+    result.push({ ...c, quantity: 1, setName, setSeries, imageUrl: c?.images?.small || '' });
+  }
 
   const roll = Math.random();
   let rareCard: TCGCard;
@@ -136,6 +150,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const pricesRef = useRef<Record<string, number>>({});
   const allCardIds = useRef<Set<string>>(new Set());
   const skipRef = useRef(false);
+  const cardsSetIdRef = useRef<string>('');
 
   // Collect all unique card ids from collection
   useEffect(() => {
@@ -218,12 +233,12 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       }).catch(() => {}).finally(() => setSetsLoading(false));
   }, []);
 
-  const fetchSetCards = useCallback(async (setId: string) => {
+  const fetchSetCards = useCallback(async (setId: string): Promise<TCGCard[]> => {
     const cacheKey = `pokemonCards_${setId}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached) as TCGCard[];
-      if (parsed.length > 0) { setSetCards(parsed); return; }
+      if (parsed.length > 0) { setSetCards(parsed); cardsSetIdRef.current = setId; return parsed; }
     }
     setCardsLoading(true);
     try {
@@ -231,21 +246,20 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       const d = await r.json();
       const cards = d.data || [];
       setSetCards(cards);
+      cardsSetIdRef.current = setId;
       sessionStorage.setItem(cacheKey, JSON.stringify(cards));
-    } catch {}
-    setCardsLoading(false);
+      return cards;
+    } catch { return []; }
+    finally { setCardsLoading(false); }
   }, []);
 
   const handleOpenPack = async () => {
     if (!selectedSet || !canBuy) return;
-    if (setCards.length === 0) await fetchSetCards(selectedSet.id);
 
-    onUpdateBalance(-selectedOption.price);
-    setOpening(true);
-    setPackResult([]);
-    setRevealingIndex(-1);
-
-    const cards = setCards;
+    let cards = setCards;
+    if (cards.length === 0 || cardsSetIdRef.current !== selectedSet.id) {
+      cards = await fetchSetCards(selectedSet.id);
+    }
     if (cards.length === 0) { setOpening(false); return; }
 
     const allCards: PokemonCard[] = [];
@@ -478,7 +492,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   { key: 'secret', has: cap.secret, icon: '⭐', color: 'text-red-400' },
                 ];
                 return (
-                <button key={set.id} onClick={() => { setSelectedSet(set); if (selectedSet?.id !== set.id || setCards.length === 0) fetchSetCards(set.id); setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
+                <button key={set.id} onClick={() => { setSelectedSet(set); setPackResult([]); setRevealingIndex(-1); if (selectedSet?.id !== set.id || setCards.length === 0) { setSetCards([]); fetchSetCards(set.id); } setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
                   {cap.tier === 'premium' && <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
                   {cap.tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-bl-full" />}
                   {cap.tier === 'ultra' && <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full" />}
