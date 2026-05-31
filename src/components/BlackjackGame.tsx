@@ -60,7 +60,7 @@ const SUIT_SYMBOLS: Record<Suit, string> = {
 };
 
 const SUIT_COLORS: Record<Suit, string> = {
-  hearts: 'text-red-400', diamonds: 'text-red-400', clubs: 'text-slate-200', spades: 'text-slate-200',
+  hearts: 'text-red-500', diamonds: 'text-red-500', clubs: 'text-gray-900', spades: 'text-gray-900',
 };
 
 function CardView({ card, index }: { card: Card; index: number; key?: string | number }) {
