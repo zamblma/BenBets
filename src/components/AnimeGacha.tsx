@@ -252,7 +252,14 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   const uniqueCollection = useMemo(() => {
     const map = new Map<string, PokemonCard>();
     collection.forEach(c => {
-      if (!map.has(c.id)) map.set(c.id, { ...c });
+      if (!map.has(c.id)) {
+        const fixed = { ...c };
+        if (fixed.setSeries === 'Desconhecido') {
+          const found = chars.find(ch => ch.id === c.id);
+          if (found?.series) fixed.setSeries = found.series;
+        }
+        map.set(c.id, fixed);
+      }
     });
     let arr = Array.from(map.values());
     if (rarityFilter !== null) arr = arr.filter(c => {
@@ -262,7 +269,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
     if (search) arr = arr.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.setSeries.toLowerCase().includes(search.toLowerCase()));
     if (seriesFilter) arr = arr.filter(c => c.setSeries === seriesFilter);
     return arr;
-  }, [collection, rarityFilter, search, seriesFilter]);
+  }, [collection, rarityFilter, search, seriesFilter, chars]);
 
   const seriesList = useMemo(() => {
     const s = new Set<string>();
