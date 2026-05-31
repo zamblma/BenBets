@@ -85,13 +85,13 @@ function CardView({ card, index }: { card: Card; index: number; key?: string | n
       transition={{ delay: index * 0.1 }}
       className="w-16 h-24 md:w-20 md:h-28 rounded-xl bg-gradient-to-b from-slate-50 to-slate-200 border border-slate-400/40 flex flex-col items-center justify-center shadow-xl shadow-black/35 relative"
     >
-      <span className="absolute top-1 left-1.5 text-xs font-bold leading-none">
+      <span className={`absolute top-1 left-1.5 text-xs font-bold leading-none ${SUIT_COLORS[card.suit]}`}>
         {card.rank}
       </span>
-      <span className="text-xl">
+      <span className={`text-xl ${SUIT_COLORS[card.suit]}`}>
         {SUIT_SYMBOLS[card.suit]}
       </span>
-      <span className="absolute bottom-1 right-1.5 text-xs font-bold leading-none">
+      <span className={`absolute bottom-1 right-1.5 text-xs font-bold leading-none ${SUIT_COLORS[card.suit]}`}>
         {card.rank}
       </span>
     </motion.div>
@@ -110,7 +110,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
 
   const deal = useCallback(() => {
     const playCost = parseFloat(stake);
-    if (isNaN(playCost) || playCost <= 0) { alert('Valor inv\u00e1lido'); return; }
+    if (isNaN(playCost) || playCost <= 0) { alert('Valor inválido'); return; }
     if (playCost > balance) { alert('Saldo insuficiente'); return; }
     onUpdateBalance(-playCost);
 
@@ -141,7 +141,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
     if (handValue(p) > 21) {
       setDealerHand(prev => prev.map(c => ({ ...c, hidden: false })));
       setStatus('settled');
-      setResult('\uD83D\uDCA5 Estourou! Dealer vence.');
+      setResult('💥 Estourou! Dealer vence.');
       setPayout(0);
       setStats(s => ({ ...s, losses: s.losses + 1 }));
       if (onAddBetHistory) {
@@ -189,25 +189,25 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         let isBj2 = false;
 
         if (finalDv > 21) {
-          resultText = '\uD83C\uDF89 Dealer estourou! Voc\u00ea venceu!';
+          resultText = '🎉 Dealer estourou! Você venceu!';
           payoutAmt = playCost * 2;
           isWin = true;
         } else if (finalDv > pv) {
-          resultText = '\uD83D\uDE1E Dealer vence.';
+          resultText = '😞 Dealer vence.';
           payoutAmt = 0;
           setStats(s => ({ ...s, losses: s.losses + 1 }));
         } else if (finalDv < pv) {
-          resultText = '\uD83C\uDF89 Voc\u00ea venceu!';
+          resultText = '🎉 Você venceu!';
           payoutAmt = playCost * 2;
           isWin = true;
         } else {
-          resultText = '\uD83E\uDD1D Push! Empate.';
+          resultText = '🤝 Push! Empate.';
           payoutAmt = playCost;
           setStats(s => ({ ...s, pushes: s.pushes + 1 }));
         }
 
         if (pv === 21 && playerHand.length === 2 && finalDv !== 21) {
-          resultText = '\uD83C\uDCCF Blackjack! Vit\u00f3ria!';
+          resultText = '🃏 Blackjack! Vitória!';
           payoutAmt = Math.floor(playCost * 2.5);
           isWin = true;
           isBj1 = true;
@@ -262,7 +262,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
     if (pv > 21) {
       setDealerHand(prev => prev.map(c => ({ ...c, hidden: false })));
       setStatus('settled');
-      setResult('\uD83D\uDCA5 Estourou! Dealer vence.');
+      setResult('💥 Estourou! Dealer vence.');
       setPayout(0);
       setStats(s => ({ ...s, losses: s.losses + 1 }));
       return;
@@ -290,19 +290,19 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         let isWin = false;
 
         if (finalDv > 21) {
-          resultText = '\uD83C\uDF89 Dealer estourou! Vit\u00f3ria dobrada!';
+          resultText = '🎉 Dealer estourou! Vitória dobrada!';
           payoutAmt = totalStake * 2;
           isWin = true;
         } else if (finalDv > pv) {
-          resultText = '\uD83D\uDE1E Dealer vence.';
+          resultText = '😞 Dealer vence.';
           payoutAmt = 0;
           setStats(s => ({ ...s, losses: s.losses + 1 }));
         } else if (finalDv < pv) {
-          resultText = '\uD83C\uDF89 Vit\u00f3ria dobrada!';
+          resultText = '🎉 Vitória dobrada!';
           payoutAmt = totalStake * 2;
           isWin = true;
         } else {
-          resultText = '\uD83E\uDD1D Push!';
+          resultText = '🤝 Push!';
           payoutAmt = totalStake;
           setStats(s => ({ ...s, pushes: s.pushes + 1 }));
         }
@@ -375,7 +375,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
 
             <div className={'mb-4 relative z-10 p-2 -m-2 rounded-xl transition-all duration-500 ' + (status === 'playing' ? 'shadow-[0_0_30px_rgba(0,255,135,0.15)]' : '')}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Voc\u00ea</span>
+                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Você</span>
                 {playerHand.length > 0 && (
                   <span className="text-[10px] font-mono text-emerald-200/60">{pv}</span>
                 )}
@@ -395,7 +395,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
                   className={'text-center py-3 px-4 rounded-xl text-sm font-bold relative z-10 ' + (
                     payout > 0
                       ? 'bg-brand/10 border border-brand/30 text-brand shadow-[0_0_20px_rgba(0,255,135,0.15)]'
-                      : result.includes('Push') || result.includes('\uD83E\uDD1D')
+                      : result.includes('Push') || result.includes('🤝')
                         ? 'bg-slate-500/10 border border-slate-500/30 text-slate-300'
                         : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.15)]'
                   )}
@@ -432,7 +432,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
                 {[1, 2, 5, 10, 25].map(val => (
                   <button key={val} onClick={() => setStake(val.toString())}
                     className="flex-1 py-1.5 text-[9px] font-bold rounded-md bg-[#040508] border border-[#1c1f2e] text-slate-400 hover:text-white cursor-pointer transition-colors">
-                    R
+                    R${val}
                   </button>
                 ))}
               </div>
@@ -483,7 +483,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(234,179,8,0.25)] hover:shadow-[0_0_30px_rgba(234,179,8,0.4)]"
                 >
-                  <Sparkles className="w-4 h-4" /> Nova M\u00e3o
+                  <Sparkles className="w-4 h-4" /> Nova Mão
                 </motion.button>
               )}
             </div>
@@ -497,7 +497,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
             </div>
             <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2.5 text-center">
               <Trophy className="w-3 h-3 text-brand mx-auto mb-1" />
-              <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Vit\u00f3rias</p>
+              <p className="text-[7px] text-slate-500 uppercase font-bold tracking-wider">Vitórias</p>
               <p className="text-sm font-bold text-brand font-mono">{stats.wins}</p>
             </div>
             <div className="bg-[#0d0e16]/60 border border-[#1a1c2a] rounded-lg p-2.5 text-center">
