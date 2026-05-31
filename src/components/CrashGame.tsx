@@ -193,7 +193,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
       } else {
         setMultiplier(nextMult);
         currentMultiplierRef.current = nextMult;
-        engine.update(nextMult);
+        engine.setFreq(Math.min(600, 80 + (nextMult - 1) * 80));
         const newPts = [...pointsRef.current, {x: pointsRef.current.length, y: nextMult}];
         pointsRef.current = newPts;
         setChartPoints(newPts);

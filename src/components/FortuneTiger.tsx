@@ -60,7 +60,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
   const [showFortune, setShowFortune] = useState(false);
   const [showWinOverlay, setShowWinOverlay] = useState(false);
   const [winOverlayAmount, setWinOverlayAmount] = useState(0);
-  const { play } = useSound();
+  const { play, engine } = useSound();
 
   const handleSpin = () => {
     const playCost = parseFloat(stake);
@@ -68,6 +68,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     if (playCost > balance) { alert('Saldo insuficiente.'); return; }
 
     play('spin');
+    engine.start(380, 'sawtooth');
     onUpdateBalance(-playCost);
     setIsSpinning(true);
     setWinAmount(0);
@@ -82,8 +83,11 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     const interval = setInterval(() => {
       setGrid(Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => pickSymbol())));
       ticks++;
+      const freq = 380 - (ticks / 13) * 230;
+      engine.setFreq(Math.max(150, freq));
       if (ticks > 12) {
         clearInterval(interval);
+        engine.stop();
         finalizeSpin(playCost);
       }
     }, 80);

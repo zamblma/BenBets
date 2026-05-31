@@ -48,8 +48,8 @@ const SOUNDS: Record<SoundType, () => void> = {
 };
 
 interface EngineSound {
-  start: (baseFreq?: number) => void;
-  update: (multiplier: number, maxFreq?: number) => void;
+  start: (baseFreq?: number, waveType?: OscillatorType) => void;
+  setFreq: (freq: number) => void;
   stop: () => void;
 }
 
@@ -68,13 +68,13 @@ export function useSound() {
   }, [resumeAudio]);
 
   const engine: EngineSound = {
-    start: (baseFreq = 90) => {
+    start: (baseFreq = 90, waveType = 'sawtooth') => {
       if (!audioCtx) return;
       resumeAudio();
       if (engineRunning.current) return;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = 'sawtooth';
+      osc.type = waveType;
       osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
       osc.connect(gain);
@@ -84,9 +84,8 @@ export function useSound() {
       gainRef.current = gain;
       engineRunning.current = true;
     },
-    update: (multiplier: number, maxFreq = 600) => {
+    setFreq: (freq: number) => {
       if (!audioCtx || !oscRef.current) return;
-      const freq = Math.min(maxFreq, 90 + (multiplier - 1) * 80);
       oscRef.current.frequency.setValueAtTime(freq, audioCtx.currentTime);
     },
     stop: () => {
