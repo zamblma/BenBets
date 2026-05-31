@@ -12,6 +12,12 @@ const PACK_OPTIONS = [
   { qty: 5, price: 59.90, label: '5 pacotes', badge: '−20%' },
   { qty: 10, price: 99.90, label: '10 pacotes', badge: '−33%' },
 ];
+const PACK_OPTIONS_PREMIUM = [
+  { qty: 1, price: 49.99, label: '1 pacote premium' },
+  { qty: 3, price: 129.90, label: '3 pacotes', badge: '−13%' },
+  { qty: 5, price: 199.90, label: '5 pacotes', badge: '−20%' },
+  { qty: 10, price: 349.90, label: '10 pacotes', badge: '−30%' },
+];
 
 const SPECIAL_BASE = [
   { rarity: 'Rare Secret', weight: 0.003 },
@@ -156,6 +162,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: string; label: string }>({ show: false, rarity: '', label: '' });
   const [starBurst, setStarBurst] = useState<{ show: boolean; label: string; isSecret: boolean }>({ show: false, label: '', isSecret: false });
   const [sellTotal, setSellTotal] = useState(0);
+  const [isPremiumSet, setIsPremiumSet] = useState(false);
 
   const pricesRef = useRef<Record<string, number>>({});
   const allCardIds = useRef<Set<string>>(new Set());
@@ -166,6 +173,14 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   useEffect(() => {
     collection.forEach(c => allCardIds.current.add(c.id));
   }, [collection]);
+
+  useEffect(() => {
+    if (setCards.length === 0) { setIsPremiumSet(false); return; }
+    const noCommon = setCards.every(c => getCardRarityLevel(c.rarity) >= 3);
+    setIsPremiumSet(noCommon);
+  }, [setCards]);
+
+  const currentPackOptions = isPremiumSet ? PACK_OPTIONS_PREMIUM : PACK_OPTIONS;
 
   const getBasePrice = useCallback((rarity: string): number => {
     const lvl = getCardRarityLevel(rarity);
@@ -203,7 +218,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     }
   }, [collection, getBasePrice]);
 
-  const selectedOption = PACK_OPTIONS.find(o => o.qty === packQty) || PACK_OPTIONS[0];
+  const selectedOption = currentPackOptions.find(o => o.qty === packQty) || currentPackOptions[0];
   const canBuy = !opening && !cardsLoading && selectedSet && balance >= selectedOption.price && setCards.length > 0;
 
   const filteredCards = collection
@@ -681,6 +696,16 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             );
           })()}
 
+          {isPremiumSet && (
+            <div className="bg-gradient-to-r from-purple-500/15 to-red-500/10 border border-purple-500/30 rounded-2xl p-4 flex items-center gap-3">
+              <span className="text-2xl">💎</span>
+              <div>
+                <span className="text-sm font-bold text-purple-400">Set Premium</span>
+                <p className="text-[11px] text-slate-400 mt-0.5">Todas as cartas deste set são Ultra/Secret Raras — pacotes a partir de R$ 49,99</p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400/30 to-transparent" />
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
@@ -719,7 +744,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 space-y-3">
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quantidade de pacotes</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PACK_OPTIONS.map(opt => {
+              {currentPackOptions.map(opt => {
                 const selected = packQty === opt.qty;
                 const affordable = balance >= opt.price;
                 return (
