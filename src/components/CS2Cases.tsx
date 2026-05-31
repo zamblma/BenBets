@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Search, ArrowLeft, TrendingUp, Crosshair } from 'lucide-react';
 import type { PokemonCard } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface CSSkin {
   id: string;
@@ -351,6 +352,7 @@ export default function CS2Cases({
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const [resultImgError, setResultImgError] = useState(false);
+  const { engine } = useSound();
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -385,8 +387,8 @@ export default function CS2Cases({
       for (const entry of entries) setContainerWidth(entry.contentRect.width);
     });
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [tab, selectedCase]);
+    return () => { ro.disconnect(); engine.stop(); };
+  }, [tab, selectedCase, engine]);
 
   useEffect(() => {
     function check() {
@@ -426,7 +428,8 @@ export default function CS2Cases({
     setStripItems(items);
     setStripX(containerWidth);
     animToken.current = winnerIndex;
-  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
+    engine.start(350, 'sawtooth');
+  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth, engine]);
 
   useLayoutEffect(() => {
     if (!rolling || !stripContainerRef.current || !stripInnerRef.current) return;
@@ -462,10 +465,11 @@ export default function CS2Cases({
         setResultImgError(false);
         setShowResult(true);
         setRolling(false);
+        engine.stop();
       }
     }
     requestAnimationFrame(animate);
-  }, [rolling]);
+  }, [rolling, engine]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
