@@ -47,7 +47,17 @@ const SOUNDS: Record<SoundType, () => void> = {
   levelup: () => { playTone(392, 0.1); setTimeout(() => playTone(523, 0.1), 120); setTimeout(() => playTone(659, 0.1), 240); setTimeout(() => playTone(784, 0.1), 360); setTimeout(() => playTone(1047, 0.4), 480); },
 };
 
+interface EngineSound {
+  start: (baseFreq?: number) => void;
+  update: (multiplier: number, maxFreq?: number) => void;
+  stop: () => void;
+}
+
 export function useSound() {
+  const oscRef = useRef<OscillatorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const engineRunning = useRef(false);
+
   const resumeAudio = useCallback(() => {
     if (audioCtx?.state === 'suspended') audioCtx.resume();
   }, []);
@@ -57,5 +67,37 @@ export function useSound() {
     SOUNDS[type]?.();
   }, [resumeAudio]);
 
-  return { play, resumeAudio };
+  const engine: EngineSound = {
+    start: (baseFreq = 90) => {
+      if (!audioCtx) return;
+      resumeAudio();
+      if (engineRunning.current) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      oscRef.current = osc;
+      gainRef.current = gain;
+      engineRunning.current = true;
+    },
+    update: (multiplier: number, maxFreq = 600) => {
+      if (!audioCtx || !oscRef.current) return;
+      const freq = Math.min(maxFreq, 90 + (multiplier - 1) * 80);
+      oscRef.current.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    },
+    stop: () => {
+      try { oscRef.current?.stop(); } catch { /* ignore */ }
+      try { oscRef.current?.disconnect(); } catch { /* ignore */ }
+      try { gainRef.current?.disconnect(); } catch { /* ignore */ }
+      oscRef.current = null;
+      gainRef.current = null;
+      engineRunning.current = false;
+    },
+  };
+
+  return { play, resumeAudio, engine };
 }

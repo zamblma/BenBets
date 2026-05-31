@@ -27,14 +27,15 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointsRef = useRef<{x: number; y: number}[]>([{x: 0, y: 0}]);
   const animFrameRef = useRef<number>(0);
-  const { play } = useSound();
+  const { play, engine } = useSound();
 
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      engine.stop();
     };
-  }, []);
+  }, [engine]);
 
   const drawChart = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,6 +133,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     }
 
     play('spin');
+    engine.start(80);
     onUpdateBalance(-betVal);
     setActiveStake(betVal);
     setStatus('running');
@@ -153,12 +155,12 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     if (tickRef.current) clearInterval(tickRef.current);
 
     const startTime = Date.now();
-    const minDuration = 800;
+    const minDuration = 1200;
     const tickRate = 60;
 
     tickRef.current = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.35, 2.2)).toFixed(2));
+      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.15, 2.6)).toFixed(2));
 
       if (elapsed * 1000 < minDuration) {
         const linear = 1 + (crashTarget - 1) * (elapsed * 1000 / minDuration);
@@ -168,6 +170,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
       if (nextMult >= crashTarget) {
         clearInterval(tickRef.current!);
         play('crash');
+        engine.stop();
         setMultiplier(crashPointRef.current);
         setStatus('crashed');
         setChartPoints([...pointsRef.current]);
@@ -190,6 +193,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
       } else {
         setMultiplier(nextMult);
         currentMultiplierRef.current = nextMult;
+        engine.update(nextMult);
         const newPts = [...pointsRef.current, {x: pointsRef.current.length, y: nextMult}];
         pointsRef.current = newPts;
         setChartPoints(newPts);
@@ -199,6 +203,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
 
   const handleCashout = () => {
     play('cashout');
+    engine.stop();
     if (status !== 'running' || activeStake <= 0) return;
 
     if (tickRef.current) clearInterval(tickRef.current);
