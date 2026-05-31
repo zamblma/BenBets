@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Play, DollarSign, Sparkles, Dices } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface DiceGameProps {
   balance: number;
@@ -54,6 +55,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
   const [payout, setPayout] = useState(0);
   const [lastSum, setLastSum] = useState<number | null>(null);
   const [stats, setStats] = useState({ wins: 0, losses: 0, totalRolls: 0, biggestWin: 0 });
+  const { play } = useSound();
 
   const checkWin = (d1: number, d2: number, bet: BetSelection): number => {
     const sum = d1 + d2;
@@ -74,6 +76,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
     if (isNaN(playCost) || playCost <= 0) { alert('Valor inválido'); return; }
     if (playCost > balance) { alert('Saldo insuficiente'); return; }
 
+    play('spin');
     onUpdateBalance(-playCost);
     setRolling(true);
     setResult('');
@@ -98,6 +101,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
 
         const multiplier = checkWin(d1, d2, selectedBet);
         if (multiplier > 0) {
+          play('win');
           const winAmount = playCost * multiplier;
           setPayout(winAmount);
           onUpdateBalance(winAmount);
@@ -123,6 +127,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
             });
           }
         } else {
+          play('lose');
           setResult(`😞 Perdeu! Total = ${d1 + d2}`);
           setStats(s => ({ ...s, losses: s.losses + 1 }));
 

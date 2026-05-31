@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { 
   ShieldCheck, 
+  Shield,
   HelpCircle, 
   Wallet, 
   Play, 
@@ -30,7 +31,8 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS } from './firebase/db';
+import type { MissionProgress } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -48,6 +50,8 @@ import CS2Cases from './components/CS2Cases';
 import BetHistoryList from './components/BetHistoryList';
 import AuthScreen from './components/AuthScreen';
 import HomeMenu from './components/HomeMenu';
+import AdminPanel from './components/AdminPanel';
+import DailyMissions from './components/DailyMissions';
 
 export default function App() {
   // Firebase Auth
@@ -80,6 +84,9 @@ export default function App() {
   const [animeCollection, setAnimeCollection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
+  const [missionsRecord, setMissionsRecord] = useState<Record<string, MissionProgress>>({});
 
   // Firebase auth listener + load user data
   useEffect(() => {
@@ -120,6 +127,23 @@ export default function App() {
     }, 500);
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [balance, firebaseUser, initialDataLoaded]);
+
+  // Load daily missions
+  useEffect(() => {
+    if (!firebaseUser) return;
+    getMissions(firebaseUser.uid).then(setMissionsRecord);
+  }, [firebaseUser]);
+
+  const handleClaimMission = async (missionId: string) => {
+    if (!firebaseUser) return;
+    await claimMissionReward(firebaseUser.uid, missionId);
+    const missionDef = DAILY_MISSIONS.find(m => m.id === missionId);
+    if (missionDef) setBalance(prev => prev + missionDef.reward);
+    setMissionsRecord(prev => ({
+      ...prev,
+      [missionId]: { ...prev[missionId], claimed: true, completed: true },
+    }));
+  };
 
   // Dynamic Live Matches State Feed
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
@@ -506,6 +530,10 @@ export default function App() {
     return <AuthScreen />;
   }
 
+  if (showAdmin) {
+    return <AdminPanel onBack={() => setShowAdmin(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#06070d] font-sans text-slate-100 flex flex-col justify-between">
       
@@ -576,6 +604,24 @@ export default function App() {
               title="Ler Legislação das Bets"
             >
               <ShieldCheck className="w-5 h-5 text-brand" />
+            </button>
+
+            {/* Daily Missions */}
+            <button 
+              onClick={() => setShowMissions(true)}
+              className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-amber-400 rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
+              title="Missões Diárias"
+            >
+              <Star className="w-5 h-5 text-amber-500" />
+            </button>
+
+            {/* Admin */}
+            <button 
+              onClick={() => setShowAdmin(true)}
+              className="p-1.5 border border-[#1c1e2d] text-slate-600 hover:text-brand rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
+              title="Admin"
+            >
+              <Shield className="w-4 h-4" />
             </button>
           </div>
 
@@ -1098,6 +1144,33 @@ export default function App() {
             transactions={transactions}
             onAddTransaction={handleAddTransaction}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Daily Missions Modal */}
+      <AnimatePresence>
+        {showMissions && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowMissions(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', duration: 0.4 }}
+              className="relative w-full max-w-md max-h-[85vh] overflow-y-auto"
+            >
+              <DailyMissions
+                userId={firebaseUser.uid}
+                missions={missionsRecord}
+                onClaim={handleClaimMission}
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

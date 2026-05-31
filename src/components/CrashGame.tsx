@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Trophy, History, AlertTriangle, Zap, DollarSign, TrendingUp, Plane, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface CrashGameProps {
   balance: number;
@@ -26,6 +27,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointsRef = useRef<{x: number; y: number}[]>([{x: 0, y: 0}]);
   const animFrameRef = useRef<number>(0);
+  const { play } = useSound();
 
   useEffect(() => {
     return () => {
@@ -129,6 +131,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
       return;
     }
 
+    play('spin');
     onUpdateBalance(-betVal);
     setActiveStake(betVal);
     setStatus('running');
@@ -164,6 +167,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
 
       if (nextMult >= crashTarget) {
         clearInterval(tickRef.current!);
+        play('crash');
         setMultiplier(crashPointRef.current);
         setStatus('crashed');
         setChartPoints([...pointsRef.current]);
@@ -194,6 +198,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
   };
 
   const handleCashout = () => {
+    play('cashout');
     if (status !== 'running' || activeStake <= 0) return;
 
     if (tickRef.current) clearInterval(tickRef.current);

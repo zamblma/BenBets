@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Package, BookOpen, Star, Search, X, Sparkles } from 'lucide-react';
 import { PlacedBet, PokemonCard } from '../types';
 import { getAnimeGachaPackData, recordAnimeGachaPack, addAnimeCards, removeAnimeCard, setAnimeCollection } from '../firebase/db';
+import { useSound } from '../hooks/useSound';
 
 interface AnimeGachaProps {
   balance: number;
@@ -84,6 +85,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   const [rareFlash, setRareFlash] = useState<{ show: boolean; rarity: number; label: string }>({ show: false, rarity: 0, label: '' });
   const [cardRevealed, setCardRevealed] = useState(false);
   const [canClose, setCanClose] = useState(false);
+  const { play } = useSound();
 
   const firstPackTime = packData.firstPackTime;
   const hourElapsed = firstPackTime > 0 && Date.now() - firstPackTime >= HOUR_MS;
@@ -169,6 +171,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
     if (balance < PACK_PRICE || chars.length === 0) return;
     if (packsUsed >= MAX_PACKS_PER_HOUR) return;
 
+    play('reveal');
     onUpdateBalance(-PACK_PRICE);
     if (userId) await recordAnimeGachaPack(userId);
     if (userId) getAnimeGachaPackData(userId).then(setPackData);
@@ -186,6 +189,13 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
 
     await new Promise(r => setTimeout(r, 600));
     setCardRevealed(true);
+
+    if (bestRarity >= 1) {
+      play('rare');
+    }
+    if (bestRarity >= 3) {
+      play('levelup');
+    }
 
     if (bestRarity >= 3) {
       const labels = ['', '', '', '✨ Super Raro!', '⭐ Lendário!'];

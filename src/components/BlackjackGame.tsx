@@ -2,6 +2,7 @@
 import { Play, DollarSign, Zap, Sparkles, Swords, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface BlackjackGameProps {
   balance: number;
@@ -107,8 +108,10 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
   const [result, setResult] = useState<string>('');
   const [payout, setPayout] = useState(0);
   const [stats, setStats] = useState({ wins: 0, losses: 0, pushes: 0, blackjacks: 0 });
+  const { play } = useSound();
 
   const deal = useCallback(() => {
+    play('deal');
     const playCost = parseFloat(stake);
     if (isNaN(playCost) || playCost <= 0) { alert('Valor inválido'); return; }
     if (playCost > balance) { alert('Saldo insuficiente'); return; }
@@ -139,6 +142,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
     setPlayerHand(p);
 
     if (handValue(p) > 21) {
+      play('lose');
       setDealerHand(prev => prev.map(c => ({ ...c, hidden: false })));
       setStatus('settled');
       setResult('💥 Estourou! Dealer vence.');
@@ -189,14 +193,17 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         let isBj2 = false;
 
         if (finalDv > 21) {
+          play('win');
           resultText = '🎉 Dealer estourou! Você venceu!';
           payoutAmt = playCost * 2;
           isWin = true;
         } else if (finalDv > pv) {
+          play('lose');
           resultText = '😞 Dealer vence.';
           payoutAmt = 0;
           setStats(s => ({ ...s, losses: s.losses + 1 }));
         } else if (finalDv < pv) {
+          play('win');
           resultText = '🎉 Você venceu!';
           payoutAmt = playCost * 2;
           isWin = true;
@@ -207,6 +214,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         }
 
         if (pv === 21 && playerHand.length === 2 && finalDv !== 21) {
+          play('win');
           resultText = '🃏 Blackjack! Vitória!';
           payoutAmt = Math.floor(playCost * 2.5);
           isWin = true;
@@ -260,6 +268,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
 
     const pv = handValue(p);
     if (pv > 21) {
+      play('lose');
       setDealerHand(prev => prev.map(c => ({ ...c, hidden: false })));
       setStatus('settled');
       setResult('💥 Estourou! Dealer vence.');
@@ -290,14 +299,17 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         let isWin = false;
 
         if (finalDv > 21) {
+          play('win');
           resultText = '🎉 Dealer estourou! Vitória dobrada!';
           payoutAmt = totalStake * 2;
           isWin = true;
         } else if (finalDv > pv) {
+          play('lose');
           resultText = '😞 Dealer vence.';
           payoutAmt = 0;
           setStats(s => ({ ...s, losses: s.losses + 1 }));
         } else if (finalDv < pv) {
+          play('win');
           resultText = '🎉 Vitória dobrada!';
           payoutAmt = totalStake * 2;
           isWin = true;

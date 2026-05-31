@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { DollarSign, Play, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface RouletteGameProps {
   balance: number;
@@ -87,6 +88,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
   const [spinAngle, setSpinAngle] = useState(0);
+  const { play } = useSound();
 
   const getPayoutForBet = (bet: BetType, num: number): number => {
     const entry = NUMBERS.find(n => n.n === num)!;
@@ -115,6 +117,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
     if (playCost > balance) { alert('Saldo insuficiente'); return; }
 
     const actualBet: BetType = selectedBet || { type: 'number', number: selectedNumber! };
+    play('spin');
     onUpdateBalance(-playCost);
     setSpinning(true);
     setResult(null);
@@ -136,6 +139,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
 
       const multiplier = getPayoutForBet(actualBet, targetNum);
       if (multiplier > 0) {
+        play('win');
         const winAmount = playCost * multiplier;
         setPayout(winAmount);
         onUpdateBalance(winAmount);
@@ -156,6 +160,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
           });
         }
       } else {
+        play('lose');
         setStats(s => ({ ...s, losses: s.losses + 1 }));
         if (onAddBetHistory) {
           onAddBetHistory({

@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs } from 'firebase/firestore';
 import { db } from './config';
 import type { PlacedBet, Transaction, PokemonCard } from '../types';
 
@@ -238,4 +238,86 @@ export async function removeAnimeCard(uid: string, cardId: string) {
 export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, { animeCollection: cards });
+}
+
+// Admin
+export async function getAllUsers() {
+  const snap = await getDocs(collection(db, 'users'));
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() } as any));
+}
+
+export async function adminSetBalance(uid: string, balance: number) {
+  await updateDoc(doc(db, 'users', uid), { balance });
+}
+
+// Daily Missions
+export interface Mission {
+  id: string;
+  title: string;
+  desc: string;
+  icon: string;
+  target: number;
+  reward: number;
+}
+
+export interface MissionProgress {
+  current: number;
+  completed: boolean;
+  claimed: boolean;
+  date: string;
+}
+
+export const DAILY_MISSIONS: Mission[] = [
+  { id: 'blackjack_wins', title: 'Mestre do Blackjack', desc: 'Ganhe 3 mãos de blackjack', icon: '🃏', target: 3, reward: 10 },
+  { id: 'crash_cashout', title: 'Aviador', desc: 'Faça cashout 2 vezes', icon: '✈️', target: 2, reward: 8 },
+  { id: 'roulette_spins', title: 'Roleta', desc: 'Gire a roleta 5 vezes', icon: '🎡', target: 5, reward: 6 },
+  { id: 'dice_rolls', title: 'Dados', desc: 'Jogue os dados 3 vezes', icon: '🎲', target: 3, reward: 5 },
+  { id: 'fortune_spins', title: 'Tigre da Sorte', desc: 'Gire o Fortune Tiger 3 vezes', icon: '🐯', target: 3, reward: 7 },
+  { id: 'pokemon_packs', title: 'Pokémon Trainer', desc: 'Abra 2 pacotes Pokémon', icon: '⚡', target: 2, reward: 12 },
+];
+
+export async function getMissions(uid: string): Promise<Record<string, MissionProgress>> {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return {};
+  const data = snap.data();
+  const saved = data.missions || {};
+  const today = new Date().toDateString();
+  // Reset if outdated
+  for (const key of Object.keys(saved)) {
+    if (saved[key].date !== today) delete saved[key];
+  }
+  return saved;
+}
+
+export async function updateMissionProgress(uid: string, missionId: string, increment: number) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const missions: Record<string, MissionProgress> = data.missions || {};
+  const today = new Date().toDateString();
+  const m = missions[missionId] || { current: 0, completed: false, claimed: false, date: today };
+  if (m.completed && !m.claimed) return; // waiting claim
+  if (m.claimed) return; // already done
+  m.current += increment;
+  m.date = today;
+  const missionDef = DAILY_MISSIONS.find(x => x.id === missionId);
+  if (missionDef && m.current >= missionDef.target) m.completed = true;
+  missions[missionId] = m;
+  await updateDoc(ref, { missions });
+}
+
+export async function claimMissionReward(uid: string, missionId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const missions: Record<string, MissionProgress> = data.missions || {};
+  const m = missions[missionId];
+  if (!m || !m.completed || m.claimed) return;
+  const missionDef = DAILY_MISSIONS.find(x => x.id === missionId);
+  if (!missionDef) return;
+  m.claimed = true;
+  await updateDoc(ref, { missions, balance: (data.balance || 0) + missionDef.reward });
 }

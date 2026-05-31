@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Zap, DollarSign, Award, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
+import { useSound } from '../hooks/useSound';
 
 interface FortTigerProps {
   balance: number;
@@ -59,12 +60,14 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
   const [showFortune, setShowFortune] = useState(false);
   const [showWinOverlay, setShowWinOverlay] = useState(false);
   const [winOverlayAmount, setWinOverlayAmount] = useState(0);
+  const { play } = useSound();
 
   const handleSpin = () => {
     const playCost = parseFloat(stake);
     if (isNaN(playCost) || playCost <= 0) { alert('Valor inválido.'); return; }
     if (playCost > balance) { alert('Saldo insuficiente.'); return; }
 
+    play('spin');
     onUpdateBalance(-playCost);
     setIsSpinning(true);
     setWinAmount(0);
@@ -109,6 +112,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     }
 
     if (bestMult > 0) {
+      play('win');
       const tCount = counts['🐯']?.count || 0;
       let mult = bestMult;
       let fMult = 0;
@@ -146,6 +150,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
         outcomeValue: `R$ ${payout.toFixed(2)}`,
       });
     } else {
+      play('lose');
       onAddBetHistory({
         id: `bet-ft-${Date.now()}`,
         matchName: 'Fortune Tiger',

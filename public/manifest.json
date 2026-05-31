@@ -1,0 +1,16 @@
+{
+  "name": "BenBets - Simulador de Apostas",
+  "short_name": "BenBets",
+  "description": "Simulador de apostas esportivas, cassino e colecionáveis",
+  "start_url": "/BenBets/",
+  "scope": "/BenBets/",
+  "display": "standalone",
+  "background_color": "#06070d",
+  "theme_color": "#00ff87",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/BenBets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/BenBets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/BenBets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

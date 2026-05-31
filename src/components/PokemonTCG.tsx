@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
 import type { PokemonCard } from '../types';
+import { useSound } from '../hooks/useSound';
 
 const API_BASE = 'https://api.pokemontcg.io/v2';
 const PACK_BASE_PRICE = 14.90;
@@ -160,6 +161,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const allCardIds = useRef<Set<string>>(new Set());
   const skipRef = useRef(false);
   const cardsSetIdRef = useRef<string>('');
+  const { play } = useSound();
 
   useEffect(() => {
     collection.forEach(c => allCardIds.current.add(c.id));
@@ -261,6 +263,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const handleOpenPack = async () => {
     if (!selectedSet || !canBuy) return;
 
+    play('reveal');
     onUpdateBalance(-selectedOption.price);
     setOpening(true);
     setPackResult([]);
@@ -283,6 +286,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
     const bestLevel = Math.max(...allCards.map(c => getCardRarityLevel(c.rarity)));
     if (bestLevel >= 3) {
+      play('rare');
       const isSecret = allCards.some(c => c.rarity === 'Rare Secret');
       const label = isSecret ? '⭐ SECRETA!' : bestLevel >= 4 ? '💎 ULTRA RARA!' : '✨ HOLO!';
       setStarBurst({ show: true, label, isSecret });
