@@ -96,39 +96,75 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   }, [userId]);
 
   useEffect(() => {
-    const cache = sessionStorage.getItem('animeGachaChars5');
+    const cache = sessionStorage.getItem('animeGachaChars6');
     if (cache) { try { const p = JSON.parse(cache); if (p.length >= 200) { setChars(p); return; } } catch {} }
     let cancelled = false;
     const all: AnimeChar[] = [];
-    const MAX_PAGES = 200;
+    const seen = new Set<number>();
+
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
     const load = async () => {
-      for (let page = 1; page <= MAX_PAGES; page++) {
+      // Step 1: fetch top anime
+      interface AnimeEntry { id: number; title: string; }
+      const animeList: AnimeEntry[] = [];
+      for (let page = 1; page <= 4; page++) {
         if (cancelled) return;
-        if (page > 1) await new Promise(r => setTimeout(r, 450));
+        if (page > 1) await sleep(450);
         try {
-          const res = await fetch(`https://api.jikan.moe/v4/top/characters?page=${page}&limit=25`);
-          if (res.status === 429) { await new Promise(r => setTimeout(r, 1000)); page--; continue; }
+          const res = await fetch(`https://api.jikan.moe/v4/top/anime?page=${page}&limit=25`);
+          if (res.status === 429) { await sleep(1000); page--; continue; }
           const d = await res.json();
           if (!d?.data || d.data.length === 0) break;
-          d.data.forEach((c: any) => {
-            const animeEntry = c.anime?.find((a: any) => a?.anime?.name || a?.name);
-            const mangaEntry = c.manga?.find((m: any) => m?.manga?.name || m?.name);
-            all.push({
-              id: `anime_${c.mal_id}`,
-              name: c.name,
-              series: animeEntry?.anime?.name || animeEntry?.name || mangaEntry?.manga?.name || mangaEntry?.name || 'Desconhecido',
-              image: c.images?.jpg?.image_url || '',
-              rarity: 0,
-              role: animeEntry?.role,
-            });
-          });
-          if (all.length % 250 === 0) setChars([...all]);
+          d.data.forEach((a: any) => { if (a.mal_id) animeList.push({ id: a.mal_id, title: a.title || a.name || 'Desconhecido' }); });
         } catch {}
       }
+
+      // Step 2: fetch characters for each anime
+      for (let i = 0; i < animeList.length; i++) {
+        if (cancelled) return;
+        await sleep(450);
+        const anime = animeList[i];
+        try {
+          const res = await fetch(`https://api.jikan.moe/v4/anime/${anime.id}/characters`);
+          if (res.status === 429) { await sleep(1000); i--; continue; }
+          const d = await res.json();
+          if (!d?.data) continue;
+          d.data.forEach((entry: any) => {
+            const ch = entry.character;
+            if (!ch?.mal_id || seen.has(ch.mal_id)) return;
+            seen.add(ch.mal_id);
+            all.push({
+              id: `anime_${ch.mal_id}`,
+              name: ch.name,
+              series: anime.title,
+              image: ch.images?.jpg?.image_url || '',
+              rarity: 0,
+              role: entry.role,
+            });
+          });
+          if (all.length % 200 === 0) setChars([...all]);
+        } catch {}
+      }
+
+      // Fallback: series name from character endpoint for any missing
       if (!cancelled) {
-        setChars(all);
-        sessionStorage.setItem('animeGachaChars5', JSON.stringify(all));
+        const missing = all.filter(c => c.series === 'Desconhecido' && c.id.startsWith('anime_'));
+        for (const c of missing) {
+          if (cancelled) return;
+          await sleep(450);
+          try {
+            const res = await fetch(`https://api.jikan.moe/v4/characters/${c.id.replace('anime_', '')}/full`);
+            if (res.status === 429) { await sleep(1000); continue; }
+            const d = await res.json();
+            if (d?.data) {
+              const ae = d.data.anime?.find((a: any) => a?.anime?.name);
+              if (ae) { c.series = ae.anime.name; c.role = ae.role; }
+            }
+          } catch {}
+        }
+        setChars([...all]);
+        sessionStorage.setItem('animeGachaChars6', JSON.stringify(all));
       }
     };
     load();
