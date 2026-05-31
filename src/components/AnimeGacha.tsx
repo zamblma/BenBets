@@ -522,7 +522,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                           {/* Card info */}
                           <div className="p-3 text-center relative z-10 bg-gradient-to-t from-[#0a0b12] to-transparent">
                             <p className="text-sm font-bold text-white truncate">{char.name}</p>
-                            <p className="text-[9px] text-slate-400 truncate mt-0.5">{char.series}</p>
+                            <p className="text-[10px] text-slate-300 truncate mt-0.5 font-medium">{char.series}</p>
                             {char.role && (
                               <p className="text-[8px] text-slate-500 mt-0.5">{ROLE_LABELS[char.role] || char.role}</p>
                             )}
@@ -619,9 +619,14 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                   return (
                     <div key={series} className="bg-[#0d0e16]/60 rounded-xl border border-[#1a1c2a] overflow-hidden">
                       <button onClick={() => setSeriesFilter(seriesFilter === series ? null : series)}
-                        className="w-full px-3 py-2 bg-[#07080f] border-b border-[#1a1c2a] flex items-center justify-between cursor-pointer hover:bg-[#0a0b14] transition-colors">
-                        <span className="text-[10px] font-bold text-slate-200 truncate">{series}</span>
-                        <span className="text-[9px] text-slate-500">{charsInSeries.length}</span>
+                        className="w-full px-3 py-2 bg-gradient-to-r from-[#1a1c2e]/80 via-[#0f111f]/80 to-[#1a1c2e]/80 border-b border-[#1a1c2a] flex items-center justify-between cursor-pointer hover:from-[#222542]/80 hover:to-[#16182a]/80 transition-all duration-150">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-bold text-white truncate">{series}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-[9px] text-slate-500 font-mono">{charsInSeries.length}</span>
+                          <svg className={`w-3 h-3 text-slate-500 transition-transform duration-150 ${seriesFilter === series ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                        </div>
                       </button>
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 p-2">
                         {charsInSeries.map(char => {
@@ -641,8 +646,9 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                               </div>
                             </div>
                             <div className="p-1 text-center">
-                              <p className="text-[7px] font-bold text-slate-200 truncate">{char.name}</p>
+                              <p className="text-[7px] font-bold text-slate-200 truncate leading-tight">{char.name}</p>
                               <div className={`text-[7px] ${RARITY_COLORS[rIdx]}`}>{'⭐'.repeat(rIdx + 1)}</div>
+                              <p className="text-[5px] text-slate-500 truncate mt-0.5">{char.setSeries}</p>
                               {qty > 1 && <span className="text-[7px] text-slate-500">×{qty}</span>}
                             </div>
                             {qty > 1 && (
