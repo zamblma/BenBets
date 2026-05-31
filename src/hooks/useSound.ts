@@ -98,5 +98,12 @@ export function useSound() {
     },
   }), [resumeAudio]);
 
-  return { play, resumeAudio, engine };
+  const playFile = useCallback((url: string, volume = 0.3) => {
+    resumeAudio();
+    const audio = new Audio(url);
+    audio.volume = volume;
+    audio.play().catch(() => {});
+  }, [resumeAudio]);
+
+  return { play, resumeAudio, engine, playFile };
 }

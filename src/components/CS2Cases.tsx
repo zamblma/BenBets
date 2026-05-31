@@ -352,7 +352,7 @@ export default function CS2Cases({
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const [resultImgError, setResultImgError] = useState(false);
-  const { engine } = useSound();
+  const { playFile } = useSound();
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -389,8 +389,8 @@ export default function CS2Cases({
       for (const entry of entries) setContainerWidth(entry.contentRect.width);
     });
     ro.observe(el);
-    return () => { ro.disconnect(); engine.stop(); };
-  }, [tab, selectedCase, engine]);
+    return () => { ro.disconnect(); };
+  }, [tab, selectedCase]);
 
   useEffect(() => {
     function check() {
@@ -431,8 +431,8 @@ export default function CS2Cases({
     setStripX(containerWidth);
     animToken.current = winnerIndex;
     animStartRef.current = containerWidth;
-    engine.start(350, 'sawtooth');
-  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth, engine]);
+    playFile('/BenBets/sounds/csgo-case-open.mp3', 0.5);
+  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
 
   useLayoutEffect(() => {
     if (!rolling || !stripContainerRef.current || !stripInnerRef.current) return;
@@ -470,11 +470,10 @@ export default function CS2Cases({
         setResultImgError(false);
         setShowResult(true);
         setRolling(false);
-        engine.stop();
       }
     }
     requestAnimationFrame(animate);
-  }, [rolling, engine, stripItems]);
+  }, [rolling, stripItems]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
