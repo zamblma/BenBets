@@ -160,11 +160,11 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
 
     tickRef.current = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      let nextMult = parseFloat((1 + Math.pow(elapsed * 0.15, 2.6)).toFixed(2));
+      let nextMult = 1 + Math.pow(elapsed * 0.25, 2.2);
 
       if (elapsed * 1000 < minDuration) {
         const linear = 1 + (crashTarget - 1) * (elapsed * 1000 / minDuration);
-        if (linear < nextMult) nextMult = parseFloat(linear.toFixed(2));
+        if (linear < nextMult) nextMult = linear;
       }
 
       if (nextMult >= crashTarget) {
