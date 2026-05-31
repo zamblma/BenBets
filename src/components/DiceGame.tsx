@@ -38,8 +38,8 @@ const SUM_BETS: SumBet[] = [
 
 function DiceFace({ value }: { value: number }) {
   return (
-    <div className="w-24 h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 bg-gradient-to-br from-white via-slate-100 to-slate-200 rounded-2xl border-2 border-slate-300 flex items-center justify-center shadow-[0_6px_0_rgba(0,0,0,0.2),0_10px_30px_rgba(0,0,0,0.3)]">
-      <span className="text-5xl md:text-6xl lg:text-7xl select-none">{DICE_FACES[value]}</span>
+    <div className="w-24 h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 bg-gradient-to-br from-amber-100 via-yellow-50 to-amber-200 rounded-2xl border-2 border-amber-700 flex items-center justify-center shadow-[0_6px_0_rgba(120,80,20,0.4),0_10px_30px_rgba(0,0,0,0.4)] relative">
+      <span className="text-5xl md:text-6xl lg:text-7xl select-none text-gray-900">{DICE_FACES[value]}</span>
     </div>
   );
 }
