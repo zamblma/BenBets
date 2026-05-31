@@ -112,13 +112,15 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
           const d = await res.json();
           if (!d?.data || d.data.length === 0) break;
           d.data.forEach((c: any) => {
+            const animeEntry = c.anime?.find((a: any) => a?.anime?.name || a?.name);
+            const mangaEntry = c.manga?.find((m: any) => m?.manga?.name || m?.name);
             all.push({
               id: `anime_${c.mal_id}`,
               name: c.name,
-              series: c.anime?.[0]?.name || c.manga?.[0]?.name || 'Desconhecido',
+              series: animeEntry?.anime?.name || animeEntry?.name || mangaEntry?.manga?.name || mangaEntry?.name || 'Desconhecido',
               image: c.images?.jpg?.image_url || '',
               rarity: 0,
-              role: c.anime?.[0]?.role,
+              role: animeEntry?.role,
             });
           });
           if (all.length % 250 === 0) setChars([...all]);
