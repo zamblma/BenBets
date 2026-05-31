@@ -77,8 +77,10 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   const [cardRevealed, setCardRevealed] = useState(false);
   const [canClose, setCanClose] = useState(false);
 
-  const packsUsed = packData.count;
-  const nextReset = packData.firstPackTime > 0 ? packData.firstPackTime + HOUR_MS : null;
+  const firstPackTime = packData.firstPackTime;
+  const hourElapsed = firstPackTime > 0 && Date.now() - firstPackTime >= HOUR_MS;
+  const packsUsed = hourElapsed ? 0 : packData.count;
+  const nextReset = firstPackTime > 0 && !hourElapsed ? firstPackTime + HOUR_MS : null;
   const packsRemaining = Math.max(0, MAX_PACKS_PER_HOUR - packsUsed);
 
   useEffect(() => {
