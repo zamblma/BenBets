@@ -21,7 +21,14 @@ interface AnimeChar {
   series: string;
   image: string;
   rarity: number;
+  role?: string;
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  Main: 'Principal',
+  Supporting: 'Suporte',
+  Background: 'Secundário',
+};
 
 const RARITY = ['Comum', 'Raro', 'Super Raro', 'Ultra Raro', 'Lendário'];
 const RARITY_COLORS = ['text-slate-300', 'text-blue-400', 'text-purple-400', 'text-orange-400', 'text-red-400'];
@@ -89,7 +96,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
   }, [userId]);
 
   useEffect(() => {
-    const cache = sessionStorage.getItem('animeGachaChars4');
+    const cache = sessionStorage.getItem('animeGachaChars5');
     if (cache) { try { const p = JSON.parse(cache); if (p.length >= 200) { setChars(p); return; } } catch {} }
     let cancelled = false;
     const all: AnimeChar[] = [];
@@ -111,6 +118,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
               series: c.anime?.[0]?.name || c.manga?.[0]?.name || 'Desconhecido',
               image: c.images?.jpg?.image_url || '',
               rarity: 0,
+              role: c.anime?.[0]?.role,
             });
           });
           if (all.length % 250 === 0) setChars([...all]);
@@ -118,7 +126,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
       }
       if (!cancelled) {
         setChars(all);
-        sessionStorage.setItem('animeGachaChars4', JSON.stringify(all));
+        sessionStorage.setItem('animeGachaChars5', JSON.stringify(all));
       }
     };
     load();
@@ -515,6 +523,9 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                           <div className="p-3 text-center relative z-10 bg-gradient-to-t from-[#0a0b12] to-transparent">
                             <p className="text-sm font-bold text-white truncate">{char.name}</p>
                             <p className="text-[9px] text-slate-400 truncate mt-0.5">{char.series}</p>
+                            {char.role && (
+                              <p className="text-[8px] text-slate-500 mt-0.5">{ROLE_LABELS[char.role] || char.role}</p>
+                            )}
                             <div className={`text-xs font-bold mt-1.5 ${RARITY_COLORS[char.rarity]}`}>
                               {'⭐'.repeat(char.rarity + 1)} <span className="text-[9px] ml-1">{RARITY[char.rarity]}</span>
                             </div>
