@@ -111,7 +111,7 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
         const res = await fetch('https://api.jikan.moe/v4/top/anime?page=1&limit=25');
         if (res.ok) {
           const d = await res.json();
-          if (d?.data) d.data.slice(0, 15).forEach((a: any) => { if (a.mal_id) animeList.push({ id: a.mal_id, title: a.title || 'Desconhecido' }); });
+          if (d?.data) d.data.slice(0, 15).forEach((a: any) => { if (a.mal_id) animeList.push({ id: a.mal_id, title: a.title || 'Todos' }); });
         }
       } catch {}
 
