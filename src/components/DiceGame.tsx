@@ -37,8 +37,8 @@ const SUM_BETS: SumBet[] = [
 
 function DiceFace({ value }: { value: number }) {
   return (
-    <div className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-gradient-to-br from-white via-slate-100 to-slate-300 rounded-2xl border-2 border-slate-300 flex items-center justify-center shadow-[0_6px_0_rgba(0,0,0,0.15),0_10px_25px_rgba(0,0,0,0.25)]">
-      <span className="text-4xl md:text-5xl lg:text-6xl select-none">{DICE_FACES[value]}</span>
+    <div className="w-24 h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 bg-gradient-to-br from-white via-slate-100 to-slate-200 rounded-2xl border-2 border-slate-300 flex items-center justify-center shadow-[0_6px_0_rgba(0,0,0,0.2),0_10px_30px_rgba(0,0,0,0.3)]">
+      <span className="text-5xl md:text-6xl lg:text-7xl select-none">{DICE_FACES[value]}</span>
     </div>
   );
 }
@@ -161,7 +161,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
       </div>
 
       {/* Dice Display */}
-      <div className="bg-gradient-to-b from-[#0d0e16] to-[#06070d] rounded-2xl p-6 sm:p-8 border border-[#1a1c2a] flex flex-col items-center gap-4 sm:gap-5">
+      <div className="bg-gradient-to-b from-[#0a3d2a] to-[#062015] rounded-2xl p-6 sm:p-8 border border-emerald-900/40 shadow-[inset_0_0_60px_rgba(0,0,0,0.3)] flex flex-col items-center gap-4 sm:gap-5">
         <motion.div
           className="flex gap-6 sm:gap-8 items-center"
           animate={rolling ? {
