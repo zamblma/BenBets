@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
 import type { PokemonCard } from '../types';
 
@@ -161,12 +161,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const skipRef = useRef(false);
   const cardsSetIdRef = useRef<string>('');
 
-  // Collect all unique card ids from collection
   useEffect(() => {
     collection.forEach(c => allCardIds.current.add(c.id));
   }, [collection]);
 
-  // Generate base price from rarity
   const getBasePrice = useCallback((rarity: string): number => {
     const lvl = getCardRarityLevel(rarity);
     if (lvl === 0) return 0.02 * 1.05 + Math.random() * (0.08 * 1.05);
@@ -178,7 +176,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     return 0.10;
   }, []);
 
-  // Market price simulation: update prices every 20s
   useEffect(() => {
     const interval = setInterval(() => {
       const prices = pricesRef.current;
@@ -186,7 +183,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         const card = collection.find(c => c.id === id);
         if (!card) continue;
         if (!prices[id]) prices[id] = getBasePrice(card.rarity);
-        const change = (Math.random() - 0.48) * 0.25; // ±12.5% drift
+        const change = (Math.random() - 0.48) * 0.25;
         prices[id] = Math.max(0.10, prices[id] * (1 + change));
         prices[id] = parseFloat(prices[id].toFixed(2));
       }
@@ -195,7 +192,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     return () => clearInterval(interval);
   }, [collection, getBasePrice]);
 
-  // Initialize prices for any new cards
   useEffect(() => {
     const prices = pricesRef.current;
     for (const card of collection) {
@@ -325,9 +321,9 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-amber-900/20 via-[#0e1017] to-amber-900/10 p-5 rounded-2xl border border-amber-950/40 flex items-center gap-4">
-        <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
+      <div className="relative overflow-hidden bg-gradient-to-r from-amber-700/30 via-amber-900/15 to-amber-950/30 p-5 rounded-2xl border border-amber-900/50 flex items-center gap-4 shadow-[0_0_30px_rgba(180,83,9,0.15)]">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+        <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 p-3 rounded-xl border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.2)]">
           <Gift className="w-6 h-6" />
         </div>
         <div>
@@ -336,20 +332,23 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-[#1a1c2a] bg-[#0d0e16] rounded-xl p-1">
-        <button onClick={() => { setView('sets'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'sets' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
-          <Package className="w-4 h-4" /> Coleções
-        </button>
-        <button onClick={() => { setView('market'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'market' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
-          <TrendingUp className="w-4 h-4" /> Mercado
-        </button>
-        <button onClick={() => { setView('collection'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${view === 'collection' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
-          <BookOpen className="w-4 h-4" /> Minha Coleção ({collection.length})
-        </button>
-      </div>
+      <LayoutGroup>
+        <div className="flex border-b border-[#1a1c2a] bg-[#0d0e16] rounded-xl p-1">
+          <button onClick={() => { setView('sets'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 relative ${view === 'sets' ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
+            {view === 'sets' && <motion.div layoutId="tab-pill" className="absolute inset-0 bg-gradient-to-r from-amber-500/15 to-amber-600/10 border border-amber-500/20 rounded-lg" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />}
+            <span className="relative z-10 flex items-center gap-2"><Package className="w-4 h-4" /> Coleções</span>
+          </button>
+          <button onClick={() => { setView('market'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 relative ${view === 'market' ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
+            {view === 'market' && <motion.div layoutId="tab-pill" className="absolute inset-0 bg-gradient-to-r from-amber-500/15 to-amber-600/10 border border-amber-500/20 rounded-lg" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />}
+            <span className="relative z-10 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Mercado</span>
+          </button>
+          <button onClick={() => { setView('collection'); setSelectedSet(null); setPackResult([]); }} className={`flex-1 py-2.5 text-xs uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 relative ${view === 'collection' ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
+            {view === 'collection' && <motion.div layoutId="tab-pill" className="absolute inset-0 bg-gradient-to-r from-amber-500/15 to-amber-600/10 border border-amber-500/20 rounded-lg" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />}
+            <span className="relative z-10 flex items-center gap-2"><BookOpen className="w-4 h-4" /> Minha Coleção ({collection.length})</span>
+          </button>
+        </div>
+      </LayoutGroup>
 
-      {/* Pack Opening Overlay */}
       <AnimatePresence>
         {opening && packResult.length > 0 && (
           <motion.div
@@ -358,7 +357,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
           >
-            {/* Star burst overlay */}
             <AnimatePresence>
               {starBurst.show && (
                 <motion.div
@@ -401,7 +399,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 </motion.div>
               )}
             </AnimatePresence>
-            {/* Rare flash overlay */}
             <AnimatePresence>
               {rareFlash.show && (
                 <motion.div
@@ -433,9 +430,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               <motion.h3
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="text-amber-400 font-extrabold text-lg mb-2"
+                className="text-amber-400 font-extrabold text-lg mb-2 flex items-center justify-center gap-2"
               >
-                🎴 {packQty > 1 ? `${packQty} Pacotes` : 'Pacote'} — {selectedSet?.name}
+                <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 2 }}>🎴</motion.span>
+                {packQty > 1 ? `${packQty} Pacotes` : 'Pacote'} — {selectedSet?.name}
               </motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <p className="text-slate-500 text-xs">
@@ -452,9 +450,9 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   return (
                     <motion.div
                       key={`${card.id}-${idx}`}
-                      initial={{ rotateY: 180, opacity: 0, scale: 0.3, y: 40 }}
-                      animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1, y: 0 } : {}}
-                      transition={{ type: 'spring', stiffness: 180, damping: 18, delay: 0 }}
+                      initial={{ rotateY: 180, opacity: 0, scale: 0.2, y: 60, rotateX: 20 }}
+                      animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1, y: 0, rotateX: 0 } : {}}
+                      transition={{ type: 'spring', stiffness: 100, damping: 12, mass: 1.1 }}
                       className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${border} shadow-lg ${isRare ? 'relative' : ''}`}
                     >
                       {isRare && (
@@ -465,13 +463,32 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                           className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none z-10"
                         />
                       )}
-                      {isNew && revealingIndex >= idx && (
-                        <div className="absolute top-1 left-1 z-20 bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-lg">NEW</div>
+                      {lvl >= 4 && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={idx <= revealingIndex ? { opacity: [0, 0.8, 0.2, 0.5, 0.3] } : {}}
+                          transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                          className="absolute inset-0 bg-gradient-to-br from-purple-400/10 via-transparent to-red-400/10 pointer-events-none z-10"
+                        />
                       )}
-                      <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover relative z-0" loading="lazy" />
+                      {isNew && revealingIndex >= idx && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 300 }}
+                          className="absolute top-1 left-1 z-20 bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-lg"
+                        >NEW</motion.div>
+                      )}
+                      <motion.img
+                        src={card.imageUrl} alt={card.name}
+                        className="w-full aspect-[2/3] object-cover relative z-0"
+                        loading="lazy"
+                        animate={idx <= revealingIndex && isRare ? { scale: [1, 1.05, 1] } : {}}
+                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 3 }}
+                      />
                       <div className="p-1.5 text-center relative z-10">
                         <p className="text-[8px] font-bold text-slate-200 truncate">{card.name}</p>
-                        <span className={`text-[7px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                        <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${lvl >= 3 ? 'text-yellow-300 drop-shadow-[0_0_6px_rgba(234,179,8,0.5)]' : lvl === 1 ? 'text-green-400' : 'text-slate-400'}`}>
                           {card.rarity === 'Rare Secret' ? '⭐' : card.rarity === 'Rare Rainbow' ? '🌈' : card.rarity === 'Rare Ultra' ? '💎' : ''}
                           {getRarityLabel(card.rarity)}
                         </span>
@@ -503,13 +520,13 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                         setOpening(false);
                         setPackResult([]);
                       }}
-                      className="bg-green-500 hover:bg-green-400 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                     >
                       <DollarSign className="w-4 h-4 inline mr-1.5" /> Vender Repetidas — R$ {sellTotal.toFixed(2)}
                     </button>
                     <button
                       onClick={() => { onCollectionUpdate(packResult); setOpening(false); setPackResult([]); }}
-                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer"
+                      className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer shadow-[0_0_15px_rgba(255,191,0,0.3)]"
                     >
                       <Sparkles className="w-4 h-4 inline mr-1.5" /> Guardar na Coleção
                     </button>
@@ -524,7 +541,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         )}
       </AnimatePresence>
 
-      {/* SETS GRID */}
       {view === 'sets' && !selectedSet && (
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-[#0d0e16] rounded-xl p-3 border border-[#1a1c2a]">
@@ -559,39 +575,47 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   { key: 'secret', has: cap.secret, icon: '⭐', color: 'text-red-400' },
                 ];
                 return (
-                <button key={set.id} onClick={() => { setSelectedSet(set); setPackResult([]); setRevealingIndex(-1); if (selectedSet?.id !== set.id || setCards.length === 0) { setSetCards([]); fetchSetCards(set.id); } setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden">
-                  {cap.tier === 'premium' && <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
-                  {cap.tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-bl-full" />}
-                  {cap.tier === 'ultra' && <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full" />}
-                  <div className="bg-[#07080f] rounded-lg p-3 flex items-center justify-center aspect-[2/1] mb-2 border border-[#1a1c2a]">
-                    {set.images?.logo ? <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" /> : <Package className="w-8 h-8 text-slate-500" />}
-                  </div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${cap.color}`}>{cap.label}</span>
-                    {rarities.filter(r => r.has).map(r => (
-                      <span key={r.key} className={`text-[9px] ${r.color}`} title={r.key === 'holo' ? 'Tem Holo' : r.key === 'ultra' ? 'Tem Ultra' : 'Tem Secret'}>{r.icon}</span>
-                    ))}
-                  </div>
-                  <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
-                  <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
-                  {(() => {
-                    const totalCards = set.total || set.printedTotal;
-                    const owned = collection.filter(c => c.setName === set.name).length;
-                    const pct = Math.min(Math.round((owned / totalCards) * 100), 100);
-                    return (
-                      <div className="mt-1.5">
-                        <div className="flex justify-between text-[8px] text-slate-500 mb-0.5">
-                          <span>{owned}/{totalCards}</span>
-                          <span className={pct >= 100 ? 'text-green-400 font-bold' : ''}>{pct < 100 ? pct + '%' : '100%'}</span>
+                <motion.div
+                  key={set.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                >
+                  <button onClick={() => { setSelectedSet(set); setPackResult([]); setRevealingIndex(-1); if (selectedSet?.id !== set.id || setCards.length === 0) { setSetCards([]); fetchSetCards(set.id); } setPackQty(1); }} className="bg-[#0d0e16] border border-[#1a1c2a] hover:border-amber-500/30 rounded-xl p-3 text-left transition-all cursor-pointer group relative overflow-hidden w-full">
+                    {cap.tier === 'premium' && <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/5 to-transparent rounded-bl-full" />}
+                    {cap.tier === 'modern' && <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-bl-full" />}
+                    {cap.tier === 'ultra' && <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full" />}
+                    <div className="bg-[#07080f] rounded-lg p-3 flex items-center justify-center aspect-[2/1] mb-2 border border-[#1a1c2a] group-hover:border-amber-500/20 transition-all">
+                      {set.images?.logo ? <img src={set.images.logo} alt={set.name} className="h-10 object-contain" loading="lazy" /> : <Package className="w-8 h-8 text-slate-500" />}
+                    </div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${cap.color}`}>{cap.label}</span>
+                      {rarities.filter(r => r.has).map(r => (
+                        <span key={r.key} className={`text-[9px] ${r.color}`} title={r.key === 'holo' ? 'Tem Holo' : r.key === 'ultra' ? 'Tem Ultra' : 'Tem Secret'}>{r.icon}</span>
+                      ))}
+                    </div>
+                    <p className="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{set.name}</p>
+                    <p className="text-[9px] text-slate-500">{set.series} • {set.printedTotal} cartas</p>
+                    {(() => {
+                      const totalCards = set.total || set.printedTotal;
+                      const owned = collection.filter(c => c.setName === set.name).length;
+                      const pct = Math.min(Math.round((owned / totalCards) * 100), 100);
+                      return (
+                        <div className="mt-1.5">
+                          <div className="flex justify-between text-[8px] text-slate-500 mb-0.5">
+                            <span>{owned}/{totalCards}</span>
+                            <span className={pct >= 100 ? 'text-green-400 font-bold' : ''}>{pct < 100 ? pct + '%' : '100%'}</span>
+                          </div>
+                          <div className="h-1 bg-[#07080f] rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
                         </div>
-                        <div className="h-1 bg-[#07080f] rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="mt-2 bg-amber-500/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center">A partir de R$ 14,90</div>
-                </button>
+                      );
+                    })()}
+                    <div className="mt-2 bg-gradient-to-r from-amber-500/15 to-amber-600/10 text-amber-400 text-[9px] font-bold py-1 rounded text-center border border-amber-500/10">A partir de R$ 14,90</div>
+                  </button>
+                </motion.div>
               );
               })}
               {sets.length === 0 && <div className="col-span-full text-center text-slate-500 text-xs py-8">Nenhuma coleção encontrada.</div>}
@@ -600,14 +624,14 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         </div>
       )}
 
-      {/* SET DETAIL + BUY */}
       {view === 'sets' && selectedSet && !opening && (
         <div className="space-y-4">
           <button onClick={() => { setSelectedSet(null); setPackResult([]); }} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-amber-400 transition-colors cursor-pointer">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar para coleções
           </button>
 
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
             <div className="bg-[#07080f] rounded-xl p-4 flex items-center justify-center w-24 h-24 border border-[#1a1c2a] shrink-0">
               {selectedSet.images?.logo ? <img src={selectedSet.images.logo} alt={selectedSet.name} className="h-12 object-contain" /> : <Package className="w-8 h-8 text-slate-500" />}
             </div>
@@ -621,7 +645,6 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           </div>
 
-          {/* Set rarity breakdown */}
           {setCards.length > 0 && (() => {
             const counts: Record<string, number> = {};
             for (const c of setCards) {
@@ -654,8 +677,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             );
           })()}
 
-          {/* Rarity odds info */}
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5">
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400/30 to-transparent" />
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Chances por pacote</p>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               <div className="bg-[#07080f] rounded-xl p-3 text-center border border-slate-700">
@@ -670,23 +693,25 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <p className="text-lg font-extrabold text-amber-400">20%</p>
                 <p className="text-[9px] text-amber-400/70 font-bold">Rara</p>
               </div>
-              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30">
-                <p className="text-lg font-extrabold text-yellow-300">8%</p>
-                <p className="text-[9px] text-yellow-400/70 font-bold">Holo</p>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-yellow-400/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-yellow-400/5 to-transparent" />
+                <p className="text-lg font-extrabold text-yellow-300 relative z-10">8%</p>
+                <p className="text-[9px] text-yellow-400/70 font-bold relative z-10">Holo</p>
               </div>
-              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-purple-400/30">
-                <p className="text-lg font-extrabold text-purple-400">3%</p>
-                <p className="text-[9px] text-purple-400/70 font-bold">Ultra</p>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-purple-400/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-purple-400/5 to-transparent" />
+                <p className="text-lg font-extrabold text-purple-400 relative z-10">3%</p>
+                <p className="text-[9px] text-purple-400/70 font-bold relative z-10">Ultra</p>
               </div>
-              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-red-400/30">
-                <p className="text-lg font-extrabold text-red-400">0,3%</p>
-                <p className="text-[9px] text-red-400/70 font-bold">Secreta</p>
+              <div className="bg-[#07080f] rounded-xl p-3 text-center border border-red-400/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-red-400/5 to-transparent" />
+                <p className="text-lg font-extrabold text-red-400 relative z-10 drop-shadow-[0_0_8px_rgba(248,113,113,0.4)]">0,3%</p>
+                <p className="text-[9px] text-red-400/70 font-bold relative z-10">Secreta</p>
               </div>
             </div>
             <p className="text-[9px] text-slate-600 mt-2 text-center">Máx 1 Holo + 1 Ultra + 1 Secret por pacote • chances sobem com mais pacotes (√qty)</p>
           </div>
 
-          {/* Quantity selector */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-5 space-y-3">
             <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quantidade de pacotes</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -699,11 +724,11 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                     onClick={() => setPackQty(opt.qty)}
                     disabled={!affordable}
                     className={`relative p-3 rounded-xl border text-center transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-                      selected ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-[#07080f] border-[#1a1c2a] text-slate-300 hover:border-amber-500/30'
+                      selected ? 'bg-gradient-to-r from-amber-500/15 to-amber-600/10 border-amber-500 text-amber-400 shadow-[0_0_10px_rgba(217,119,6,0.15)]' : 'bg-[#07080f] border-[#1a1c2a] text-slate-300 hover:border-amber-500/30'
                     }`}
                   >
                     {opt.badge && (
-                      <span className={`absolute -top-2 -right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selected ? 'bg-amber-500 text-slate-950' : 'bg-green-500 text-white'}`}>
+                      <span className={`absolute -top-2 -right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selected ? 'bg-amber-500 text-slate-950' : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'}`}>
                         {opt.badge}
                       </span>
                     )}
@@ -720,35 +745,36 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             </div>
           </div>
 
-          <button
+          <motion.button
             onClick={handleOpenPack}
             disabled={!canBuy || cardsLoading}
-            className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-[#151724] disabled:text-[#383d5a] disabled:cursor-not-allowed text-slate-950 font-black py-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,191,0,0.2)]"
+            whileHover={canBuy && !cardsLoading ? { scale: 1.01 } : {}}
+            whileTap={canBuy && !cardsLoading ? { scale: 0.99 } : {}}
+            className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 disabled:from-[#151724] disabled:to-[#151724] disabled:text-[#383d5a] disabled:cursor-not-allowed text-slate-950 font-black py-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(255,191,0,0.3)] hover:shadow-[0_0_35px_rgba(255,191,0,0.45)]"
           >
             {cardsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
             {cardsLoading ? 'Carregando cartas...' : `Comprar ${selectedOption.qty} Pacote${selectedOption.qty > 1 ? 's' : ''} — R$ ${selectedOption.price.toFixed(2)}`}
-          </button>
+          </motion.button>
 
           {cardsLoading && <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>}
         </div>
       )}
 
-      {/* MARKET */}
       {view === 'market' && (
         <div className="space-y-3">
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-4 flex items-center gap-3">
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-4 flex items-center gap-3 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
             <TrendingUp className="w-5 h-5 text-emerald-400" />
             <div className="flex-1">
               <p className="text-xs font-bold text-slate-200">Mercado de Cartas</p>
               <p className="text-[10px] text-slate-500">Preços simulados com flutuação a cada 20s</p>
             </div>
             {collection.some(c => c.quantity > 1) && (
-              <button onClick={() => onSellAllDuplicates(pricesRef.current)} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer shrink-0" title="Vender todas as cartas repetidas">
+              <button onClick={() => onSellAllDuplicates(pricesRef.current)} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer shrink-0 border border-emerald-500/20 hover:border-emerald-500" title="Vender todas as cartas repetidas">
                 Vender Repetidas
               </button>
             )}
           </div>
-          {/* Filters */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
             <div className="flex gap-2 items-center">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
@@ -787,11 +813,18 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
                 const canSell = card.quantity > 1;
                 return (
-                  <div key={card.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 flex items-center gap-3 hover:border-amber-500/20 transition-all">
-                    <img src={card.imageUrl} alt={card.name} className="w-12 h-16 object-cover rounded-lg shrink-0" loading="lazy" />
+                  <motion.div
+                    key={card.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    whileHover={{ scale: 1.01 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 flex items-center gap-3 hover:border-amber-500/30 hover:shadow-[0_0_12px_rgba(217,119,6,0.05)] transition-all"
+                  >
+                    <img src={card.imageUrl} alt={card.name} className="w-12 h-16 object-cover rounded-lg shrink-0 ring-1 ring-white/5" loading="lazy" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-200 truncate">{card.name}</p>
-                      <span className={`text-[9px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : 'text-slate-400'}`}>
+                      <span className={`text-[9px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : 'text-slate-400'}`}>
                         {getRarityLabel(card.rarity)} • {card.setName}
                       </span>
                       <div className="flex items-center gap-2 mt-1">
@@ -803,7 +836,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                     {canSell && (
                       <button
                         onClick={() => onSellCard(card.id, price)}
-                        className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                        className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0 border border-emerald-500/20 hover:border-emerald-500"
                       >
                         <Trash2 className="w-3 h-3" /> R$ {price.toFixed(2)}
                       </button>
@@ -811,7 +844,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                     {!canSell && card.quantity === 1 && (
                       <span className="text-[9px] text-slate-600 italic">Única</span>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
               <p className="text-center text-[9px] text-slate-600 pt-2">Preços atualizados a cada 20s • {filteredCards.filter(c => c.quantity > 1).length} repetida{filteredCards.filter(c => c.quantity > 1).length > 1 ? 's' : ''}</p>
@@ -820,10 +853,8 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
         </div>
       )}
 
-      {/* COLLECTION */}
       {view === 'collection' && (
         <div className="space-y-3">
-          {/* Filters */}
           <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
             <div className="flex gap-2 items-center">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
@@ -894,25 +925,33 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 {filteredCards.map(card => {
                   const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
                   return (
-                  <div key={card.id} className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)}`}>
-                    <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
-                    <div className="p-2 text-center">
-                      <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
-                      <span className={`text-[7px] font-bold ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
-                        {getRarityLabel(card.rarity)}
-                      </span>
-                      {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
+                  <motion.div
+                    key={card.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{ scale: 1.03 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  >
+                    <div className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)} hover:shadow-lg`}>
+                      <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
+                      <div className="p-2 text-center">
+                        <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
+                        <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                          {getRarityLabel(card.rarity)}
+                        </span>
+                        {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
+                      </div>
+                      {card.quantity > 1 && (
+                        <button
+                          onClick={() => onSellCard(card.id, price)}
+                          className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                          title={`Vender por R$ ${price.toFixed(2)}`}
+                        >
+                          R$ {price.toFixed(2)}
+                        </button>
+                      )}
                     </div>
-                    {card.quantity > 1 && (
-                      <button
-                        onClick={() => onSellCard(card.id, price)}
-                        className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
-                        title={`Vender por R$ ${price.toFixed(2)}`}
-                      >
-                        R$ {price.toFixed(2)}
-                      </button>
-                    )}
-                  </div>
+                  </motion.div>
                   );
                 })}
               </div>

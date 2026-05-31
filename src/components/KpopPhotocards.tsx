@@ -41,9 +41,9 @@ function getRarityLevel(rarity: string): number {
 
 function getRarityBorder(rarity: string): string {
   const lvl = getRarityLevel(rarity);
-  if (lvl === 3) return 'border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.4)]';
-  if (lvl === 2) return 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]';
-  if (lvl === 1) return 'border-cyan-500/50';
+  if (lvl === 3) return 'border-purple-500 shadow-[0_0_16px_rgba(168,85,247,0.5)]';
+  if (lvl === 2) return 'border-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.4)]';
+  if (lvl === 1) return 'border-cyan-500/60';
   return 'border-slate-600/30';
 }
 
@@ -143,30 +143,31 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
 
   return (
     <div className="space-y-4">
-      <div className="bg-gradient-to-r from-pink-900/20 via-[#0e1017] to-purple-900/10 p-5 rounded-2xl border border-pink-950/40 flex items-center gap-4">
-        <div className="bg-pink-500/10 p-3 rounded-xl border border-pink-500/20 text-pink-400"><Medal className="w-6 h-6" /></div>
+      <div className="relative overflow-hidden bg-gradient-to-r from-pink-900/30 via-purple-900/20 to-fuchsia-900/30 p-5 rounded-2xl border border-pink-800/40 flex items-center gap-4 shadow-[0_0_30px_rgba(236,72,153,0.15)]">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent" />
+        <div className="bg-pink-500/15 p-3 rounded-xl border border-pink-500/30 text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.2)]"><Medal className="w-6 h-6" /></div>
         <div className="flex-1">
           <h3 className="font-extrabold text-white text-base">🎴 K-pop Photocards</h3>
           <p className="text-slate-400 text-xs">R$ {PACK_PRICE.toFixed(2)} o pacote • {totalMembers} photocards • {GROUPS.length} grupos</p>
         </div>
-        <button onClick={handleOpenPack} disabled={balance < PACK_PRICE} className={`bg-pink-500/10 hover:bg-pink-500 text-pink-400 hover:text-slate-950 font-bold px-5 py-3 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 shrink-0 ${balance < PACK_PRICE ? 'opacity-40 cursor-not-allowed' : ''}`}>
+        <button onClick={handleOpenPack} disabled={balance < PACK_PRICE} className={`bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-white font-bold px-5 py-3 rounded-xl text-xs transition-all duration-300 cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-yellow-500/20 ${balance < PACK_PRICE ? 'opacity-40 cursor-not-allowed from-slate-700 to-slate-800 hover:from-slate-700 hover:to-slate-800 shadow-none' : ''}`}>
           <Package className="w-4 h-4" /> Comprar (R$ {PACK_PRICE.toFixed(2)})
         </button>
       </div>
 
-      <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4">
+      <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-slate-400"><span className="text-pink-400 font-bold">{uniqueCount}</span>/{totalMembers} photocards • {GROUPS.length} grupos</p>
           <p className="text-xs font-bold text-pink-400">{progress}%</p>
         </div>
-        <div className="h-2 bg-[#07080f] rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-pink-600 to-pink-400 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+        <div className="h-2.5 bg-[#07080f] rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="h-full bg-gradient-to-r from-pink-600 via-pink-500 to-pink-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(236,72,153,0.3)]" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
       {uniqueCount > 0 && uniqueCount < totalMembers && (
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3 text-center">
-          <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Continue comprando pacotes para completar a coleção!</p>
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-center shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+          <p className="text-[10px] text-amber-400/90 font-bold uppercase tracking-wider">Continue comprando pacotes para completar a coleção!</p>
         </div>
       )}
 
@@ -175,22 +176,22 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2" />
-            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar..." className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 pl-6 pr-2 py-1.5 w-24 focus:outline-none focus:border-pink-500/50" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar..." className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 pl-6 pr-2 py-1.5 w-24 focus:outline-none focus:border-pink-500/50 focus:shadow-[0_0_8px_rgba(236,72,153,0.15)]" />
           </div>
-          <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-pink-500/50">
+          <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-pink-500/50 focus:shadow-[0_0_8px_rgba(236,72,153,0.15)]">
             <option value="todas">Todas raridades</option>
             <option value="0">Comum</option>
             <option value="1">Incomum</option>
             <option value="2">Rara</option>
             <option value="3">Super Rara</option>
           </select>
-          {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer">Vender Repetidas</button>}
+          {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all duration-200 cursor-pointer">Vender Repetidas</button>}
         </div>
       </div>
 
       <AnimatePresence>
         {opening && packResult.length > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
             <div className="text-center max-w-lg w-full">
               <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-pink-400 font-extrabold text-lg mb-2">🎴 Pacote de Photocards</motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
@@ -231,20 +232,20 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
             const group = GROUPS.find(g => g.name === groupName);
             const groupMembers = group ? group.members.length : cards.length;
             return (
-              <div key={groupName} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden">
+              <div key={groupName} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.2)]">
                 <div className="px-4 py-3 flex items-center justify-between bg-[#07080f] border-b border-[#1a1c2a]">
                   <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${getColor(groupName)}`} />
+                    <span className={`w-3 h-3 rounded-full ${getColor(groupName)} shadow-[0_0_6px_rgba(255,255,255,0.15)]`} />
                     <span className="text-sm font-bold text-slate-200">{groupName}</span>
                   </div>
                   <span className="text-[10px] font-bold text-slate-500">{cards.length}/{groupMembers}</span>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 p-3">
                   {cards.map(card => {
                     const isRare = getRarityLevel(card.rarity) >= 2;
                     const price = getBasePrice(card.rarity);
                     return (
-                      <div key={card.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all group relative ${isRare ? getRarityBorder(card.rarity) : 'border-[#1a1c2a]'}`}>
+                      <div key={card.id} className={`bg-[#07080f] rounded-lg border overflow-hidden transition-all duration-200 group relative hover:scale-[1.03] hover:z-10 ${isRare ? getRarityBorder(card.rarity) : 'border-[#1a1c2a] hover:border-slate-500/30'}`}>
                         <div className={`${getColor(card.setName)} p-1.5 flex items-center justify-center aspect-[3/4] relative overflow-hidden`}>
                           {photos[card.setName] ? (
                             <img src={photos[card.setName]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -257,7 +258,7 @@ export default function KpopPhotocards({ balance, onUpdateBalance, collection, o
                           {card.quantity > 1 && <span className="text-[7px] text-slate-500">×{card.quantity}</span>}
                         </div>
                         {card.quantity > 1 && (
-                          <button onClick={() => onSellCard(card.id, price)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">R$ {price.toFixed(2)}</button>
+                          <button onClick={() => onSellCard(card.id, price)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">R$ {price.toFixed(2)}</button>
                         )}
                       </div>
                     );

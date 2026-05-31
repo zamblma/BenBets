@@ -213,8 +213,8 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
 
   return (
     <div className="bg-gradient-to-b from-[#0a0b12] to-[#06070d] border border-[#1b1e2e] rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#0d0e16] to-[#0a0b12] border border-[#1b1e2e] rounded-xl p-3">
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#0d0e16] to-[#0a0b12] border border-[#1b1e2e] rounded-xl p-3">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent" />
         <div className="flex items-center justify-between">
           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
             <Swords className="w-3 h-3 text-blue-400" /> Baús do Invocador
@@ -227,7 +227,6 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1.5">
         {[
           { id: 'chests' as const, label: 'Baús', icon: '📦' },
@@ -235,8 +234,8 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
           { id: 'market' as const, label: 'Essência', icon: '💠' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 rounded-lg text-[9px] font-bold border transition-all cursor-pointer ${
-              tab === t.id ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400'
+            className={`flex-1 py-2 rounded-lg text-[9px] font-bold border transition-all duration-200 cursor-pointer ${
+              tab === t.id ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.2)]' : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:border-blue-500/30'
             }`}>
             {t.icon} {t.label}
           </button>
@@ -246,16 +245,15 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
       <AnimatePresence mode="wait">
         {tab === 'chests' && (
           <motion.div key="chests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            {/* Chest selection */}
             <div className="grid grid-cols-3 gap-2">
               {CHESTS.map(chest => (
                 <button key={chest.id} onClick={() => { setSelectedChest(chest); setResult(null); }}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                  className={`p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
                     selectedChest?.id === chest.id
-                      ? 'bg-blue-500/20 border-blue-500'
-                      : 'bg-[#0d0e16]/60 border-[#1a1c2a] hover:border-blue-500/30'
+                      ? 'bg-blue-500/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                      : 'bg-[#0d0e16]/60 border-[#1a1c2a] hover:border-blue-500/30 hover:shadow-[0_0_10px_rgba(59,130,246,0.1)]'
                   }`}>
-                  <div className="text-2xl mb-1">{chest.icon}</div>
+                  <div className="text-2xl mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]">{chest.icon}</div>
                   <div className="text-[10px] font-bold text-white">{chest.name}</div>
                   <div className="text-[9px] text-slate-400 mt-0.5">R$ {chest.price.toFixed(2)}</div>
                 </button>
@@ -264,9 +262,8 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
 
             {selectedChest && (
               <>
-                {/* Weights display */}
-                <div className="bg-[#0d0e16]/60 rounded-xl p-3 border border-[#1a1c2a]">
-                  <div className="text-[9px] text-slate-400 uppercase font-bold mb-2">Probabilidades</div>
+                <div className="bg-[#0d0e16]/60 rounded-xl p-3 border border-[#1a1c2a] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <div className="text-[9px] text-slate-400 uppercase font-bold mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Probabilidades</div>
                   <div className="grid grid-cols-5 gap-1">
                     {[0,1,2,3,4].map(lvl => (
                       <div key={lvl} className="text-center">
@@ -279,22 +276,23 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
 
                 <motion.button onClick={handleOpen} disabled={opening || selectedChest.price > balance}
                   whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-800 disabled:from-[#1a1c29] disabled:to-[#1a1c29] disabled:text-[#383d5a] text-white font-black py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed shadow-[0_0_20px_rgba(37,99,235,0.2)]">
+                  className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 disabled:from-[#1a1c29] disabled:to-[#1a1c29] disabled:text-[#383d5a] text-white font-black py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/30 transition-all duration-300">
                   <Play className="w-4 h-4" />
                   {opening ? 'Abrindo...' : `Abrir ${selectedChest.name} — R$ ${selectedChest.price.toFixed(2)}`}
                 </motion.button>
               </>
             )}
 
-            {/* Result */}
             <AnimatePresence>
               {result && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4">
-                  <div className="text-xs text-slate-400 mb-2">🎉 Você recebeu:</div>
+                  transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                  className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+                  <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-xs text-slate-400 mb-2 flex items-center gap-1">{/* */}🎉 Você recebeu:</motion.div>
                   <div className="space-y-2">
                     {result.map((drop, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-[#06070d] rounded-lg p-2.5">
+                      <motion.div key={i} initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.1 }}
+                        className="flex items-center gap-3 bg-[#06070d] rounded-lg p-2.5 border border-[#1a1c2a]/50">
                         <span className="text-xl">{drop.essence ? '💠' : typeIcon[drop.item.type] || '📦'}</span>
                         <div className="flex-1">
                           <div className="text-xs font-bold text-white">{drop.item.name}</div>
@@ -303,11 +301,11 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
                           )}
                         </div>
                         {!drop.essence && (
-                          <div className={`text-[9px] font-bold ${RARITY_CONFIG[drop.item.rarity]?.color || 'text-slate-400'}`}>
+                          <div className={`text-[9px] font-bold ${RARITY_CONFIG[drop.item.rarity]?.color || 'text-slate-400'} px-2 py-0.5 rounded-full bg-white/5`}>
                             {drop.item.rarityLabel}
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 </motion.div>
@@ -322,18 +320,18 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
               <div className="text-center text-slate-500 text-xs py-8">Nenhum item na coleção ainda.</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
-                {[...new Map(collection.map(c => [c.id, c])).values()].map(item => {
+                {(Array.from(new Map(collection.map(c => [c.id, c] as [string, LoLItem])).values()) as LoLItem[]).map(item => {
                   const qty = collection.filter(c => c.id === item.id).length;
                   return (
-                    <div key={item.id} className={`bg-[#0d0e16] border ${RARITY_CONFIG[item.rarity]?.border || 'border-[#1a1c2a]'} rounded-xl p-2.5`}>
-                      <div className="text-lg mb-1">{typeIcon[item.type] || '📦'}</div>
+                    <div key={item.id} className={`bg-[#0d0e16] border ${RARITY_CONFIG[item.rarity]?.border || 'border-[#1a1c2a]'} rounded-xl p-2.5 transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_12px_rgba(59,130,246,0.15)]`}>
+                      <div className="text-lg mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]">{typeIcon[item.type] || '📦'}</div>
                       <div className="text-[10px] font-bold text-white leading-tight">{item.name}</div>
                       {item.champion && <div className="text-[8px] text-slate-400">{item.champion}</div>}
                       <div className="flex justify-between items-center mt-1.5">
                         <div className={`text-[8px] font-bold ${RARITY_CONFIG[item.rarity]?.color || 'text-slate-400'}`}>
                           {item.rarityLabel}
                         </div>
-                        {qty > 1 && <div className="text-[8px] text-slate-500">x{qty}</div>}
+                        {qty > 1 && <div className="text-[8px] text-slate-500 bg-slate-800/50 px-1 py-0.5 rounded">x{qty}</div>}
                       </div>
                     </div>
                   );
@@ -342,7 +340,7 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
             )}
             {collection.filter(c => collection.filter(x => x.id === c.id).length > 1).length > 0 && (
               <button onClick={handleSellAllDuplicates}
-                className="w-full py-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-amber-500/20 transition-colors">
+                className="w-full py-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-amber-500/20 transition-all duration-200 shadow-[0_0_10px_rgba(245,158,11,0.1)]">
                 Vender Repetidas por Essência
               </button>
             )}
@@ -351,8 +349,8 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
 
         {tab === 'market' && (
           <motion.div key="market" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="bg-[#0d0e16]/60 rounded-xl p-4 border border-[#1a1c2a] text-center">
-              <div className="text-3xl mb-2">💠</div>
+            <div className="bg-[#0d0e16]/60 rounded-xl p-4 border border-[#1a1c2a] text-center shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+              <div className="text-3xl mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">💠</div>
               <div className="text-2xl font-bold text-cyan-300 font-mono">{essence}</div>
               <div className="text-[10px] text-slate-400 mt-1">Essência Total</div>
             </div>
@@ -360,7 +358,7 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory }:
               Acumule essência vendendo itens repetidos. Use para craftar itens específicos no futuro.
             </p>
             <div className="mt-4 space-y-2">
-              <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Histórico de Essência</h4>
+              <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Histórico de Essência</h4>
               <div className="bg-[#0d0e16]/60 rounded-xl p-3 border border-[#1a1c2a]">
                 <p className="text-[10px] text-slate-400">Você ganhou essência ao abrir baús e vender repetidas.</p>
               </div>

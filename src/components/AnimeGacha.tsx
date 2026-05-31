@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, BookOpen, Star, Search, X, Sparkles } from 'lucide-react';
 import { PlacedBet, PokemonCard } from '../types';

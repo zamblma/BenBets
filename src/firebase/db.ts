@@ -8,6 +8,7 @@ export async function getUserData(uid: string) {
   if (!snap.exists()) return null;
   return snap.data() as {
     balance: number;
+    displayName?: string;
     placedBets: PlacedBet[];
     transactions: Transaction[];
     pokemonCollection: PokemonCard[];

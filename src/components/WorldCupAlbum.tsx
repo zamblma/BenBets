@@ -170,9 +170,9 @@ function getRarityLevel(rarity: string): number {
 function getRarityBorder(rarity: string): string {
   const lvl = getRarityLevel(rarity);
   if (lvl === 0) return 'border-slate-700';
-  if (lvl === 1) return 'border-green-600 shadow-[0_0_8px_rgba(34,197,94,0.3)]';
-  if (lvl === 2) return 'border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.4)]';
-  if (lvl === 3) return 'border-purple-400 shadow-[0_0_22px_rgba(168,85,247,0.7)] shimmer-rainbow';
+  if (lvl === 1) return 'border-green-600 shadow-[0_0_10px_rgba(34,197,94,0.35)]';
+  if (lvl === 2) return 'border-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.45)]';
+  if (lvl === 3) return 'border-purple-400 shadow-[0_0_24px_rgba(168,85,247,0.75)] shimmer-rainbow';
   return 'border-slate-700';
 }
 
@@ -259,50 +259,51 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
 
   return (
     <div className="space-y-4">
-      <div className="bg-gradient-to-r from-green-900/20 via-[#0e1017] to-green-900/10 p-5 rounded-2xl border border-green-950/40 flex items-center gap-4">
-        <div className="bg-green-500/10 p-3 rounded-xl border border-green-500/20 text-green-400"><Medal className="w-6 h-6" /></div>
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-900/30 via-emerald-900/20 to-teal-900/30 p-5 rounded-2xl border border-green-800/40 flex items-center gap-4 shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
+        <div className="bg-green-500/15 p-3 rounded-xl border border-green-500/30 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]"><Medal className="w-6 h-6" /></div>
         <div className="flex-1">
           <h3 className="font-extrabold text-white text-base">🌍 Álbum Copa do Mundo 2026</h3>
           <p className="text-slate-400 text-xs">R$ {PACK_PRICE.toFixed(2)} o pacote • {totalPlayers} figurinhas • {TEAMS.length} seleções</p>
         </div>
-        <button onClick={handleOpenPack} disabled={balance < PACK_PRICE} className={`bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-slate-950 font-bold px-5 py-3 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 shrink-0 ${balance < PACK_PRICE ? 'opacity-40 cursor-not-allowed' : ''}`}>
+        <button onClick={handleOpenPack} disabled={balance < PACK_PRICE} className={`bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-white font-bold px-5 py-3 rounded-xl text-xs transition-all duration-300 cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-yellow-500/20 ${balance < PACK_PRICE ? 'opacity-40 cursor-not-allowed from-slate-700 to-slate-800 hover:from-slate-700 hover:to-slate-800 shadow-none' : ''}`}>
           <Package className="w-4 h-4" /> Comprar (R$ {PACK_PRICE.toFixed(2)})
         </button>
       </div>
 
-      <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4">
+      <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-slate-400"><span className="text-green-400 font-bold">{uniqueCount}</span>/{totalPlayers} figurinhas • {TEAMS.length} seleções</p>
           <p className="text-xs font-bold text-green-400">{progress}%</p>
         </div>
-        <div className="h-2 bg-[#07080f] rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-green-600 to-green-400 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+        <div className="h-2.5 bg-[#07080f] rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="h-full bg-gradient-to-r from-green-600 via-green-500 to-green-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
       {uniqueCount > 0 && uniqueCount < totalPlayers && (
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3 text-center">
-          <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Continue comprando pacotes para completar o álbum!</p>
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-center shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+          <p className="text-[10px] text-amber-400/90 font-bold uppercase tracking-wider">Continue comprando pacotes para completar o álbum!</p>
         </div>
       )}
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400 flex items-center gap-2"><BookOpen className="w-3.5 h-3.5 text-green-400" /> Sua coleção</p>
         <div className="flex items-center gap-2">
-          <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-green-500/50">
+          <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-green-500/50 focus:shadow-[0_0_8px_rgba(34,197,94,0.15)]">
             <option value="todas">Todas raridades</option>
             <option value="0">Comum</option>
             <option value="1">Incomum</option>
             <option value="2">Rara</option>
             <option value="3">Super Rara</option>
           </select>
-          {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all cursor-pointer">Vender Repetidas</button>}
+          {collection.some(c => c.quantity > 1) && <button onClick={handleSellAll} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 font-bold px-3 py-2 rounded-xl text-[10px] transition-all duration-200 cursor-pointer">Vender Repetidas</button>}
         </div>
       </div>
 
       <AnimatePresence>
         {opening && packResult.length > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
             <div className="text-center max-w-lg w-full">
               <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-green-400 font-extrabold text-lg mb-2">🎴 Pacote de Figurinhas</motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
@@ -348,9 +349,9 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
           {GROUPED_ENTRIES.map(([group, teams]) => (
             <div key={group}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="flex-1 h-px bg-gradient-to-r from-green-900/60 to-transparent" />
-                <span className="text-xs font-extrabold text-green-500 tracking-widest">GRUPO {group}</span>
-                <div className="flex-1 h-px bg-gradient-to-l from-green-900/60 to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-green-500/60 to-transparent" />
+                <span className="text-xs font-extrabold text-green-400 tracking-widest shadow-[0_0_10px_rgba(34,197,94,0.2)]">GRUPO {group}</span>
+                <div className="flex-1 h-px bg-gradient-to-l from-green-500/60 to-transparent" />
               </div>
               {teams.map(team => {
             const allTeam = ALL_PLAYERS.filter(p => p.teamName === team.name);
@@ -361,7 +362,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
             const totalCount = filteredTeamPlayers.length;
             if (totalCount === 0) return null;
             return (
-              <div key={team.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden">
+              <div key={team.id} className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.2)]">
                 <div className="px-4 py-3 flex items-center justify-between bg-[#07080f] border-b border-[#1a1c2a]">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{team.flag}</span>
@@ -370,7 +371,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                   </div>
                   <span className="text-[10px] font-bold text-slate-500">{ownedCount}/{totalCount}</span>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 p-3">
                   {filteredTeamPlayers.map(player => {
                     const sticker = collection.find(c => c.id === player.id);
                     const isRare = getRarityLevel(player.rarity) >= 2;
@@ -378,8 +379,8 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                 const colColors = ['#1e3a5f', '#2d5a27', '#5a2d2d', '#2d3a5a', '#4a2d5a', '#5a4a2d', '#2d5a4a', '#5a2d3a'];
                 const colColor = colColors[player.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colColors.length];
                 return (
-                  <div key={player.id} className={`bg-[#07080f] rounded-lg border overflow-hidden group relative ${isRare ? getRarityBorder(player.rarity) : 'border-[#1a1c2a]'}`}>
-                    <div className="p-1.5 flex items-center justify-center aspect-[3/4] relative overflow-hidden" style={{ backgroundColor: colColor }}>
+                  <div key={player.id} className={`bg-[#07080f] rounded-lg border overflow-hidden group relative transition-all duration-200 hover:scale-[1.03] hover:z-10 ${isRare ? getRarityBorder(player.rarity) : 'border-[#1a1c2a] hover:border-slate-500/30'}`}>
+                    <div className="p-1.5 flex items-center justify-center aspect-[3/4] relative overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.3)]" style={{ backgroundColor: colColor }}>
                       {getPlayerImage(player) ? (
                         <img src={getPlayerImage(player)!} alt={player.name} className="w-full h-full object-contain" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       ) : null}
@@ -393,7 +394,7 @@ export default function WorldCupAlbum({ balance, onUpdateBalance, collection, on
                       {sticker && sticker.quantity > 1 && <span className="text-[7px] text-slate-500">×{sticker.quantity}</span>}
                     </div>
                     {sticker && sticker.quantity > 1 && (
-                      <button onClick={() => handleSell(sticker.id)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100">R$ {getBasePrice(player.rarity).toFixed(2)}</button>
+                      <button onClick={() => handleSell(sticker.id)} className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">R$ {getBasePrice(player.rarity).toFixed(2)}</button>
                     )}
                   </div>
                 );

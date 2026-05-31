@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from 'motion/react';
 import { Flame, Star, Dribbble, Sparkles, ShieldCheck, Zap, TrendingUp, Gamepad2 } from 'lucide-react';
 

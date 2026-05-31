@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Search, ArrowLeft, TrendingUp, Crosshair } from 'lucide-react';
 import type { PokemonCard } from '../types';
 
@@ -68,7 +68,6 @@ function tierLabel(tier: string) {
 }
 
 const ALL_CASES: CS2CaseData[] = [
-  // ─── DAILY (FREE) ───
   {
     id: 'daily', name: 'Caixa Diária CSGOSKINS', image: '🎁', price: 0, tier: 'daily',
     weights: [89.88, 1.60, 1.51, 6, 1],
@@ -93,7 +92,6 @@ const ALL_CASES: CS2CaseData[] = [
       { id: 'daily_18', name: 'Leaded Glass', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 30, maxPrice: 120 },
     ],
   },
-  // ─── BUDGET ───
   {
     id: 'chroma2', name: 'Chroma 2 Case', image: '🎨', price: 5.90, tier: 'budget',
     weights: [79.45, 11.22, 2.34, 6, 1],
@@ -126,7 +124,6 @@ const ALL_CASES: CS2CaseData[] = [
       { id: 'fal_10', name: 'Wasteland Princess', rarity: 'Covert', weapon: 'PP-Bizon', rarityLevel: 3, minPrice: 30, maxPrice: 100 },
     ],
   },
-  // ─── STANDARD ───
   {
     id: 'cs20', name: 'CS20 Case', image: '🎯', price: 12.90, tier: 'standard',
     weights: [75, 15, 3, 6, 1],
@@ -218,7 +215,6 @@ const ALL_CASES: CS2CaseData[] = [
       { id: 'kw_11', name: 'Hot Rod', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
     ],
   },
-  // ─── PREMIUM ───
   {
     id: 'prisma', name: 'Prisma Case', image: '🌈', price: 24.90, tier: 'premium',
     weights: [63.63, 21.54, 7.83, 6, 1],
@@ -259,7 +255,6 @@ const ALL_CASES: CS2CaseData[] = [
       { id: 'sp2_14', name: '★ Driver Gloves', rarity: 'Rare Special', weapon: 'Gloves', rarityLevel: 4, minPrice: 600, maxPrice: 2500 },
     ],
   },
-  // ─── HIGH RISK ───
   {
     id: 'riptide', name: 'Operation Riptide', image: '🌊', price: 59.90, tier: 'high',
     weights: [47.56, 29.59, 15.85, 6, 1],
@@ -543,9 +538,9 @@ export default function CS2Cases({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#161a2b]/40 via-[#0e1017] to-[#161a2b]/20 p-5 rounded-2xl border border-orange-950/45 flex items-center gap-4">
-        <div className="bg-orange-500/10 p-3 rounded-xl border border-orange-500/20 text-orange-400">
+      <div className="relative overflow-hidden bg-gradient-to-r from-orange-700/30 via-orange-900/15 to-orange-950/30 p-5 rounded-2xl border border-orange-900/50 flex items-center gap-4 shadow-[0_0_30px_rgba(234,88,12,0.15)]">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
+        <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 p-3 rounded-xl border border-orange-500/30 text-orange-400 shadow-[0_0_15px_rgba(234,88,12,0.2)]">
           <Crosshair className="w-6 h-6" />
         </div>
         <div className="flex-1">
@@ -558,36 +553,41 @@ export default function CS2Cases({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#1a1c2a] pb-2">
-        {[
-          { id: 'cases' as const, label: 'Caixas', icon: '📦' },
-          { id: 'collection' as const, label: 'Coleção', icon: '📚' },
-          { id: 'market' as const, label: 'Mercado', icon: '💰' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-              tab === t.id
-                ? 'bg-brand text-slate-950 border-brand shadow-[0_0_10px_rgba(0,255,135,0.2)]'
-                : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
-            }`}
-          ><span>{t.icon}</span>{t.label}</button>
-        ))}
-      </div>
+      <LayoutGroup>
+        <div className="flex gap-2 border-b border-[#1a1c2a] pb-2">
+          {[
+            { id: 'cases' as const, label: 'Caixas', icon: '📦' },
+            { id: 'collection' as const, label: 'Coleção', icon: '📚' },
+            { id: 'market' as const, label: 'Mercado', icon: '💰' },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border relative ${
+                tab === t.id
+                  ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400 shadow-[0_0_10px_rgba(255,191,0,0.15)]'
+                  : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
+              }`}
+            >
+              {tab === t.id && (
+                <motion.div layoutId="cs-tab-pill" className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border border-yellow-500/30 rounded-xl" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />
+              )}
+              <span className="relative z-10 flex items-center gap-1.5"><span>{t.icon}</span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </LayoutGroup>
 
       <AnimatePresence mode="wait">
         {tab === 'cases' && !selectedCase && (
           <motion.div key="case-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            {/* Tier filters */}
             <div className="flex gap-1.5 flex-wrap">
               <button onClick={() => setTierFilter(null)}
                 className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                  tierFilter === null ? 'bg-brand text-slate-950 border-brand' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'
+                  tierFilter === null ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'
                 }`}>Todas</button>
               {Object.entries(TIER_INFO).map(([key, info]) => (
                 <button key={key} onClick={() => setTierFilter(key)}
                   className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${info.color} ${
-                    tierFilter === key ? 'ring-1 ring-brand/50' : ''
+                    tierFilter === key ? 'ring-1 ring-yellow-500/50' : ''
                   }`}
                 >{info.icon} {info.label}</button>
               ))}
@@ -596,14 +596,23 @@ export default function CS2Cases({
               {casesToShow.map(c => {
                 const tInfo = TIER_INFO[c.tier] || { label: '', icon: '', color: 'text-slate-400' };
                 return (
-                  <button key={c.id} onClick={() => setSelectedCase(c)}
-                    className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 text-center hover:border-orange-500/30 transition-all cursor-pointer group"
+                  <motion.div
+                    key={c.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.03 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   >
-                    <div className="text-4xl mb-2">{c.image}</div>
-                    <div className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">{c.name}</div>
-                    <div className="text-xs text-slate-500 mt-1">R$ {c.price.toFixed(2)}</div>
-                    <div className={`text-[9px] mt-1 px-1.5 py-0.5 rounded inline-block border ${tInfo.color}`}>{tInfo.icon} {tInfo.label}</div>
-                  </button>
+                    <button onClick={() => setSelectedCase(c)}
+                      className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 text-center hover:border-orange-500/30 transition-all cursor-pointer group w-full relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400/20 to-transparent" />
+                      <motion.div className="text-4xl mb-2" whileHover={{ rotate: [0, -10, 10, -10, 0] }} transition={{ duration: 0.5 }}>{c.image}</motion.div>
+                      <div className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">{c.name}</div>
+                      <div className="text-xs text-slate-500 mt-1">R$ {c.price.toFixed(2)}</div>
+                      <div className={`text-[9px] mt-1 px-1.5 py-0.5 rounded inline-block border ${tInfo.color}`}>{tInfo.icon} {tInfo.label}</div>
+                    </button>
+                  </motion.div>
                 );
               })}
             </div>
@@ -616,9 +625,10 @@ export default function CS2Cases({
               <ArrowLeft className="w-3 h-3" /> Voltar
             </button>
 
-            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-5">
+            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-5 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400/40 to-transparent" />
               <div className="flex items-center gap-4 mb-4">
-                <div className="text-5xl">{selectedCase.image}</div>
+                <motion.div className="text-5xl" animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 3 }}>{selectedCase.image}</motion.div>
                 <div>
                   <h4 className="text-lg font-bold text-white">{selectedCase.name}</h4>
                   <p className="text-sm text-slate-400">R$ {selectedCase.price.toFixed(2)}</p>
@@ -629,7 +639,6 @@ export default function CS2Cases({
                 </div>
               </div>
 
-              {/* Odds table */}
               <div className="grid grid-cols-5 gap-2 mb-4">
                 {[
                   { level: 0, label: 'Azul', chance: `${selectedCase.weights[0]}%`, color: 'text-blue-400' },
@@ -638,25 +647,27 @@ export default function CS2Cases({
                   { level: 3, label: 'Verm.', chance: `${selectedCase.weights[3]}%`, color: 'text-red-400' },
                   { level: 4, label: 'Ouro', chance: `${selectedCase.weights[4]}%`, color: 'text-yellow-300' },
                 ].map(o => (
-                  <div key={o.level} className={`bg-[#0a0b12] border border-[#1a1d2d] rounded-lg p-2 text-center ${o.color}`}>
-                    <div className="text-xs font-bold">{o.label}</div>
-                    <div className="text-lg font-black">{o.chance}</div>
-                    <div className="text-[10px] opacity-60">{rarityCounts[o.level].collected}/{rarityCounts[o.level].total}</div>
+                  <div key={o.level} className={`bg-[#0a0b12] border border-[#1a1d2d] rounded-lg p-2 text-center ${o.color} relative overflow-hidden`}>
+                    {o.level >= 3 && <div className="absolute inset-0 bg-gradient-to-b from-current/5 to-transparent" />}
+                    <div className="text-xs font-bold relative z-10">{o.label}</div>
+                    <div className={`text-lg font-black relative z-10 ${o.level >= 3 ? 'drop-shadow-[0_0_6px_rgba(255,255,255,0.2)]' : ''}`}>{o.chance}</div>
+                    <div className="text-[10px] opacity-60 relative z-10">{rarityCounts[o.level].collected}/{rarityCounts[o.level].total}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Open / rolling area */}
               <div className="relative" style={{ minHeight: rolling || showResult ? '320px' : 'auto' }}>
                 {!rolling && !showResult && (
-                  <button onClick={openCase}
+                  <motion.button onClick={openCase}
                     disabled={balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)}
+                    whileHover={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 1.02 } : {}}
+                    whileTap={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 0.98 } : {}}
                     className={`w-full py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
                       balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
                         : selectedCase.price === 0
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]'
-                        : 'bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)]'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                        : 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 hover:from-yellow-400 hover:to-amber-500 hover:shadow-[0_0_25px_rgba(255,191,0,0.4)] shadow-[0_0_15px_rgba(255,191,0,0.3)]'
                     }`}
                   >
                     {selectedCase.tier === 'daily' && dailyCooldown > 0
@@ -664,15 +675,28 @@ export default function CS2Cases({
                       : selectedCase.price === 0
                       ? '🎁 Abrir Caixa Grátis'
                       : `Abrir Caixa — R$ ${selectedCase.price.toFixed(2)}`}
-                  </button>
+                  </motion.button>
                 )}
 
                 <div className={`relative ${!(rolling || showResult) ? 'invisible absolute pointer-events-none' : ''}`} style={!(rolling || showResult) ? { height: '160px' } : {}}>
                     <div ref={stripContainerRef} className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#0a0b12] mb-4" style={{ height: '160px' }}>
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
-                        <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/30 to-transparent z-10" />
+                      {rolling && (
+                        <motion.div
+                          className="absolute inset-0 z-10 pointer-events-none"
+                          animate={{ background: ['linear-gradient(90deg, transparent, rgba(251,191,36,0.08), transparent)', 'linear-gradient(90deg, transparent, rgba(251,191,36,0.15), transparent)', 'linear-gradient(90deg, transparent, rgba(251,191,36,0.08), transparent)'] }}
+                          transition={{ repeat: Infinity, duration: 0.8 }}
+                        />
+                      )}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
+                        <motion.div
+                          animate={rolling ? { y: [0, -3, 0] } : {}}
+                          transition={{ repeat: Infinity, duration: 0.5 }}
+                        >
+                          <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                        </motion.div>
                       </div>
-                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-24 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent rounded-full" />
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-24 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent rounded-full" />
                       <div ref={stripInnerRef}
                         className="flex gap-1.5 items-center py-8 absolute"
                         style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
@@ -681,13 +705,15 @@ export default function CS2Cases({
                           const rColor = rarityColor(item.rarityLevel);
                           const isWinner = result && item.id === result.id && !rolling;
                           return (
-                            <div key={`s-${i}`}
-                              className={`shrink-0 w-[80px] rounded-lg border ${rColor.border} ${rColor.bg} p-1.5 text-center ${isWinner ? 'ring-2 ring-amber-400 scale-110' : ''}`}
-                              style={{ boxShadow: `0 0 ${isWinner ? '12' : '6'}px ${rColor.glow}` }}
+                            <motion.div key={`s-${i}`}
+                              initial={false}
+                              animate={isWinner ? { scale: [1, 1.15, 1], transition: { duration: 0.4 } } : {}}
+                              className={`shrink-0 w-[80px] rounded-lg border-2 ${rColor.border} ${rColor.bg} p-1.5 text-center ${isWinner ? 'ring-2 ring-amber-400' : ''}`}
+                              style={{ boxShadow: `0 0 ${isWinner ? '16' : '6'}px ${rColor.glow}` }}
                             >
                               <div className="text-[9px] font-mono text-slate-400 truncate">{item.weapon}</div>
                               <div className={`text-[10px] font-bold ${rColor.text} truncate leading-tight`}>{item.name}</div>
-                            </div>
+                            </motion.div>
                           );
                         })}
                       </div>
@@ -695,14 +721,25 @@ export default function CS2Cases({
 
                     {showResult && result && (
                       <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-6 text-center"
+                        className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-6 text-center relative overflow-hidden"
                       >
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
                         <div className="text-sm text-slate-400 mb-3">🎉 Você ganhou!</div>
                         <div className="flex justify-center mb-3">
-                          <div
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1, rotate: [0, 5, -5, 0] }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                             className={`w-36 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} overflow-hidden`}
-                            style={{ boxShadow: `0 0 40px ${rarityColor(result.rarityLevel).glow}` }}
+                            style={{ boxShadow: `0 0 50px ${rarityColor(result.rarityLevel).glow}` }}
                           >
+                            {result.rarityLevel >= 4 && (
+                              <motion.div
+                                className="absolute inset-0 bg-gradient-to-br from-yellow-400/20 via-transparent to-yellow-600/20"
+                                animate={{ opacity: [0.3, 0.6, 0.3] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                              />
+                            )}
                             {resultImgError ? (
                               <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
                             ) : (
@@ -713,21 +750,21 @@ export default function CS2Cases({
                                 className="w-full h-full object-contain p-1"
                               />
                             )}
-                          </div>
+                          </motion.div>
                         </div>
                         <div className={`text-sm font-mono ${rarityColor(result.rarityLevel).text} opacity-80 mb-0.5`}>
                           {result.weapon}
                         </div>
-                        <div className={`text-lg md:text-xl font-bold ${rarityColor(result.rarityLevel).text} px-4 max-w-xs mx-auto leading-tight`}>
+                        <div className={`text-lg md:text-xl font-bold ${rarityColor(result.rarityLevel).text} px-4 max-w-xs mx-auto leading-tight drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>
                           {result.name}
                         </div>
                         <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-70 mt-0.5`}>
                           {rarityLabelShort(result.rarityLevel)}
                         </div>
-                        <div className="text-xl font-black text-brand mt-2">R$ {resultPrice.toFixed(2)}</div>
+                        <div className={`text-xl font-black mt-2 ${result.rarityLevel >= 4 ? 'text-yellow-400 drop-shadow-[0_0_12px_rgba(234,179,8,0.4)]' : 'text-brand'}`}>R$ {resultPrice.toFixed(2)}</div>
                         <div className="flex gap-2 mt-4">
                           <button onClick={handleSellNow}
-                            className="flex-1 py-2.5 bg-brand text-slate-950 rounded-xl text-xs font-bold hover:shadow-[0_0_12px_rgba(0,255,135,0.3)] transition-all cursor-pointer"
+                            className="flex-1 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 rounded-xl text-xs font-bold hover:from-yellow-400 hover:to-amber-500 transition-all cursor-pointer shadow-[0_0_12px_rgba(255,191,0,0.2)]"
                           >Vender por R$ {resultPrice.toFixed(2)}</button>
                           <button onClick={handleKeep}
                             className="flex-1 py-2.5 bg-[#1a1d2d] text-slate-200 rounded-xl text-xs font-bold hover:bg-[#242738] transition-all cursor-pointer border border-[#2a2d3d]"
@@ -738,7 +775,6 @@ export default function CS2Cases({
                   </div>
                 </div>
 
-              {/* Case contents */}
               <div className="mt-4">
                 <h5 className="text-sm font-bold text-slate-300 mb-2">Conteúdo da Caixa</h5>
                 {[0, 1, 2, 3, 4].map(level => {
@@ -747,13 +783,16 @@ export default function CS2Cases({
                   const rColor = rarityColor(level);
                   return (
                     <div key={level} className="mb-2">
-                      <div className={`text-xs font-bold ${rColor.text} mb-1`}>{rarityLabel(level)}</div>
+                      <div className={`text-xs font-bold ${rColor.text} mb-1 flex items-center gap-1.5`}>
+                        <span className={`w-2 h-2 rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                        {rarityLabel(level)}
+                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {items.map(s => {
                           const owned = collection.some(c => c.id === s.id && c.setSeries === 'CS2');
                           return (
                             <div key={s.id}
-                              className={`text-[10px] px-2 py-1 rounded-lg border ${rColor.border} ${rColor.bg} ${owned ? 'opacity-60' : ''}`}
+                              className={`text-[10px] px-2 py-1 rounded-lg border ${rColor.border} ${rColor.bg} ${owned ? 'opacity-60' : ''} transition-all`}
                             >
                               {s.weapon} | {s.name}{owned && <span className="text-brand ml-1">✓</span>}
                             </div>
@@ -774,10 +813,10 @@ export default function CS2Cases({
               <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                 <input type="text" placeholder="Buscar skin..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#0d0e16] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/30" />
+                  className="w-full bg-[#0d0e16] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-yellow-500/30" />
               </div>
               <button onClick={() => setRarityFilter(null)}
-                className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${rarityFilter === null ? 'bg-brand text-slate-950 border-brand' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'}`}>Todas</button>
+                className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${rarityFilter === null ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'}`}>Todas</button>
               {[
                 { level: 0, label: 'Azul', color: 'text-blue-400' },
                 { level: 1, label: 'Roxa', color: 'text-purple-400' },
@@ -802,20 +841,25 @@ export default function CS2Cases({
                     const rColor = rarityColor(level);
                     const price = prices[card.id] ?? 0;
                     return (
-                      <div key={card.id} className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center`}
+                      <motion.div key={card.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileHover={{ scale: 1.03 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center hover:shadow-lg`}
                         style={{ boxShadow: `0 0 8px ${rColor.glow}` }}>
                         <div className="text-3xl mb-1">{level === 4 ? '⭐' : '🔫'}</div>
                         <div className="text-[10px] font-mono text-slate-500 truncate">{card.name.split(' | ')[0]}</div>
                         <div className="text-xs font-bold text-white truncate">{card.name.split(' | ')[1] || card.name}</div>
-                        <div className={`text-[10px] ${rColor.text}`}>{card.rarity}</div>
-                        <div className="text-xs font-bold text-brand mt-1">R$ {price.toFixed(2)}</div>
+                        <div className={`text-[10px] ${rColor.text} ${level >= 4 ? 'drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : ''}`}>{card.rarity}</div>
+                        <div className={`text-xs font-bold mt-1 ${level >= 4 ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.3)]' : 'text-brand'}`}>R$ {price.toFixed(2)}</div>
                         {card.quantity > 1 && <div className="text-[10px] text-slate-500 mt-0.5">{card.quantity}x</div>}
                         {card.quantity > 1 && (
                           <button onClick={() => handleSellSingle(card)}
                             className="mt-1.5 w-full py-1 bg-[#1a1d2d] text-slate-300 rounded-lg text-[10px] font-bold hover:bg-red-500/20 hover:text-red-400 transition-all cursor-pointer border border-[#2a2d3d]"
                           >Vender 1x R$ {price.toFixed(2)}</button>
                         )}
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>}
@@ -824,7 +868,8 @@ export default function CS2Cases({
 
         {tab === 'market' && (
           <motion.div key="market" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4">
+            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent" />
               <div className="flex items-center justify-between mb-1">
                 <div className="text-sm font-bold text-white">Mercado de Skins CS2</div>
                 <TrendingUp className="w-4 h-4 text-brand" />
@@ -844,16 +889,22 @@ export default function CS2Cases({
                 const price = prices[skin.id] ?? 0;
                 if (quantity <= 1) return null;
                 return (
-                  <div key={skin.id} className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center`}>
+                  <motion.div key={skin.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{ scale: 1.03 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center hover:shadow-lg`}
+                    style={{ boxShadow: `0 0 6px ${rColor.glow}` }}>
                     <div className={`text-[10px] font-mono ${rColor.text}`}>{skin.weapon}</div>
                     <div className="text-xs font-bold text-white truncate">{skin.name}</div>
                     <div className="text-[10px] text-slate-400">{rarityLabelShort(skin.rarityLevel)}</div>
-                    <div className="text-xs font-bold text-brand mt-1">R$ {price.toFixed(2)}</div>
+                    <div className={`text-xs font-bold mt-1 ${skin.rarityLevel >= 4 ? 'text-yellow-400 drop-shadow-[0_0_6px_rgba(234,179,8,0.3)]' : 'text-brand'}`}>R$ {price.toFixed(2)}</div>
                     <div className="text-[10px] text-slate-500">{quantity - 1} repetidas</div>
                     <button onClick={() => { const c = owned[0]; if (c) handleSellSingle(c); }}
                       className="mt-1.5 w-full py-1 bg-[#1a1d2d] text-slate-300 rounded-lg text-[10px] font-bold hover:bg-brand/20 hover:text-brand transition-all cursor-pointer border border-[#2a2d3d]"
                     >Vender 1x R$ {price.toFixed(2)}</button>
-                  </div>
+                  </motion.div>
                 );
               })}
               {collection.filter(c => c.setSeries === 'CS2' && c.quantity > 1).length === 0 && (
@@ -864,7 +915,6 @@ export default function CS2Cases({
         )}
       </AnimatePresence>
 
-      {/* Progress summary */}
       {tab === 'collection' && (
         <div className="grid grid-cols-5 gap-2">
           {[0, 1, 2, 3, 4].map(level => {
@@ -875,7 +925,7 @@ export default function CS2Cases({
                 <div className={`text-[10px] font-bold ${rColor.text}`}>{rarityLabelShort(level)}</div>
                 <div className="text-lg font-black text-white mt-0.5">{rarityCounts[level].collected}/{rarityCounts[level].total}</div>
                 <div className="w-full h-1.5 bg-[#1a1d2d] rounded-full mt-1 overflow-hidden">
-                  <div className={`h-full rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                  <div className={`h-full rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'}`}
                     style={{ width: `${pct}%` }} />
                 </div>
               </div>
