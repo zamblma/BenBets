@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 type SoundType = 'deal' | 'win' | 'lose' | 'spin' | 'crash' | 'cashout' | 'click' | 'reveal' | 'rare' | 'levelup';
 
@@ -67,7 +67,7 @@ export function useSound() {
     SOUNDS[type]?.();
   }, [resumeAudio]);
 
-  const engine: EngineSound = {
+  const engine: EngineSound = useMemo(() => ({
     start: (baseFreq = 90, waveType = 'sawtooth') => {
       if (!audioCtx) return;
       resumeAudio();
@@ -96,7 +96,7 @@ export function useSound() {
       gainRef.current = null;
       engineRunning.current = false;
     },
-  };
+  }), [resumeAudio]);
 
   return { play, resumeAudio, engine };
 }
