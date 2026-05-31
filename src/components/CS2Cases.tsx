@@ -357,6 +357,8 @@ export default function CS2Cases({
   const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
   const animToken = useRef<number>(0);
+  const animStartRef = useRef<number>(0);
+  const animEndRef = useRef<number>(0);
 
   useEffect(() => {
     const newPrices: Record<string, number> = {};
@@ -428,11 +430,13 @@ export default function CS2Cases({
     setStripItems(items);
     setStripX(containerWidth);
     animToken.current = winnerIndex;
+    animStartRef.current = containerWidth;
     engine.start(350, 'sawtooth');
   }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth, engine]);
 
   useLayoutEffect(() => {
     if (!rolling || !stripContainerRef.current || !stripInnerRef.current) return;
+    if (stripItems.length === 0) return;
     const container = stripContainerRef.current;
     const inner = stripInnerRef.current;
     const containerRect = container.getBoundingClientRect();
@@ -447,8 +451,9 @@ export default function CS2Cases({
     const itemRect = winnerEl.getBoundingClientRect();
     const itemCenter = itemRect.left + itemRect.width / 2;
 
-    const targetX = containerWidth - (itemCenter - arrowX);
-    const endX = targetX;
+    const startX = animStartRef.current;
+    const endX = startX - (itemCenter - arrowX);
+    animEndRef.current = endX;
     const duration = 3500;
     const startTime = performance.now();
 
@@ -456,7 +461,7 @@ export default function CS2Cases({
       const elapsed = now - startTime;
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setStripX(containerWidth + (endX - containerWidth) * eased);
+      setStripX(startX + (endX - startX) * eased);
       if (p < 1) { requestAnimationFrame(animate); }
       else {
         setStripX(endX);
@@ -469,7 +474,7 @@ export default function CS2Cases({
       }
     }
     requestAnimationFrame(animate);
-  }, [rolling, engine]);
+  }, [rolling, engine, stripItems]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
