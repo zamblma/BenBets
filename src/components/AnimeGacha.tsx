@@ -71,6 +71,7 @@ function getRarityGlowColor(rarity: number): string {
 export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, userId, collection, onCollectionUpdate, onSellCard, onSellAllDuplicates }: AnimeGachaProps) {
   const [tab, setTab] = useState<'gacha' | 'collection'>('gacha');
   const [chars, setChars] = useState<AnimeChar[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
   const [packResult, setPackResult] = useState<AnimeChar[]>([]);
   const [opening, setOpening] = useState(false);
   const [revealingIndex, setRevealingIndex] = useState(-1);
@@ -101,33 +102,27 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
     let cancelled = false;
     const all: AnimeChar[] = [];
     const seen = new Set<number>();
-
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
     const load = async () => {
-      // Step 1: fetch top anime
-      interface AnimeEntry { id: number; title: string; }
-      const animeList: AnimeEntry[] = [];
-      for (let page = 1; page <= 4; page++) {
-        if (cancelled) return;
-        if (page > 1) await sleep(450);
-        try {
-          const res = await fetch(`https://api.jikan.moe/v4/top/anime?page=${page}&limit=25`);
-          if (res.status === 429) { await sleep(1000); page--; continue; }
+      setLoadingProgress('Buscando animes populares...');
+      const animeList: { id: number; title: string }[] = [];
+      try {
+        const res = await fetch('https://api.jikan.moe/v4/top/anime?page=1&limit=25');
+        if (res.ok) {
           const d = await res.json();
-          if (!d?.data || d.data.length === 0) break;
-          d.data.forEach((a: any) => { if (a.mal_id) animeList.push({ id: a.mal_id, title: a.title || a.name || 'Desconhecido' }); });
-        } catch {}
-      }
+          if (d?.data) d.data.slice(0, 15).forEach((a: any) => { if (a.mal_id) animeList.push({ id: a.mal_id, title: a.title || 'Desconhecido' }); });
+        }
+      } catch {}
 
-      // Step 2: fetch characters for each anime
       for (let i = 0; i < animeList.length; i++) {
         if (cancelled) return;
-        await sleep(450);
         const anime = animeList[i];
+        setLoadingProgress(`Carregando ${anime.title}... (${i + 1}/${animeList.length})`);
+        await sleep(800);
         try {
           const res = await fetch(`https://api.jikan.moe/v4/anime/${anime.id}/characters`);
-          if (res.status === 429) { await sleep(1000); i--; continue; }
+          if (res.status === 429) { await sleep(1500); i--; continue; }
           const d = await res.json();
           if (!d?.data) continue;
           d.data.forEach((entry: any) => {
@@ -143,27 +138,12 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
               role: entry.role,
             });
           });
-          if (all.length % 200 === 0) setChars([...all]);
         } catch {}
       }
 
-      // Fallback: series name from character endpoint for any missing
       if (!cancelled) {
-        const missing = all.filter(c => c.series === 'Desconhecido' && c.id.startsWith('anime_'));
-        for (const c of missing) {
-          if (cancelled) return;
-          await sleep(450);
-          try {
-            const res = await fetch(`https://api.jikan.moe/v4/characters/${c.id.replace('anime_', '')}/full`);
-            if (res.status === 429) { await sleep(1000); continue; }
-            const d = await res.json();
-            if (d?.data) {
-              const ae = d.data.anime?.find((a: any) => a?.anime?.name);
-              if (ae) { c.series = ae.anime.name; c.role = ae.role; }
-            }
-          } catch {}
-        }
-        setChars([...all]);
+        setChars(all);
+        setLoadingProgress('');
         sessionStorage.setItem('animeGachaChars6', JSON.stringify(all));
       }
     };
@@ -441,7 +421,20 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
             {chars.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3 animate-pulse">🎴</div>
-                <p className="text-slate-400 text-xs">Carregando personagens da Jikan API...</p>
+                <p className="text-slate-400 text-xs mb-2">Carregando personagens...</p>
+                {loadingProgress && (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-48 h-1.5 bg-[#1a1c2a] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: '0%' }}
+                        animate={{ width: '100%' }}
+                        transition={{ duration: 20, ease: 'linear' }}
+                        className="h-full bg-gradient-to-r from-yellow-500 to-amber-500 rounded-full"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500">{loadingProgress}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <>
