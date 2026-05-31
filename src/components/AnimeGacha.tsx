@@ -644,57 +644,66 @@ export default function AnimeGacha({ balance, onUpdateBalance, onAddBetHistory, 
                   </button>
                 )}
 
-                {seriesList.filter(s => !seriesFilter || s === seriesFilter).map(series => {
-                  const charsInSeries = uniqueCollection.filter(c => c.setSeries === series);
-                  if (charsInSeries.length === 0) return null;
-                  return (
-                    <div key={series} className="bg-[#0d0e16]/60 rounded-xl border border-[#1a1c2a] overflow-hidden">
-                      <button onClick={() => setSeriesFilter(seriesFilter === series ? null : series)}
-                        className="w-full px-3 py-2 bg-gradient-to-r from-[#1a1c2e]/80 via-[#0f111f]/80 to-[#1a1c2e]/80 border-b border-[#1a1c2a] flex items-center justify-between cursor-pointer hover:from-[#222542]/80 hover:to-[#16182a]/80 transition-all duration-150">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[11px] font-bold text-white truncate">{series}</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-[9px] text-slate-500 font-mono">{charsInSeries.length}</span>
-                          <svg className={`w-3 h-3 text-slate-500 transition-transform duration-150 ${seriesFilter === series ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-                        </div>
+                {/* Anime tabs */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  <button onClick={() => setSeriesFilter(null)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-bold border cursor-pointer transition-all duration-150 ${
+                      !seriesFilter
+                        ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.15)]'
+                        : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:text-white hover:border-slate-500'
+                    }`}>
+                    Todos
+                  </button>
+                  {seriesList.map(series => {
+                    const count = uniqueCollection.filter(c => c.setSeries === series).length;
+                    if (count === 0) return null;
+                    return (
+                      <button key={series} onClick={() => setSeriesFilter(seriesFilter === series ? null : series)}
+                        className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-bold border cursor-pointer transition-all duration-150 whitespace-nowrap ${
+                          seriesFilter === series
+                            ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.15)]'
+                            : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:text-white hover:border-slate-500'
+                        }`}>
+                        {series} <span className="text-[7px] opacity-60 ml-1">({count})</span>
                       </button>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 p-2">
-                        {charsInSeries.map(char => {
-                          const rarityIdx = RARITY.indexOf(char.rarity);
-                          const rIdx = rarityIdx >= 0 ? rarityIdx : 0;
-                          const qty = char.quantity || 1;
-                          return (
-                          <div key={char.id}
-                            className={`bg-gradient-to-b ${RARITY_BG[rIdx]} border ${getRarityBorder(rIdx)} rounded-lg overflow-hidden relative group`}>
-                            <div className="aspect-[3/4] bg-[#06070d] relative overflow-hidden">
-                              {char.imageUrl ? (
-                                <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover"
-                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              ) : null}
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xl font-black text-white/30">{initials(char.name)}</span>
-                              </div>
-                            </div>
-                            <div className="p-1 text-center">
-                              <p className="text-[7px] font-bold text-slate-200 truncate leading-tight">{char.name}</p>
-                              <div className={`text-[7px] ${RARITY_COLORS[rIdx]}`}>{'⭐'.repeat(rIdx + 1)}</div>
-                              <p className="text-[5px] text-slate-500 truncate mt-0.5">{char.setSeries}</p>
-                              {qty > 1 && <span className="text-[7px] text-slate-500">×{qty}</span>}
-                            </div>
-                            {qty > 1 && (
-                              <button onClick={() => handleSellCard(char.id)}
-                                className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 z-10">
-                                R$ {getCardValue(rIdx).toFixed(2)}
-                              </button>
+                    );
+                  })}
+                </div>
+
+                {/* Characters grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
+                  {(seriesFilter ? uniqueCollection.filter(c => c.setSeries === seriesFilter) : uniqueCollection).map(char => {
+                    const rarityIdx = RARITY.indexOf(char.rarity);
+                    const rIdx = rarityIdx >= 0 ? rarityIdx : 0;
+                    const qty = char.quantity || 1;
+                    return (
+                      <div key={char.id}
+                        className={`bg-gradient-to-b ${RARITY_BG[rIdx]} border ${getRarityBorder(rIdx)} rounded-lg overflow-hidden relative group`}>
+                        <div className="aspect-[3/4] bg-[#06070d] relative overflow-hidden">
+                          {char.imageUrl ? (
+                            <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : null}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xl font-black text-white/30">{initials(char.name)}</span>
+                          </div>
+                        </div>
+                        <div className="p-1 text-center">
+                          <p className="text-[7px] font-bold text-slate-200 truncate leading-tight">{char.name}</p>
+                          <div className={`text-[7px] ${RARITY_COLORS[rIdx]}`}>{'⭐'.repeat(rIdx + 1)}</div>
+                          {!seriesFilter && <p className="text-[5px] text-slate-500 truncate mt-0.5">{char.setSeries}</p>}
+                          {qty > 1 && <span className="text-[7px] text-slate-500">×{qty}</span>}
+                        </div>
+                        {qty > 1 && (
+                          <button onClick={() => handleSellCard(char.id)}
+                            className="absolute top-0.5 right-0.5 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[6px] font-bold px-1 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 z-10">
+                            R$ {getCardValue(rIdx).toFixed(2)}
+                          </button>
                             )}
                           </div>
-                          );
-                        })}
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
               </>
             )}
           </motion.div>
