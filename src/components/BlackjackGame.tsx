@@ -3,11 +3,13 @@ import { Play, DollarSign, Zap, Sparkles, Swords, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 interface BlackjackGameProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
   onAddBetHistory?: (bet: PlacedBet) => void;
+  userId: string;
 }
 
 type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
@@ -99,7 +101,7 @@ function CardView({ card, index }: { card: Card; index: number; key?: string | n
   );
 }
 
-export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistory }: BlackjackGameProps) {
+export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistory, userId }: BlackjackGameProps) {
   const [stake, setStake] = useState('');
   const [status, setStatus] = useState<'betting' | 'playing' | 'dealer_turn' | 'settled'>('betting');
   const [deck, setDeck] = useState<Card[]>([]);
@@ -224,6 +226,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         if (isWin) {
           setPayout(payoutAmt);
           onUpdateBalance(payoutAmt);
+          updateMissionProgress(userId, 'blackjack_wins', 1).catch(() => {});
           setStats(s => ({
             ...s,
             wins: s.wins + 1,

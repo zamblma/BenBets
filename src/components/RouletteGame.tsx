@@ -3,11 +3,13 @@ import { DollarSign, Play, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 interface RouletteGameProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
   onAddBetHistory?: (bet: PlacedBet) => void;
+  userId: string;
 }
 
 const NUMBERS: { n: number; color: 'red' | 'black' | 'green' }[] = [
@@ -77,7 +79,7 @@ const BET_OPTIONS: { label: string; betType: BetType; payout: number; color: str
   { label: '3ª Dúzia', betType: { type: 'dozen', dozen: 3 }, payout: 3, color: 'text-lime-400 border-lime-500/40', indicator: '3️⃣' },
 ];
 
-export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory }: RouletteGameProps) {
+export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory, userId }: RouletteGameProps) {
   const [stake, setStake] = useState('');
   const [selectedBet, setSelectedBet] = useState<BetType | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -123,6 +125,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
     setResult(null);
     setPayout(0);
     setStats(s => ({ ...s, totalBets: s.totalBets + 1 }));
+    updateMissionProgress(userId, 'roulette_spins', 1).catch(() => {});
 
     const targetNum = Math.floor(Math.random() * 37);
     const targetEntry = NUMBERS.find(n => n.n === targetNum)!;

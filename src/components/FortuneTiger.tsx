@@ -3,11 +3,13 @@ import { Sparkles, Zap, DollarSign, Award, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 interface FortTigerProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
   onAddBetHistory: (bet: PlacedBet) => void;
+  userId: string;
 }
 
 interface SymbolDef {
@@ -44,7 +46,7 @@ const getPayout = (count: number, payouts: Record<number, number>): number => {
   return 0;
 };
 
-export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory }: FortTigerProps) {
+export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory, userId }: FortTigerProps) {
   const [grid, setGrid] = useState<SymbolDef[][]>(
     Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => SYMBOLS[3]))
   );
@@ -78,6 +80,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     setShowFortune(false);
     setShowWinOverlay(false);
     setTotalSpins(p => p + 1);
+    updateMissionProgress(userId, 'fortune_spins', 1).catch(() => {});
 
     let ticks = 0;
     const interval = setInterval(() => {

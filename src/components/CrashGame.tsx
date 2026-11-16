@@ -3,16 +3,18 @@ import { Trophy, History, AlertTriangle, Zap, DollarSign, TrendingUp, Plane, Bar
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 interface CrashGameProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
   onAddBetHistory: (bet: PlacedBet) => void;
+  userId: string;
 }
 
 type GameStatus = 'idle' | 'running' | 'crashed' | 'cashed_out';
 
-export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }: CrashGameProps) {
+export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, userId }: CrashGameProps) {
   const [status, setStatus] = useState<GameStatus>('idle');
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [stake, setStake] = useState<string>('');
@@ -212,6 +214,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory }:
     onUpdateBalance(winAmt);
     setLastWinAmount(winAmt);
     setStatus('cashed_out');
+    updateMissionProgress(userId, 'crash_cashout', 1).catch(() => {});
 
     const newBet: PlacedBet = {
       id: `bet-crash-${Date.now()}`,

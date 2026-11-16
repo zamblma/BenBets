@@ -3,6 +3,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
 import type { PokemonCard } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 const API_BASE = 'https://api.pokemontcg.io/v2';
 const PACK_BASE_PRICE = 14.90;
@@ -280,6 +281,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
     play('reveal');
     onUpdateBalance(-selectedOption.price);
+    updateMissionProgress(userId, 'pokemon_packs', 1).catch(() => {});
     setOpening(true);
     setPackResult([]);
     setRevealingIndex(-1);

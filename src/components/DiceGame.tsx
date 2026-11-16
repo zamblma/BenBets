@@ -3,11 +3,13 @@ import { Play, DollarSign, Sparkles, Dices } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
+import { updateMissionProgress } from '../firebase/db';
 
 interface DiceGameProps {
   balance: number;
   onUpdateBalance: (amount: number) => void;
   onAddBetHistory?: (bet: PlacedBet) => void;
+  userId: string;
 }
 
 const DICE_FACES: Record<number, string> = {
@@ -44,7 +46,7 @@ function DiceFace({ value }: { value: number }) {
   );
 }
 
-export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: DiceGameProps) {
+export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, userId }: DiceGameProps) {
   const [stake, setStake] = useState('');
   const [betTab, setBetTab] = useState<BetTab>('overunder');
   const [selectedBet, setSelectedBet] = useState<BetSelection | null>(null);
@@ -82,6 +84,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory }: 
     setResult('');
     setPayout(0);
     setStats(s => ({ ...s, totalRolls: s.totalRolls + 1 }));
+    updateMissionProgress(userId, 'dice_rolls', 1).catch(() => {});
 
     let rollCount = 0;
     const maxRolls = 20;

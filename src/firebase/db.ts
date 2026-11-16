@@ -297,7 +297,11 @@ export async function updateMissionProgress(uid: string, missionId: string, incr
   const data = snap.data();
   const missions: Record<string, MissionProgress> = data.missions || {};
   const today = new Date().toDateString();
-  const m = missions[missionId] || { current: 0, completed: false, claimed: false, date: today };
+  let m = missions[missionId];
+  // Reset diário: se a missão pertence a outro dia, zera o progresso
+  if (!m || m.date !== today) {
+    m = { current: 0, completed: false, claimed: false, date: today };
+  }
   if (m.completed && !m.claimed) return; // waiting claim
   if (m.claimed) return; // already done
   m.current += increment;
@@ -314,8 +318,10 @@ export async function claimMissionReward(uid: string, missionId: string) {
   if (!snap.exists()) return;
   const data = snap.data();
   const missions: Record<string, MissionProgress> = data.missions || {};
+  const today = new Date().toDateString();
   const m = missions[missionId];
-  if (!m || !m.completed || m.claimed) return;
+  // Só permite resgate do dia atual (reset a cada 24h acontece em getMissions/updateMissionProgress)
+  if (!m || m.date !== today || !m.completed || m.claimed) return;
   const missionDef = DAILY_MISSIONS.find(x => x.id === missionId);
   if (!missionDef) return;
   m.claimed = true;

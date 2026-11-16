@@ -92,26 +92,36 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
-      if (user) {
-        const data = await getUserData(user.uid);
-        if (data) {
-          setBalance(data.balance);
-          setPlacedBets(data.placedBets || []);
-          setTransactions(data.transactions || []);
-          setPokemonCollection(data.pokemonCollection || []);
-        setWorldCupCollection(data.worldCupCollection || []);
-        setKpopCollection(data.kpopCollection || []);
-        setCs2Collection(data.cs2Collection || []);
-        setAnimeCollection(data.animeCollection || []);
-          setUserName(data.displayName || '');
-          if (data.transactions.length === 0 && data.balance === 20) {
-            setShowBonus(true);
-            setTimeout(() => setShowBonus(false), 4500);
+      try {
+        if (user) {
+          const data = await getUserData(user.uid);
+          if (data) {
+            setBalance(data.balance ?? 20);
+            setPlacedBets(data.placedBets || []);
+            const txs = Array.isArray(data.transactions) ? data.transactions : [];
+            setTransactions(txs);
+            setPokemonCollection(data.pokemonCollection || []);
+            setWorldCupCollection(data.worldCupCollection || []);
+            setKpopCollection(data.kpopCollection || []);
+            setCs2Collection(data.cs2Collection || []);
+            setAnimeCollection(data.animeCollection || []);
+            setUserName(data.displayName || '');
+            if (txs.length === 0 && (data.balance ?? 20) === 20) {
+              setShowBonus(true);
+              setTimeout(() => setShowBonus(false), 4500);
+            }
+          } else {
+            // Documento de usuário não existe ainda: usar padrão
+            setBalance(20);
           }
         }
+      } catch (err) {
+        console.error('Falha ao carregar dados do usuário:', err);
+        setBalance(20); // fallback para não travar a tela
+      } finally {
+        setAuthLoading(false);
+        setInitialDataLoaded(true);
       }
-      setAuthLoading(false);
-      setInitialDataLoaded(true);
     });
     return () => unsub();
   }, []);
@@ -129,10 +139,27 @@ export default function App() {
   }, [balance, firebaseUser, initialDataLoaded]);
 
   // Load daily missions
+  const loadMissions = async () => {
+    if (!firebaseUser) return;
+    try {
+      const rec = await getMissions(firebaseUser.uid);
+      setMissionsRecord(rec);
+    } catch { /* keep previous state */ }
+  };
+
   useEffect(() => {
     if (!firebaseUser) return;
-    getMissions(firebaseUser.uid).then(setMissionsRecord);
+    loadMissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser]);
+
+  // Atualiza o estado das missões enquanto o modal estiver aberto
+  useEffect(() => {
+    if (!showMissions || !firebaseUser) return;
+    const interval = setInterval(loadMissions, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMissions, firebaseUser]);
 
   const handleClaimMission = async (missionId: string) => {
     if (!firebaseUser) return;
@@ -607,8 +634,8 @@ export default function App() {
             </button>
 
             {/* Daily Missions */}
-            <button 
-              onClick={() => setShowMissions(true)}
+            <button
+              onClick={() => { setShowMissions(true); loadMissions(); }}
               className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-amber-400 rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
               title="Missões Diárias"
             >
@@ -759,19 +786,19 @@ export default function App() {
                     ← Voltar ao Menu de Cassino
                   </button>
                   {selectedCasinoGame === 'aviator' && (
-                    <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                    <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                   )}
                   {selectedCasinoGame === 'blackjack' && (
-                    <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                    <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                   )}
                   {selectedCasinoGame === 'roulette' && (
-                    <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                    <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                   )}
                   {selectedCasinoGame === 'dice' && (
-                    <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                    <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                   )}
                   {selectedCasinoGame === 'fortunetiger' && (
-                    <FortuneTiger balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} />
+                    <FortuneTiger balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                   )}
                 </div>
               )}
