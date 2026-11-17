@@ -88,39 +88,75 @@ export default function App() {
   const [showMissions, setShowMissions] = useState(false);
   const [missionsRecord, setMissionsRecord] = useState<Record<string, MissionProgress>>({});
 
+  // Cache local do usuário (backup quando o Firestore estiver indisponível)
+  const [loadError, setLoadError] = useState('');
+
   // Firebase auth listener + load user data
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+      if (!user) {
+        setInitialDataLoaded(false);
+        setAuthLoading(false);
+        return;
+      }
+
+      const applyData = (d: any) => {
+        setBalance(d.balance ?? 20);
+        setPlacedBets(d.placedBets || []);
+        const txs = Array.isArray(d.transactions) ? d.transactions : [];
+        setTransactions(txs);
+        setPokemonCollection(d.pokemonCollection || []);
+        setWorldCupCollection(d.worldCupCollection || []);
+        setKpopCollection(d.kpopCollection || []);
+        setCs2Collection(d.cs2Collection || []);
+        setAnimeCollection(d.animeCollection || []);
+        setUserName(d.displayName || '');
+      };
+      const saveLocal = (d: any) => {
+        try { localStorage.setItem(`benbets_user_${user.uid}`, JSON.stringify(d)); } catch { /* quota cheia */ }
+      };
+      const loadLocal = (): any | null => {
+        try {
+          const raw = localStorage.getItem(`benbets_user_${user.uid}`);
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      };
+
+      let gotData = false;
       try {
-        if (user) {
-          const data = await getUserData(user.uid);
-          if (data) {
-            setBalance(data.balance ?? 20);
-            setPlacedBets(data.placedBets || []);
-            const txs = Array.isArray(data.transactions) ? data.transactions : [];
-            setTransactions(txs);
-            setPokemonCollection(data.pokemonCollection || []);
-            setWorldCupCollection(data.worldCupCollection || []);
-            setKpopCollection(data.kpopCollection || []);
-            setCs2Collection(data.cs2Collection || []);
-            setAnimeCollection(data.animeCollection || []);
-            setUserName(data.displayName || '');
-            if (txs.length === 0 && (data.balance ?? 20) === 20) {
-              setShowBonus(true);
-              setTimeout(() => setShowBonus(false), 4500);
-            }
-          } else {
-            // Documento de usuário não existe ainda: usar padrão
-            setBalance(20);
+        const data = await getUserData(user.uid);
+        if (data) {
+          applyData(data);
+          saveLocal(data);
+          gotData = true;
+          const txs = Array.isArray(data.transactions) ? data.transactions : [];
+          if (txs.length === 0 && (data.balance ?? 20) === 20) {
+            setShowBonus(true);
+            setTimeout(() => setShowBonus(false), 4500);
           }
+        } else {
+          // Documento de usuário não existe: apenas padrão, sem marcar como carregado
+          setBalance(20);
+          gotData = false;
         }
       } catch (err) {
         console.error('Falha ao carregar dados do usuário:', err);
-        setBalance(20); // fallback para não travar a tela
+        const cached = loadLocal();
+        if (cached) {
+          applyData(cached);
+          gotData = true;
+          console.warn('[BenBets] Firestore indisponível, usando cache local.');
+        } else {
+          setBalance(20);
+          gotData = false;
+          setLoadError('Não foi possível carregar seus dados do servidor. Verifique sua conexão ou faça login novamente.');
+        }
       } finally {
         setAuthLoading(false);
-        setInitialDataLoaded(true);
+        // Só libera o sync de escrita para o Firestore se temos dados reais
+        // (nunca sobrescreve o banco com o padrão de R$ 20)
+        setInitialDataLoaded(gotData);
       }
     });
     return () => unsub();
@@ -133,7 +169,16 @@ export default function App() {
     syncTimer.current = setTimeout(async () => {
       try {
         await updateBalance(firebaseUser.uid, balance);
-      } catch {}
+      } catch { /* Firestore indisponível: o cache local já tem o saldo */ }
+      // Manter o cache local atualizado mesmo se o Firestore falhar
+      try {
+        const cached = localStorage.getItem(`benbets_user_${firebaseUser.uid}`);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(`benbets_user_${firebaseUser.uid}`, JSON.stringify({
+          ...parsed,
+          balance,
+        }));
+      } catch { /* quota cheia */ }
     }, 500);
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [balance, firebaseUser, initialDataLoaded]);
@@ -685,6 +730,21 @@ export default function App() {
                 </button>
               ))}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Aviso de falha ao carregar dados do servidor */}
+      <AnimatePresence>
+        {loadError && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 text-xs font-medium px-3 py-2 text-center flex items-center justify-center gap-2"
+          >
+            <span>⚠️ {loadError}</span>
+            <button onClick={() => setLoadError('')} className="text-amber-400 hover:text-amber-200 cursor-pointer font-bold">✕</button>
           </motion.div>
         )}
       </AnimatePresence>
