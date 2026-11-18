@@ -28,33 +28,30 @@ function writeStorage(key: string, data: Record<string, string>) {
 export async function fetchWikiThumbnails(
   titles: string[],
   thumbSize = 450,
-  cacheKey?: string
+  cacheKey?: string,
+  lang: 'en' | 'ko' = 'en'
 ): Promise<Record<string, string>> {
   const uniqueTitles = Array.from(new Set(titles.map((t) => t.trim()).filter(Boolean)));
   if (uniqueTitles.length === 0) return {};
 
   const result: Record<string, string> = {};
+  const storageFullKey = cacheKey ? `${STORAGE_PREFIX}${lang}_${cacheKey}` : '';
+  const storedMap = storageFullKey ? readStorage(storageFullKey) : null;
 
-  if (cacheKey) {
-    const cached = readStorage(STORAGE_PREFIX + cacheKey);
-    if (cached) {
-      Object.assign(memoryCache, cached);
+  if (storedMap) {
+    for (const [k, v] of Object.entries(storedMap)) {
+      if (v) memoryCache[`${lang}:${thumbSize}:${k}`] = v;
     }
   }
 
   const missing: string[] = [];
   for (const title of uniqueTitles) {
-    const memKey = `${thumbSize}:${title}`;
+    const memKey = `${lang}:${thumbSize}:${title}`;
     if (memoryCache[memKey]) {
       result[title] = memoryCache[memKey];
-    } else if (cacheKey) {
-      const cached = readStorage(STORAGE_PREFIX + cacheKey);
-      if (cached && cached[title]) {
-        memoryCache[memKey] = cached[title];
-        result[title] = cached[title];
-      } else {
-        missing.push(title);
-      }
+    } else if (storedMap && storedMap[title]) {
+      memoryCache[memKey] = storedMap[title];
+      result[title] = storedMap[title];
     } else {
       missing.push(title);
     }
@@ -62,7 +59,7 @@ export async function fetchWikiThumbnails(
 
   if (missing.length === 0) return result;
 
-  const dedupeKey = `${thumbSize}:${cacheKey || ''}:${missing.join('|')}`;
+  const dedupeKey = `${lang}:${thumbSize}:${cacheKey || ''}:${missing.join('|')}`;
   const existingPromise = inflightMap.get(dedupeKey);
   if (existingPromise) {
     const fetched = await existingPromise;
@@ -81,7 +78,7 @@ export async function fetchWikiThumbnails(
       batches.map(async (batch) => {
         try {
           const joined = batch.join('|');
-          const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+          const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
             joined
           )}&prop=pageimages&piprop=thumbnail&pithumbsize=${thumbSize}&redirects=1&format=json&origin=*`;
           const res = await fetch(url);
@@ -129,7 +126,7 @@ export async function fetchWikiThumbnails(
 
             if (thumb) {
               fetchedAll[original] = thumb;
-              memoryCache[`${thumbSize}:${original}`] = thumb;
+              memoryCache[`${lang}:${thumbSize}:${original}`] = thumb;
             }
           }
         } catch {
@@ -138,9 +135,9 @@ export async function fetchWikiThumbnails(
       })
     );
 
-    if (cacheKey && Object.keys(fetchedAll).length > 0) {
-      const existing = readStorage(STORAGE_PREFIX + cacheKey) || {};
-      writeStorage(STORAGE_PREFIX + cacheKey, { ...existing, ...fetchedAll });
+    if (storageFullKey && Object.keys(fetchedAll).length > 0) {
+      const existing = readStorage(storageFullKey) || {};
+      writeStorage(storageFullKey, { ...existing, ...fetchedAll });
     }
 
     return fetchedAll;

@@ -79,18 +79,36 @@ const BET_OPTIONS: { label: string; betType: BetType; payout: number; color: str
   { label: '3ª Dúzia', betType: { type: 'dozen', dozen: 3 }, payout: 3, color: 'text-lime-400 border-lime-500/40', indicator: '3️⃣' },
 ];
 
+const EUROPEAN_WHEEL_ORDER = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
+  10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
+];
+
 export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory, userId }: RouletteGameProps) {
-  const [stake, setStake] = useState('');
+  const [stake, setStake] = useState('5');
   const [selectedBet, setSelectedBet] = useState<BetType | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
   const [payout, setPayout] = useState(0);
   const [lastResult, setLastResult] = useState<{ number: number; color: string } | null>(null);
+  const [history, setHistory] = useState<{ number: number; color: string }[]>([
+    { number: 17, color: 'black' },
+    { number: 32, color: 'red' },
+    { number: 0, color: 'green' },
+    { number: 24, color: 'black' },
+    { number: 9, color: 'red' },
+  ]);
   const [stats, setStats] = useState({ wins: 0, losses: 0, totalBets: 0, biggestWin: 0 });
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
   const [spinAngle, setSpinAngle] = useState(0);
   const { play } = useSound();
+
+  const adjustStake = (factor: number) => {
+    if (spinning) return;
+    const curr = parseFloat(stake) || 5;
+    setStake(Math.max(1, Number((curr * factor).toFixed(2))).toString());
+  };
 
   const getPayoutForBet = (bet: BetType, num: number): number => {
     const entry = NUMBERS.find(n => n.n === num)!;
@@ -132,13 +150,20 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
     const targetColor = targetEntry.color;
     const colorMap: Record<string, string> = { red: '#dc2626', black: '#1e293b', green: '#16a34a' };
 
-    const angle = 1080 + (targetNum * (360 / 37));
-    setSpinAngle(prev => prev + angle + Math.random() * 360);
+    const wheelIdx = EUROPEAN_WHEEL_ORDER.indexOf(targetNum);
+    const sliceAngle = 360 / 37;
+    const desiredFinalMod = (360 - wheelIdx * sliceAngle) % 360;
+    setSpinAngle((prev) => {
+      const base = prev - (prev % 360);
+      return base + 1440 + desiredFinalMod;
+    });
 
     setTimeout(() => {
       setSpinning(false);
-      setResult({ number: targetNum, color: targetColor });
-      setLastResult({ number: targetNum, color: targetColor });
+      const outcome = { number: targetNum, color: targetColor };
+      setResult(outcome);
+      setLastResult(outcome);
+      setHistory((prev) => [outcome, ...prev.slice(0, 9)]);
 
       const multiplier = getPayoutForBet(actualBet, targetNum);
       if (multiplier > 0) {
@@ -146,7 +171,7 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
         const winAmount = playCost * multiplier;
         setPayout(winAmount);
         onUpdateBalance(winAmount);
-          setStats(s => winAmount > stats.biggestWin ? { ...s, wins: s.wins + 1, biggestWin: winAmount } : { ...s, wins: s.wins + 1 });
+        setStats(s => ({ ...s, wins: s.wins + 1, biggestWin: Math.max(s.biggestWin, winAmount) }));
 
         if (onAddBetHistory) {
           onAddBetHistory({
@@ -219,25 +244,38 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
         </div>
       </div>
 
+      {/* Recent 10 History Strip */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <span className="text-[9px] font-mono text-slate-500 uppercase shrink-0 mr-1">Últimos 10:</span>
+        {history.map((h, i) => (
+          <span
+            key={`${h.number}-${i}`}
+            className={`w-7 h-7 rounded-lg border text-[10px] font-mono font-black flex items-center justify-center shrink-0 text-white ${colorBgClass(h.color)}`}
+          >
+            {h.number}
+          </span>
+        ))}
+      </div>
+
       {/* Wheel + Last Result */}
       <div className="flex items-center gap-4">
-        <div className="relative w-24 h-24 md:w-28 md:h-28 shrink-0">
+        <div className="relative w-28 h-28 md:w-32 md:h-32 shrink-0">
           <motion.div
             ref={wheelRef}
             animate={{ rotate: spinAngle }}
-            transition={{ duration: 2.5, ease: [0.25, 0.1, 0.25, 1] }}
-            className={`w-full h-full rounded-full bg-gradient-to-br from-slate-600 via-slate-700 to-slate-900 border-2 border-slate-500 flex items-center justify-center transition-shadow duration-500 ${
-              spinning ? 'shadow-[0_0_35px_rgba(234,179,8,0.5)]' : 'shadow-[0_0_15px_rgba(0,0,0,0.5)]'
+            transition={{ duration: 2.5, ease: [0.22, 0.08, 0.22, 1] }}
+            className={`w-full h-full rounded-full bg-gradient-to-br from-amber-500/40 via-slate-700 to-slate-950 border-2 border-amber-400/60 flex items-center justify-center transition-shadow duration-500 ${
+              spinning ? 'shadow-[0_0_38px_rgba(234,179,8,0.55)]' : 'shadow-[0_0_16px_rgba(0,0,0,0.6)]'
             }`}
           >
             <div className="w-full h-full rounded-full relative overflow-hidden">
-              {Array.from({ length: 37 }, (_, i) => {
+              {EUROPEAN_WHEEL_ORDER.map((num, i) => {
                 const angle = (i / 37) * 360;
-                const entry = NUMBERS[i];
-                const colorMap: Record<string, string> = { red: '#dc2626', black: '#1e293b', green: '#16a34a' };
+                const entry = NUMBERS[num];
+                const colorMap: Record<string, string> = { red: '#dc2626', black: '#0f172a', green: '#16a34a' };
                 return (
-                  <div key={i}
-                    className="absolute top-0 left-1/2 w-[2px] origin-bottom"
+                  <div key={num}
+                    className="absolute top-0 left-1/2 w-[3px] -ml-[1.5px] origin-bottom"
                     style={{
                       height: '50%',
                       transform: `rotate(${angle}deg)`,
@@ -246,12 +284,12 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
                   />
                 );
               })}
-              <div className="absolute inset-2 rounded-full bg-gradient-to-b from-[#141624] to-[#080a12] border border-[#2a2d4e] flex items-center justify-center">
-                <span className="text-[10px] font-bold text-yellow-400/70 tracking-widest">Roleta</span>
+              <div className="absolute inset-3 rounded-full bg-gradient-to-b from-[#141624] to-[#080a12] border-2 border-amber-400/45 flex items-center justify-center shadow-inner">
+                <span className="text-[10px] font-black text-amber-300 tracking-widest">EU 37</span>
               </div>
             </div>
           </motion.div>
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-yellow-400 drop-shadow-[0_0_4px_rgba(234,179,8,0.6)]" />
+          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-r-[7px] border-t-[10px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_6px_rgba(234,179,8,0.8)]" />
         </div>
         <div className="flex-1">
           {lastResult && (
@@ -338,8 +376,12 @@ export default function RouletteGame({ balance, onUpdateBalance, onAddBetHistory
           <label className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider flex items-center gap-1 mb-1.5">
             <DollarSign className="w-3 h-3" /> Valor da Aposta (R$)
           </label>
-          <input type="number" value={stake} onChange={e => setStake(e.target.value)}
-            className="w-full bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand transition-all duration-150" />
+          <div className="flex gap-1.5">
+            <input type="number" value={stake} onChange={e => setStake(e.target.value)}
+              className="flex-1 bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand transition-all duration-150" />
+            <button onClick={() => adjustStake(0.5)} disabled={spinning} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer disabled:opacity-40">1/2</button>
+            <button onClick={() => adjustStake(2)} disabled={spinning} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer disabled:opacity-40">2×</button>
+          </div>
         </div>
         <div className="flex gap-1.5">
           {[1, 2, 5, 10, 25].map(val => (

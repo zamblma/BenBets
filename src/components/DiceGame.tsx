@@ -38,26 +38,63 @@ const SUM_BETS: SumBet[] = [
   { type: 'sum', value: 12, label: '12', payout: 35 },
 ];
 
+const PIP_LAYOUTS: Record<number, number[]> = {
+  1: [4],
+  2: [2, 6],
+  3: [2, 4, 6],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
+
 function DiceFace({ value }: { value: number }) {
+  const activePips = new Set(PIP_LAYOUTS[value] || [4]);
   return (
-    <div className="w-24 h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 bg-gradient-to-br from-amber-100 via-yellow-50 to-amber-200 rounded-2xl border-2 border-amber-700 flex items-center justify-center shadow-[0_6px_0_rgba(120,80,20,0.4),0_10px_30px_rgba(0,0,0,0.4)] relative">
-      <span className="text-5xl md:text-6xl lg:text-7xl select-none text-gray-900">{DICE_FACES[value]}</span>
+    <div className="w-24 h-24 md:w-28 md:h-28 bg-gradient-to-br from-white via-slate-100 to-slate-300 rounded-2xl border-2 border-slate-400 p-3.5 md:p-4 grid grid-cols-3 grid-rows-3 gap-1.5 place-items-center shadow-[0_7px_0_rgba(100,116,139,0.55),0_14px_30px_rgba(0,0,0,0.55)] relative">
+      <div className="absolute inset-1 rounded-xl border border-white/70 pointer-events-none" />
+      {Array.from({ length: 9 }, (_, i) => {
+        const hasPip = activePips.has(i);
+        return (
+          <span
+            key={i}
+            className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-full transition-all ${
+              hasPip
+                ? value === 1
+                  ? 'bg-rose-600 shadow-[inset_0_2px_3px_rgba(0,0,0,0.4)]'
+                  : 'bg-slate-900 shadow-[inset_0_2px_3px_rgba(0,0,0,0.5)]'
+                : 'bg-transparent'
+            }`}
+          />
+        );
+      })}
     </div>
   );
 }
 
+const SUM_PROB: Record<number, string> = {
+  2: '2.8%', 3: '5.6%', 4: '8.3%', 5: '11.1%', 6: '13.9%',
+  7: '16.7%', 8: '13.9%', 9: '11.1%', 10: '8.3%', 11: '5.6%', 12: '2.8%',
+};
+
 export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, userId }: DiceGameProps) {
-  const [stake, setStake] = useState('');
+  const [stake, setStake] = useState('5');
   const [betTab, setBetTab] = useState<BetTab>('overunder');
   const [selectedBet, setSelectedBet] = useState<BetSelection | null>(null);
-  const [dice1, setDice1] = useState(1);
-  const [dice2, setDice2] = useState(1);
+  const [dice1, setDice1] = useState(5);
+  const [dice2, setDice2] = useState(2);
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState<string>('');
   const [payout, setPayout] = useState(0);
   const [lastSum, setLastSum] = useState<number | null>(null);
+  const [recentSums, setRecentSums] = useState<number[]>([7, 9, 4, 11, 6]);
   const [stats, setStats] = useState({ wins: 0, losses: 0, totalRolls: 0, biggestWin: 0 });
   const { play } = useSound();
+
+  const adjustStake = (factor: number) => {
+    if (rolling) return;
+    const curr = parseFloat(stake) || 5;
+    setStake(Math.max(1, Number((curr * factor).toFixed(2))).toString());
+  };
 
   const checkWin = (d1: number, d2: number, bet: BetSelection): number => {
     const sum = d1 + d2;
@@ -101,6 +138,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
         setDice1(d1);
         setDice2(d2);
         setLastSum(d1 + d2);
+        setRecentSums((prev) => [d1 + d2, ...prev.slice(0, 9)]);
 
         const multiplier = checkWin(d1, d2, selectedBet);
         if (multiplier > 0) {
@@ -166,6 +204,25 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
           </span>
           <span className="text-[9px] text-slate-500 font-mono bg-[#0a0b12]/60 px-2 py-1 rounded-md border border-[#1b1e2e]">2 DADOS 6 LADOS</span>
         </div>
+      </div>
+
+      {/* Recent sums strip */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <span className="text-[9px] font-mono text-slate-500 uppercase shrink-0 mr-1">Últimas somas:</span>
+        {recentSums.map((s, idx) => (
+          <span
+            key={idx}
+            className={`px-2 py-0.5 rounded-lg border text-[10px] font-mono font-black shrink-0 ${
+              s === 7
+                ? 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+                : s > 7
+                ? 'bg-brand/15 border-brand/35 text-brand'
+                : 'bg-[#121625] border-[#252a40] text-slate-300'
+            }`}
+          >
+            {s}
+          </span>
+        ))}
       </div>
 
       {/* Dice Display */}
@@ -238,7 +295,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
                   : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:text-white hover:border-slate-500'
               }`}>
               <div>{bet.label}</div>
-              <div className="text-[7px] opacity-60">{bet.payout}x</div>
+              <div className="text-[7px] opacity-75">{bet.payout}x · {SUM_PROB[bet.value]}</div>
             </button>
           ))}
         </div>
@@ -255,7 +312,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
                   : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:text-white hover:border-slate-500'
               }`}>
               {bet.label}
-              <div className="text-[9px] opacity-60 mt-0.5">{bet.payout}x</div>
+              <div className="text-[9px] opacity-70 mt-0.5">{bet.payout}x · Chance: 41.7%</div>
             </button>
           ))}
         </div>
@@ -271,7 +328,7 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
                   : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:text-white hover:border-slate-500'
               }`}>
               {bet.label}
-              <div className="text-[9px] opacity-60 mt-0.5">{bet.payout}x</div>
+              <div className="text-[9px] opacity-70 mt-0.5">{bet.payout}x · Chance: 16.7%</div>
             </button>
           ))}
         </div>
@@ -283,8 +340,12 @@ export default function DiceGame({ balance, onUpdateBalance, onAddBetHistory, us
           <label className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider flex items-center gap-1 mb-1.5">
             <DollarSign className="w-3 h-3" /> Valor da Aposta (R$)
           </label>
-          <input type="number" value={stake} onChange={e => setStake(e.target.value)}
-            className="w-full bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand transition-all duration-150" />
+          <div className="flex gap-1.5">
+            <input type="number" value={stake} onChange={e => setStake(e.target.value)}
+              className="flex-1 bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand transition-all duration-150" />
+            <button onClick={() => adjustStake(0.5)} disabled={rolling} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer disabled:opacity-40">1/2</button>
+            <button onClick={() => adjustStake(2)} disabled={rolling} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer disabled:opacity-40">2×</button>
+          </div>
         </div>
         <div className="flex gap-1.5">
           {[1, 2, 5, 10, 25].map(val => (

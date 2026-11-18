@@ -51,8 +51,10 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => SYMBOLS[3]))
   );
   const [isSpinning, setIsSpinning] = useState(false);
-  const [stake, setStake] = useState('');
+  const [turboMode, setTurboMode] = useState(false);
+  const [stake, setStake] = useState('2');
   const [winAmount, setWinAmount] = useState(0);
+  const [winningChar, setWinningChar] = useState<string | null>(null);
   const [payoutMult, setPayoutMult] = useState(0);
   const [fortuneMult, setFortuneMult] = useState(0);
   const [tigerCount, setTigerCount] = useState(0);
@@ -62,7 +64,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
   const [showFortune, setShowFortune] = useState(false);
   const [showWinOverlay, setShowWinOverlay] = useState(false);
   const [winOverlayAmount, setWinOverlayAmount] = useState(0);
-  const { play, engine } = useSound();
+  const { play } = useSound();
 
   const handleSpin = () => {
     const playCost = parseFloat(stake);
@@ -70,10 +72,10 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     if (playCost > balance) { alert('Saldo insuficiente.'); return; }
 
     play('spin');
-    engine.start(380, 'sawtooth');
     onUpdateBalance(-playCost);
     setIsSpinning(true);
     setWinAmount(0);
+    setWinningChar(null);
     setPayoutMult(0);
     setFortuneMult(0);
     setTigerCount(0);
@@ -83,17 +85,17 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
     updateMissionProgress(userId, 'fortune_spins', 1).catch(() => {});
 
     let ticks = 0;
+    const maxTicks = turboMode ? 5 : 11;
+    const intervalMs = turboMode ? 55 : 80;
     const interval = setInterval(() => {
       setGrid(Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => pickSymbol())));
       ticks++;
-      const freq = 380 - (ticks / 13) * 230;
-      engine.setFreq(Math.max(150, freq));
-      if (ticks > 12) {
+      if (ticks % 2 === 1) play('tick');
+      if (ticks > maxTicks) {
         clearInterval(interval);
-        engine.stop();
         finalizeSpin(playCost);
       }
-    }, 80);
+    }, intervalMs);
   };
 
   const finalizeSpin = (playCost: number) => {
@@ -120,6 +122,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
 
     if (bestMult > 0) {
       play('win');
+      setWinningChar(bestSym?.char || null);
       const tCount = counts['🐯']?.count || 0;
       let mult = bestMult;
       let fMult = 0;
@@ -129,7 +132,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
         mult = parseFloat((bestMult * fMult).toFixed(2));
         setFortuneMult(fMult);
         setShowFortune(true);
-        setTimeout(() => setShowFortune(false), 2500);
+        setTimeout(() => setShowFortune(false), 2400);
       }
       setTigerCount(tCount);
       setPayoutMult(bestMult);
@@ -139,7 +142,7 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
       setWinAmount(payout);
       setWinOverlayAmount(payout);
       setShowWinOverlay(true);
-      setTimeout(() => setShowWinOverlay(false), 2500);
+      setTimeout(() => setShowWinOverlay(false), 2400);
       setTotalWins(p => p + 1);
       if (payout > biggestWin) setBiggestWin(payout);
 
@@ -174,6 +177,11 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
   };
 
   const handleShortcut = (val: number) => { if (!isSpinning) setStake(val.toString()); };
+  const adjustStake = (factor: number) => {
+    if (isSpinning) return;
+    const curr = parseFloat(stake) || 2;
+    setStake(Math.max(1, Number((curr * factor).toFixed(2))).toString());
+  };
 
   const winRate = totalSpins > 0 ? ((totalWins / totalSpins) * 100).toFixed(1) : '0.0';
 
@@ -242,23 +250,45 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
       {/* Grid */}
       <div className="relative bg-gradient-to-b from-[#2d1510] to-[#1a0a0a] p-1.5 rounded-2xl shadow-[inset_0_0_40px_rgba(150,30,0,0.3)] border border-[#4d2015]">
         <div className="bg-gradient-to-b from-[#1a0a0a] to-[#0d0606] border border-[#5d2a1a] rounded-xl p-4 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-yellow-400/80 font-bold">
+              🐯 Fortune Tiger 3×3
+            </span>
+            <button
+              onClick={() => setTurboMode((v) => !v)}
+              disabled={isSpinning}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer disabled:opacity-50 ${
+                turboMode
+                  ? 'bg-yellow-500/20 border-yellow-400 text-yellow-300'
+                  : 'bg-[#120707] border-[#3d1a1a] text-slate-400 hover:text-yellow-300'
+              }`}
+            >
+              ⚡ Turbo {turboMode ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
-            {grid.flat().map((symbol, idx) => (
-              <motion.div
-                key={idx}
-                animate={isSpinning ? { rotateX: [0, 180, 360] } : { rotateX: 0 }}
-                transition={{ duration: 0.2, repeat: isSpinning ? Infinity : 0 }}
-                className={`aspect-square rounded-xl bg-gradient-to-b from-[#2d1510] to-[#1a0a0a] border-2 border-[#4d2015] flex items-center justify-center text-3xl md:text-4xl select-none shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] ${symbol.char === '🐯' && winAmount > 0 && !isSpinning ? 'border-yellow-500/60 shadow-[0_0_20px_rgba(234,179,8,0.3)]' : ''}`}
-              >
-                <motion.span
-                  animate={symbol.char === '🐯' && winAmount > 0 && !isSpinning ? { scale: [1, 1.15, 1] } : {}}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
+            {grid.flat().map((symbol, idx) => {
+              const isHighlighted = !isSpinning && winAmount > 0 && (symbol.char === winningChar || symbol.char === '🐯');
+              return (
+                <motion.div
+                  key={idx}
+                  animate={isSpinning ? { rotateX: [0, 180, 360] } : { rotateX: 0 }}
+                  transition={{ duration: 0.2, repeat: isSpinning ? Infinity : 0 }}
+                  className={`aspect-square rounded-xl bg-gradient-to-b from-[#2d1510] to-[#1a0a0a] border-2 flex items-center justify-center text-3xl md:text-4xl select-none shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] ${
+                    isHighlighted
+                      ? 'border-yellow-400 shadow-[0_0_24px_rgba(234,179,8,0.45)] ring-1 ring-yellow-300/60'
+                      : 'border-[#4d2015]'
+                  }`}
                 >
-                  {symbol.char}
-                </motion.span>
-              </motion.div>
-            ))}
+                  <motion.span
+                    animate={isHighlighted ? { scale: [1, 1.15, 1] } : {}}
+                    transition={{ repeat: Infinity, duration: 1.4 }}
+                  >
+                    {symbol.char}
+                  </motion.span>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Result display */}
@@ -295,13 +325,17 @@ export default function FortuneTiger({ balance, onUpdateBalance, onAddBetHistory
           <label className="text-[9px] text-yellow-500/70 uppercase font-semibold tracking-wider flex items-center gap-1">
             <DollarSign className="w-3 h-3" /> Valor da Rodada (R$)
           </label>
-          <input
-            type="number"
-            disabled={isSpinning}
-            value={stake}
-            onChange={(e) => setStake(e.target.value)}
-            className="w-full bg-[#0a0505] border border-[#3d1a1a] focus:border-yellow-600 rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-yellow-600"
-          />
+          <div className="flex gap-1.5">
+            <input
+              type="number"
+              disabled={isSpinning}
+              value={stake}
+              onChange={(e) => setStake(e.target.value)}
+              className="flex-1 bg-[#0a0505] border border-[#3d1a1a] focus:border-yellow-600 rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-yellow-600"
+            />
+            <button onClick={() => adjustStake(0.5)} disabled={isSpinning} className="px-2.5 rounded-lg bg-[#0a0505] border border-[#3d1a1a] text-[10px] font-bold text-yellow-300 cursor-pointer disabled:opacity-40">1/2</button>
+            <button onClick={() => adjustStake(2)} disabled={isSpinning} className="px-2.5 rounded-lg bg-[#0a0505] border border-[#3d1a1a] text-[10px] font-bold text-yellow-300 cursor-pointer disabled:opacity-40">2×</button>
+          </div>
           <div className="flex gap-1.5 mt-2">
             {[1, 2, 5, 10, 25, 50].map((val) => (
               <button key={val} onClick={() => handleShortcut(val)} disabled={isSpinning}

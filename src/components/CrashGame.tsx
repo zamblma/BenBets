@@ -17,7 +17,8 @@ type GameStatus = 'idle' | 'running' | 'crashed' | 'cashed_out';
 export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, userId }: CrashGameProps) {
   const [status, setStatus] = useState<GameStatus>('idle');
   const [multiplier, setMultiplier] = useState<number>(1.0);
-  const [stake, setStake] = useState<string>('');
+  const [stake, setStake] = useState<string>('5');
+  const [autoCashout, setAutoCashout] = useState<string>('');
   const [activeStake, setActiveStake] = useState<number>(0);
   const [history, setHistory] = useState<number[]>([1.34, 4.23, 1.08, 12.44, 2.11, 1.01, 3.82]);
   const [chartPoints, setChartPoints] = useState<{x: number; y: number}[]>([{x: 0, y: 0}]);
@@ -29,6 +30,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointsRef = useRef<{x: number; y: number}[]>([{x: 0, y: 0}]);
   const animFrameRef = useRef<number>(0);
+  const autoCashoutRef = useRef<number>(0);
   const { play, engine } = useSound();
 
   useEffect(() => {
@@ -101,12 +103,18 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
       const lastX = margin + (last.x / Math.max(1, pts[pts.length - 1].x)) * drawW;
       const lastY = h - margin - (last.y / maxMult) * drawH;
 
-      const dotGrad = ctx.createRadialGradient(lastX, lastY, 0, lastX, lastY, 12);
-      dotGrad.addColorStop(0, 'rgba(0, 255, 135, 0.8)');
+      const dotGrad = ctx.createRadialGradient(lastX, lastY, 0, lastX, lastY, 18);
+      dotGrad.addColorStop(0, 'rgba(0, 255, 135, 0.95)');
+      dotGrad.addColorStop(0.5, 'rgba(0, 255, 135, 0.35)');
       dotGrad.addColorStop(1, 'rgba(0, 255, 135, 0)');
       ctx.beginPath();
-      ctx.arc(lastX, lastY, 12, 0, Math.PI * 2);
+      ctx.arc(lastX, lastY, 18, 0, Math.PI * 2);
       ctx.fillStyle = dotGrad;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
       ctx.fill();
     }
 
@@ -137,6 +145,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     play('spin');
     engine.start(80);
     onUpdateBalance(-betVal);
+    const parsedAuto = parseFloat(autoCashout);
+    autoCashoutRef.current = !isNaN(parsedAuto) && parsedAuto >= 1.05 ? parsedAuto : 0;
     setActiveStake(betVal);
     setStatus('running');
     setMultiplier(1.0);
@@ -167,6 +177,36 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
       if (elapsed * 1000 < minDuration) {
         const linear = 1 + (crashTarget - 1) * (elapsed * 1000 / minDuration);
         if (linear < nextMult) nextMult = linear;
+      }
+
+      const autoTarget = autoCashoutRef.current;
+      if (autoTarget > 0 && nextMult >= autoTarget && crashTarget >= autoTarget) {
+        clearInterval(tickRef.current!);
+        play('cashout');
+        engine.stop();
+        const winAmt = betVal * autoTarget;
+        onUpdateBalance(winAmt);
+        setMultiplier(autoTarget);
+        setLastWinAmount(winAmt);
+        setStatus('cashed_out');
+        updateMissionProgress(userId, 'crash_cashout', 1).catch(() => {});
+        onAddBetHistory({
+          id: `bet-crash-${Date.now()}`,
+          matchName: 'Aviator Crash',
+          selectionName: `Auto Cashout em ${autoTarget.toFixed(2)}x`,
+          odds: autoTarget,
+          stake: betVal,
+          potentialPayout: winAmt,
+          status: 'won',
+          placedAt: new Date().toLocaleTimeString('pt-BR'),
+          type: 'crash',
+          outcomeValue: `${autoTarget.toFixed(2)}x`,
+        });
+        setTimeout(() => {
+          setHistory(prev => [crashPointRef.current, ...prev.slice(0, 7)]);
+        }, 600);
+        setActiveStake(0);
+        return;
       }
 
       if (nextMult >= crashTarget) {
@@ -451,6 +491,24 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
                     R${val}
                   </button>
                 ))}
+              </div>
+              <div className="pt-1 flex items-center justify-between gap-2">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider shrink-0">
+                  Auto Cashout (opcional):
+                </label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1.05"
+                    placeholder="ex: 2.00"
+                    disabled={status === 'running'}
+                    value={autoCashout}
+                    onChange={(e) => setAutoCashout(e.target.value)}
+                    className="w-24 bg-[#040508] border border-[#1c1f2e] focus:border-brand rounded-lg px-2 py-1 text-xs font-mono font-bold text-brand focus:outline-none disabled:opacity-50"
+                  />
+                  <span className="text-[10px] font-mono text-slate-500">×</span>
+                </div>
               </div>
             </div>
 

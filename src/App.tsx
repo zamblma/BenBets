@@ -44,6 +44,10 @@ import BlackjackGame from './components/BlackjackGame';
 import RouletteGame from './components/RouletteGame';
 import DiceGame from './components/DiceGame';
 import FortuneTiger from './components/FortuneTiger';
+import MinesGame from './components/MinesGame';
+import PlinkoGame from './components/PlinkoGame';
+import DoubleGame from './components/DoubleGame';
+import PenaltyGame from './components/PenaltyGame';
 import LoLChests from './components/LoLChests';
 import AnimeGacha from './components/AnimeGacha';
 import PokemonTCG from './components/PokemonTCG';
@@ -71,6 +75,7 @@ export default function App() {
   const [selectedSport, setSelectedSport] = useState<string>('Home');
   const [sportFilter, setSportFilter] = useState<string>('todas');
   const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
+  const [casinoCategory, setCasinoCategory] = useState<'all' | 'originals' | 'slots' | 'table'>('all');
   const [selectedColecionavel, setSelectedColecionavel] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -977,80 +982,160 @@ export default function App() {
               currentUserId={firebaseUser.uid}
               loading={leaderboardLoading}
             />
-          ) : selectedSport === 'Cassino' ? (
-            <div className="space-y-6">
-              {selectedCasinoGame === null ? (
-                <>
-                  <div className="omnitrix-panel relative overflow-hidden p-3.5 sm:p-5 rounded-2xl">
-                    <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.10),transparent_60%)] pointer-events-none" />
-                    <div className="flex items-center gap-3 sm:gap-4 relative z-10">
-                      <div className="bg-brand/15 p-2.5 sm:p-3 rounded-xl border border-brand/30 shadow-[0_0_16px_rgba(0,255,135,0.2)]">
-                        <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-brand" />
-                      </div>
-                      <div>
-                        <h3 className="font-extrabold font-display text-white text-sm sm:text-base">🎰 Cassino BenBets</h3>
-                        <p className="text-slate-400 text-[10px] sm:text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
-                    {[
-                      { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: 'Slot 3×3 com multiplicador do tigre da sorte', gradient: 'from-yellow-500 via-amber-600 to-red-700', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🧧', badge: '🔥 Popular' },
-                      { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente — saia antes de estourar', gradient: 'from-cyan-400 via-blue-500 to-indigo-600', accent: 'rgba(6,182,212,0.4)', glow: 'rgba(6,182,212,0.2)', chip: '✈️', badge: '' },
-                      { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia e sorte contra o dealer', gradient: 'from-emerald-400 via-green-500 to-teal-600', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '♠️', badge: '' },
-                      { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Aposte em números, cores ou dúzias', gradient: 'from-rose-400 via-red-500 to-red-700', accent: 'rgba(225,29,72,0.4)', glow: 'rgba(225,29,72,0.2)', chip: '🔴', badge: '' },
-                      { id: 'dice', name: 'Jogo dos Dados', icon: '🎲', desc: 'Soma exata, over/under ou duplo', gradient: 'from-amber-400 via-yellow-500 to-orange-600', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '⚀', badge: '' },
-                    ].map(game => (
-                      <button key={game.id} onClick={() => setSelectedCasinoGame(game.id)}
-                        className="game-card relative p-4 sm:p-5 text-left cursor-pointer group"
-                        style={{ '--card-accent': game.accent, '--card-glow': game.glow } as React.CSSProperties}>
-                        <div className="game-card-corner" style={{ background: game.accent.replace('0.4', '0.06') }} />
-                        <div className="relative z-10">
-                          <div className="flex items-start justify-between mb-3 sm:mb-4">
-                            <span className="text-3xl sm:text-4xl game-card-icon">{game.icon}</span>
-                            <span className="text-lg sm:text-xl game-card-chip">{game.chip}</span>
+          ) : selectedSport === 'Cassino' ? (() => {
+            const CASINO_GAMES = [
+              { id: 'mines', name: 'Mines Omnitrix', icon: '💎', desc: 'Campo minado 5×5 — encontre os cristais e saque quando quiser', accent: 'rgba(0,255,135,0.45)', glow: 'rgba(0,255,135,0.22)', chip: '💣', badge: '⚡ NOVO • RTP 98%', meta: '5×5 Grade', category: 'originals' as const },
+              { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: 'Slot 3×3 com modo Turbo e multiplicador do tigre', accent: 'rgba(234,179,8,0.42)', glow: 'rgba(234,179,8,0.2)', chip: '🧧', badge: '🔥 Top #1', meta: 'Max 80×', category: 'slots' as const },
+              { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente com Auto Cashout em tempo real', accent: 'rgba(6,182,212,0.42)', glow: 'rgba(6,182,212,0.2)', chip: '✈️', badge: '🔥 Crash ao Vivo', meta: 'Auto Saque', category: 'originals' as const },
+              { id: 'plinko', name: 'Pirâmide Plinko', icon: '🟣', desc: 'Solte bolas em rajada pelos pinos até 130×', accent: 'rgba(217,70,239,0.42)', glow: 'rgba(217,70,239,0.22)', chip: '🔺', badge: '⚡ NOVO • Max 130×', meta: '8–16 Linhas', category: 'originals' as const },
+              { id: 'double', name: 'Double 14×', icon: '⏳', desc: 'Roleta de cores rápida: Vermelho/Preto 2× ou Branco 14×', accent: 'rgba(244,63,94,0.42)', glow: 'rgba(244,63,94,0.22)', chip: '⚫', badge: '⚡ NOVO • 14× Branco', meta: '15 Casas', category: 'originals' as const },
+              { id: 'penalty', name: 'Pênalti Campeão', icon: '⚽', desc: 'Escolha o canto, drible o goleiro e multiplique até 79×', accent: 'rgba(16,185,129,0.42)', glow: 'rgba(16,185,129,0.22)', chip: '🥅', badge: '⚽ NOVO • 79× Max', meta: '5 Chutes', category: 'slots' as const },
+              { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', desc: 'Estratégia clássica contra o dealer com Dobrar', accent: 'rgba(34,197,94,0.38)', glow: 'rgba(34,197,94,0.18)', chip: '♠️', badge: '♠️ Clássico', meta: 'Paga 2.5×', category: 'table' as const },
+              { id: 'roulette', name: 'Roleta Europeia', icon: '🎡', desc: 'Roda europeia 0–36 com histórico dos últimos resultados', accent: 'rgba(225,29,72,0.4)', glow: 'rgba(225,29,72,0.2)', chip: '🔴', badge: '🎡 Clássico', meta: 'Paga 35:1', category: 'table' as const },
+              { id: 'dice', name: 'Dados 3D RNG', icon: '🎲', desc: 'Dados 3D com probabilidades transparentes e multiplicador 35×', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '⚀', badge: '🎲 Mesa 3D', meta: 'Até 35×', category: 'table' as const },
+            ];
+            const filteredGames = casinoCategory === 'all' ? CASINO_GAMES : CASINO_GAMES.filter((g) => g.category === casinoCategory);
+            return (
+              <div className="space-y-5">
+                {selectedCasinoGame === null ? (
+                  <>
+                    <div className="omnitrix-panel relative overflow-hidden p-3.5 sm:p-5 rounded-2xl">
+                      <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.12),transparent_60%)] pointer-events-none" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className="bg-brand/15 p-2.5 sm:p-3 rounded-xl border border-brand/30 shadow-[0_0_16px_rgba(0,255,135,0.2)]">
+                            <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-brand" />
                           </div>
-                          <h4 className="text-sm sm:text-base font-extrabold text-white group-hover:text-yellow-400 transition-colors mb-1">{game.name}</h4>
-                          <p className="text-[9px] sm:text-[11px] text-slate-400 leading-relaxed mb-3">{game.desc}</p>
-                          {game.badge && (
-                            <span className="inline-block text-[8px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full mb-3">{game.badge}</span>
-                          )}
-                          <div className="flex items-center gap-1.5 game-card-play">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-                            <span className="text-[8px] sm:text-[9px] text-yellow-400/70 uppercase tracking-[0.1em] font-bold">Jogar</span>
+                          <div>
+                            <h3 className="font-extrabold font-display text-white text-sm sm:text-base flex items-center gap-2">
+                              🎰 Cassino BenBets
+                              <span className="text-[9px] font-mono bg-brand/15 text-brand border border-brand/30 px-2 py-0.5 rounded-full">
+                                9 Jogos Originais & Clássicos
+                              </span>
+                            </h3>
+                            <p className="text-slate-400 text-[10px] sm:text-xs">
+                              Mines, Plinko, Double, Pênaltis, Aviator, Fortune Tiger e clássicos com RNG demonstrativo.
+                            </p>
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Filtros por categoria */}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        { id: 'all' as const, label: 'Todos (9)', icon: '✨' },
+                        { id: 'originals' as const, label: 'Crash & Originais', icon: '⚡' },
+                        { id: 'slots' as const, label: 'Slots & Arcade', icon: '🐯' },
+                        { id: 'table' as const, label: 'Clássicos de Mesa', icon: '♠️' },
+                      ].map((cat) => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setCasinoCategory(cat.id)}
+                          className={`px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold border transition-all cursor-pointer ${
+                            casinoCategory === cat.id
+                              ? 'bg-brand text-slate-950 border-brand font-extrabold shadow-[0_0_12px_rgba(0,255,135,0.22)]'
+                              : 'bg-[#0d0e16]/75 border-[#1a1c2a] text-slate-300 hover:border-brand/40'
+                          }`}
+                        >
+                          {cat.icon} {cat.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
+                      {filteredGames.map((game) => (
+                        <button
+                          key={game.id}
+                          onClick={() => setSelectedCasinoGame(game.id)}
+                          className="game-card relative p-4 sm:p-5 text-left cursor-pointer group flex flex-col justify-between"
+                          style={{ '--card-accent': game.accent, '--card-glow': game.glow } as React.CSSProperties}
+                        >
+                          <div className="game-card-corner" style={{ background: game.accent.replace(/[\d.]+\)$/, '0.08)') }} />
+                          <div className="relative z-10">
+                            <div className="flex items-start justify-between mb-3">
+                              <span className="text-3xl sm:text-4xl game-card-icon">{game.icon}</span>
+                              <span className="text-[9px] font-mono font-bold bg-[#070910] text-slate-300 border border-white/10 px-2 py-0.5 rounded-md">
+                                {game.meta}
+                              </span>
+                            </div>
+                            <h4 className="text-sm sm:text-base font-extrabold font-display text-white group-hover:text-brand transition-colors mb-1">
+                              {game.name}
+                            </h4>
+                            <p className="text-[9px] sm:text-[11px] text-slate-400 leading-relaxed mb-3">{game.desc}</p>
+                            {game.badge && (
+                              <span className="inline-block text-[8px] font-bold bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full mb-3">
+                                {game.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative z-10 flex items-center justify-between pt-2 border-t border-white/5 game-card-play">
+                            <span className="text-[8px] sm:text-[9px] text-brand/85 uppercase tracking-[0.12em] font-bold">Jogar Agora</span>
+                            <span className="text-xs font-bold text-brand group-hover:translate-x-1 transition-transform">→</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        onClick={() => setSelectedCasinoGame(null)}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand transition-colors cursor-pointer"
+                      >
+                        ← Voltar ao Lobby do Cassino
                       </button>
-                    ))}
+                      <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1">
+                        {CASINO_GAMES.map((g) => (
+                          <button
+                            key={g.id}
+                            onClick={() => setSelectedCasinoGame(g.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                              selectedCasinoGame === g.id
+                                ? 'bg-brand text-slate-950 border-brand font-extrabold'
+                                : 'bg-[#080a12] border-[#1a1d2e] text-slate-400 hover:text-white hover:border-brand/35'
+                            }`}
+                          >
+                            {g.icon} {g.name.split(' ')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedCasinoGame === 'mines' && (
+                      <MinesGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'plinko' && (
+                      <PlinkoGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'double' && (
+                      <DoubleGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'penalty' && (
+                      <PenaltyGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'aviator' && (
+                      <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'blackjack' && (
+                      <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'roulette' && (
+                      <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'dice' && (
+                      <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'fortunetiger' && (
+                      <FortuneTiger balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
                   </div>
-                </>
-              ) : (
-                <div>
-                  <button onClick={() => setSelectedCasinoGame(null)}
-                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand mb-4 transition-colors cursor-pointer">
-                    ← Voltar ao Menu de Cassino
-                  </button>
-                  {selectedCasinoGame === 'aviator' && (
-                    <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
-                  )}
-                  {selectedCasinoGame === 'blackjack' && (
-                    <BlackjackGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
-                  )}
-                  {selectedCasinoGame === 'roulette' && (
-                    <RouletteGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
-                  )}
-                  {selectedCasinoGame === 'dice' && (
-                    <DiceGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
-                  )}
-                  {selectedCasinoGame === 'fortunetiger' && (
-                    <FortuneTiger balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
-                  )}
-                </div>
-              )}
-            </div>
-          ) : selectedSport === 'Colecionaveis' ? (
+                )}
+              </div>
+            );
+          })() : selectedSport === 'Colecionaveis' ? (
             <div className="space-y-6">
               {selectedColecionavel === null ? (
                 <>
@@ -1072,8 +1157,8 @@ export default function App() {
                     {[
                       { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🎴', badge: 'AniList API' },
                       { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: 'TCGdex CDN' },
-                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins reais do CS2', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: 'CSGO API' },
-                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards individuais dos seus grupos favoritos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Wiki Portraits' },
+                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: '25 caixas Panorama com Float real (0.00–1.00) e StatTrak™', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: 'CSGO-API CDN' },
+                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Álbuns, Máquina Lucky Draw e Polaroids Assinadas 1/1 (0,5%) de 23 grupos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Commons + Wiki API' },
                       { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa 2026 com craques', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '⚽', badge: 'SportsDB + Flags' },
                       { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Campeões e skins oficiais de League of Legends', accent: 'rgba(59,130,246,0.4)', glow: 'rgba(59,130,246,0.2)', chip: '🏆', badge: 'Riot DataDragon' },
                       { id: 'AkaliSanctum', name: 'Santuário: Akali', icon: '🗡️', desc: 'Gacha oficial do LoL: Akali K/DA FIRESTARTER com 0,5% de chance e Pity em 40 (16.000 RP)', accent: 'rgba(244,63,94,0.45)', glow: 'rgba(244,63,94,0.24)', chip: '🔥', badge: '🔥 NOVO • 0,5%' },
@@ -1122,6 +1207,7 @@ export default function App() {
                     <CS2Cases
                       balance={balance}
                       onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
                       userId={firebaseUser?.uid || ''}
                       collection={cs2Collection}
                       onCollectionUpdate={handleCS2CollectionUpdate}
@@ -1144,6 +1230,7 @@ export default function App() {
                     <KpopPhotocards
                       balance={balance}
                       onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
                       userId={firebaseUser?.uid || ''}
                       collection={kpopCollection}
                       onCollectionUpdate={handleKpopCollectionUpdate}

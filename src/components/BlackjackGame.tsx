@@ -102,7 +102,7 @@ function CardView({ card, index }: { card: Card; index: number; key?: string | n
 }
 
 export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistory, userId }: BlackjackGameProps) {
-  const [stake, setStake] = useState('');
+  const [stake, setStake] = useState('5');
   const [status, setStatus] = useState<'betting' | 'playing' | 'dealer_turn' | 'settled'>('betting');
   const [deck, setDeck] = useState<Card[]>([]);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
@@ -111,6 +111,11 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
   const [payout, setPayout] = useState(0);
   const [stats, setStats] = useState({ wins: 0, losses: 0, pushes: 0, blackjacks: 0 });
   const { play } = useSound();
+
+  const adjustStake = (factor: number) => {
+    const curr = parseFloat(stake) || 5;
+    setStake(Math.max(1, Number((curr * factor).toFixed(2))).toString());
+  };
 
   const deal = useCallback(() => {
     play('deal');
@@ -137,6 +142,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
 
   const hit = useCallback(() => {
     if (status !== 'playing') return;
+    play('cardFlip');
     const d = [...deck];
     const p = [...playerHand];
     p.push(d.pop()!);
@@ -192,7 +198,6 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
         let payoutAmt = 0;
         let isWin = false;
         let isBj1 = false;
-        let isBj2 = false;
 
         if (finalDv > 21) {
           play('win');
@@ -234,10 +239,6 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
           }));
         }
 
-        if (isBj1) {
-          setStats(s => ({ ...s, blackjacks: s.blackjacks + 1 }));
-        }
-
         if (onAddBetHistory) {
           onAddBetHistory({
             id: `bj-${Date.now()}`,
@@ -262,6 +263,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
     if (status !== 'playing' || playerHand.length !== 2) return;
     const playCost = parseFloat(stake);
     if (playCost > balance) { alert('Saldo insuficiente para dobrar'); return; }
+    play('cardFlip');
     onUpdateBalance(-playCost);
     const d = [...deck];
     const p = [...playerHand];
@@ -339,7 +341,6 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
     setDealerHand([]);
     setResult('');
     setPayout(0);
-    setStake('');
   };
 
   const pv = playerHand.length > 0 ? handValue(playerHand) : 0;
@@ -436,12 +437,16 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
                 <label className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider flex items-center gap-1 mb-1.5">
                   <DollarSign className="w-3 h-3" /> Valor da Aposta (R$)
                 </label>
-                <input
-                  type="number"
-                  value={stake}
-                  onChange={e => setStake(e.target.value)}
-                  className="w-full bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand"
-                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="number"
+                    value={stake}
+                    onChange={e => setStake(e.target.value)}
+                    className="flex-1 bg-[#040508] border border-[#1b1e2e] focus:border-brand rounded-lg p-2.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                  <button onClick={() => adjustStake(0.5)} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer">1/2</button>
+                  <button onClick={() => adjustStake(2)} className="px-2.5 rounded-lg bg-[#0d0e16] border border-[#1c1f2e] text-[10px] font-bold text-slate-300 hover:border-brand/40 cursor-pointer">2×</button>
+                </div>
               </div>
               <div className="flex gap-1.5">
                 {[1, 2, 5, 10, 25].map(val => (
