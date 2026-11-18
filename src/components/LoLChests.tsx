@@ -43,38 +43,67 @@ const ART_KEY_OVERRIDES: Record<string, string> = {
   Fiddlesticks: 'FiddleSticks',
 };
 
+const CHROMA_SUFFIX_RE =
+  /\((rubi|peridoto|safira|obsidiana|pérola|perola|quartzo-rosa|quartzo|turquesa|olho de gato|tanzanita|citrino|esmeralda|ametista|água-marinha|agua-marinha|meteoro|jaspe|arco-íris|arco-iris|dourado|dourada|cobalto|âmbar|ambar|granada|ônix|onix|topázio|topazio|coral|ruby|peridot|sapphire|obsidian|pearl|rose quartz|turquoise|catseye|cat's eye|tanzanite|citrine|emerald|amethyst|aquamarine|meteorite|jasper|rainbow|golden)\)\s*$/i;
+
+function isChromaSkin(sk: any): boolean {
+  if (!sk) return false;
+  if (sk.parentSkin !== undefined && sk.parentSkin !== null) return true;
+  if (sk.isChroma === true) return true;
+  return CHROMA_SUFFIX_RE.test(String(sk.name || ''));
+}
+
+function stripTrailingParens(name: string): string {
+  return name.replace(/\s*\([^)]+\)\s*$/, '').trim();
+}
+
 function normalizeDDragonArtKey(champKey: string): string {
   return ART_KEY_OVERRIDES[champKey] || champKey;
 }
 
-function resolveCDragonAsset(assetPath?: string): string {
+function resolveCDragonAsset(assetPath?: string, branch: 'latest' | 'pbe' = 'latest'): string {
   if (!assetPath) return '';
   if (assetPath.startsWith('https://') || assetPath.startsWith('http://')) return assetPath;
   const cleaned = assetPath.replace(/^\/?lol-game-data\/assets\//i, '').replace(/^\/+/, '');
-  return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/${cleaned.toLowerCase()}`;
+  return `https://raw.communitydragon.org/${branch}/plugins/rcp-be-lol-game-data/global/default/${cleaned.toLowerCase()}`;
 }
 
 function getLoLImageCandidates(item: LoLItem, ddVersion: string): string[] {
   const candidates: string[] = [];
+  const artKey = item.championKey ? normalizeDDragonArtKey(item.championKey) : '';
+
   if (item.image) {
     candidates.push(item.image.replace('/Fiddlesticks_', '/FiddleSticks_'));
   }
+
+  // Para skins, priorizar todas as artes específicas da própria skin antes de cair na skin base (_0)
+  if (artKey && typeof item.skinNum === 'number' && item.skinNum > 0) {
+    candidates.push(
+      `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${artKey}_${item.skinNum}.jpg`,
+      `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${artKey}_${item.skinNum}.jpg`
+    );
+  }
+
   if (Array.isArray(item.fallbackImages)) {
     candidates.push(...item.fallbackImages);
   }
+
   if (item.championNumKey && item.skinId) {
     candidates.push(
       `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-splashes/${item.championNumKey}/${item.skinId}.jpg`,
-      `https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-splashes/${item.championNumKey}/${item.skinId}.jpg`
+      `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-tiles/${item.championNumKey}/${item.skinId}.jpg`,
+      `https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-splashes/${item.championNumKey}/${item.skinId}.jpg`,
+      `https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-tiles/${item.championNumKey}/${item.skinId}.jpg`
     );
   }
-  if (item.championKey && typeof item.skinNum === 'number') {
-    const artKey = normalizeDDragonArtKey(item.championKey);
-    candidates.push(
-      `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${artKey}_${item.skinNum}.jpg`,
-      `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${artKey}_0.jpg`
-    );
+
+  if (artKey) {
+    if (typeof item.skinNum === 'number' && item.skinNum === 0) {
+      candidates.push(`https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${artKey}_0.jpg`);
+    }
+    candidates.push(`https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${artKey}_0.jpg`);
   }
+
   if (item.icon) {
     candidates.push(item.icon);
   } else if (item.championKey) {
@@ -289,6 +318,7 @@ function buildFallbackItems(): LoLItem[] {
 let cachedDDragonItems: LoLItem[] | null = null;
 let cachedDDragonVersion: string | null = null;
 let cachedAkaliSanctumItem: LoLItem | null = null;
+let cachedChromaMigrationMap: Map<string, LoLItem> = new Map();
 
 interface ChestDef {
   id: string;
@@ -362,6 +392,7 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
 
   const [allItems, setAllItems] = useState<LoLItem[]>(() => cachedDDragonItems || buildFallbackItems());
   const [ddVersion, setDdVersion] = useState<string>(() => cachedDDragonVersion || FALLBACK_VERSION);
+  const [chromaMigrationMap, setChromaMigrationMap] = useState<Map<string, LoLItem>>(() => cachedChromaMigrationMap);
   const [akaliSanctumSkin, setAkaliSanctumSkin] = useState<LoLItem>(() => cachedAkaliSanctumItem || buildAkaliSanctumItem(FALLBACK_VERSION));
   const [loadingApi, setLoadingApi] = useState<boolean>(() => !cachedDDragonItems);
 
@@ -444,17 +475,38 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
     } catch {}
   }, [storageKey, collection, essence, mythicEssence, sanctumPity, sanctumAPity, sanctumPulls, stats]);
 
-  // Re-hydrate legacy collection URLs once catalog loads
+  // Re-hydrate legacy collection URLs and migrate old chromas to their real parent skin once catalog loads
   useEffect(() => {
     if (allItems.length === 0) return;
     setCollection((prev) => {
       if (prev.length === 0) return prev;
       const byId = new Map<string, LoLItem>();
-      allItems.forEach((it) => byId.set(it.id, it));
+      const realSkinsByChampAndName = new Map<string, LoLItem>();
+      allItems.forEach((it) => {
+        byId.set(it.id, it);
+        if (it.type === 'skin' && it.championKey) {
+          realSkinsByChampAndName.set(`${it.championKey}::${it.name.toLowerCase().trim()}`, it);
+        }
+      });
       byId.set(akaliSanctumSkin.id, akaliSanctumSkin);
 
       let changed = false;
       const hydrated = prev.map((c) => {
+        const migratedParent = chromaMigrationMap.get(c.id);
+        if (migratedParent) {
+          changed = true;
+          return migratedParent;
+        }
+        if (c.type === 'skin' && CHROMA_SUFFIX_RE.test(c.name)) {
+          const byNameParent = realSkinsByChampAndName.get(
+            `${c.championKey || ''}::${stripTrailingParens(c.name).toLowerCase()}`
+          );
+          if (byNameParent) {
+            changed = true;
+            return byNameParent;
+          }
+        }
+
         const match = byId.get(c.id);
         const brokenUrl = !c.image || !c.image.startsWith('https://') || c.image.includes('/Fiddlesticks_');
         if (match && (brokenUrl || !c.championNumKey || !c.skinId || (match.fallbackImages && !c.fallbackImages))) {
@@ -479,13 +531,14 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
       });
       return changed ? hydrated : prev;
     });
-  }, [allItems, akaliSanctumSkin]);
+  }, [allItems, akaliSanctumSkin, chromaMigrationMap]);
 
-  // Fetch Riot Data Dragon pt_BR champions & skins + CDragon Akali 84.json
+  // Fetch Riot Data Dragon pt_BR champions & skins (excluding chromas) + CDragon Akali 84.json
   useEffect(() => {
     if (cachedDDragonItems && cachedAkaliSanctumItem) {
       setAllItems(cachedDDragonItems);
       setDdVersion(cachedDDragonVersion || FALLBACK_VERSION);
+      setChromaMigrationMap(cachedChromaMigrationMap);
       setAkaliSanctumSkin(cachedAkaliSanctumItem);
       setLoadingApi(false);
       return;
@@ -512,6 +565,8 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
           if (!dataObj) throw new Error('Invalid championFull payload');
 
           const parsed: LoLItem[] = [];
+          const migrationMap = new Map<string, LoLItem>();
+
           for (const champ of Object.values(dataObj) as any[]) {
             const champKey = champ.id;
             const artKey = normalizeDDragonArtKey(champKey);
@@ -519,11 +574,15 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
             const champName = champ.name;
             const icon = `https://ddragon.leagueoflegends.com/cdn/${resolvedVer}/img/champion/${champKey}.png`;
 
+            const realByNum = new Map<number, LoLItem>();
+            const realBySkinId = new Map<string, LoLItem>();
+            const realByLowerName = new Map<string, LoLItem>();
+
             // Champion base entry
             const chRarity = getDeterministicChampRarity(champKey, champ.title || '');
             const chPricing = getEssenceAndPrice(chRarity, false);
             const baseSkinId = champNumKey ? `${champNumKey}000` : '0';
-            parsed.push({
+            const chItem: LoLItem = {
               id: `lol_ch_${champKey}`,
               name: champName,
               type: 'champion',
@@ -537,17 +596,19 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
               icon,
               essenceValue: chPricing.essenceValue,
               price: chPricing.price,
-            });
+            };
+            parsed.push(chItem);
+            realByNum.set(0, chItem);
 
-            // Skins entries
+            // 1ª passada: apenas skins reais autônomas (ignora cromas com parentSkin / sufixo de cor)
             if (Array.isArray(champ.skins)) {
               for (const sk of champ.skins) {
-                if (!sk || sk.num === 0) continue;
+                if (!sk || sk.num === 0 || isChromaSkin(sk)) continue;
                 const skName = sk.name === 'default' ? champName : sk.name;
                 const skIdStr = String(sk.id || (champNumKey ? `${champNumKey}${String(sk.num).padStart(3, '0')}` : sk.num));
                 const skRarity = getDeterministicSkinRarity(skIdStr, skName);
                 const skPricing = getEssenceAndPrice(skRarity, true);
-                parsed.push({
+                const skinItem: LoLItem = {
                   id: `lol_sk_${champKey}_${sk.num}`,
                   name: skName,
                   type: 'skin',
@@ -562,7 +623,25 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
                   icon,
                   essenceValue: skPricing.essenceValue,
                   price: skPricing.price,
-                });
+                };
+                parsed.push(skinItem);
+                realByNum.set(Number(sk.num), skinItem);
+                realBySkinId.set(skIdStr, skinItem);
+                realByLowerName.set(String(skName).toLowerCase().trim(), skinItem);
+              }
+
+              // 2ª passada: mapear cromas antigos para a skin principal pai
+              for (const sk of champ.skins) {
+                if (!sk || sk.num === 0 || !isChromaSkin(sk)) continue;
+                const skName = String(sk.name || '');
+                const parent =
+                  (sk.parentSkin !== undefined && sk.parentSkin !== null
+                    ? realByNum.get(Number(sk.parentSkin)) || realBySkinId.get(String(sk.parentSkin))
+                    : undefined) ||
+                  realByLowerName.get(stripTrailingParens(skName).toLowerCase());
+                if (parent) {
+                  migrationMap.set(`lol_sk_${champKey}_${sk.num}`, parent);
+                }
               }
             }
           }
@@ -570,33 +649,57 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
           if (!cancelled && parsed.length > 0) {
             cachedDDragonItems = parsed;
             cachedDDragonVersion = resolvedVer;
+            cachedChromaMigrationMap = migrationMap;
             setAllItems(parsed);
             setDdVersion(resolvedVer);
+            setChromaMigrationMap(migrationMap);
           }
         }
       } catch {
         // Keep fallback
       }
 
-      // Sync Akali 84.json from CommunityDragon for Sanctum showcase
+      // Sync Akali 84.json from CommunityDragon (latest + PBE fallback) for Sanctum showcase
       try {
+        const findAkaliFirestarter = (json: any) => {
+          const skinsArr = Array.isArray(json?.skins) ? json.skins : [];
+          return skinsArr.find(
+            (s: any) => Number(s?.id) === 84102 || /firestarter|igni[cç][aã]o|ignition/i.test(String(s?.name || ''))
+          );
+        };
+
         let akaliJson: any = null;
+        let sourceBranch: 'latest' | 'pbe' = 'latest';
         try {
           const rPt = await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/pt_br/v1/champions/84.json');
           if (rPt.ok) akaliJson = await rPt.json();
         } catch {}
         if (!akaliJson) {
-          const rDef = await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champions/84.json');
-          if (rDef.ok) akaliJson = await rDef.json();
+          try {
+            const rDef = await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champions/84.json');
+            if (rDef.ok) akaliJson = await rDef.json();
+          } catch {}
         }
-        const skinsArr = Array.isArray(akaliJson?.skins) ? akaliJson.skins : [];
-        const firestarter = skinsArr.find(
-          (s: any) => Number(s?.id) === 84102 || /firestarter|igni[cç][aã]o|ignition/i.test(String(s?.name || ''))
-        );
+
+        let firestarter = findAkaliFirestarter(akaliJson);
+        if (!firestarter) {
+          try {
+            const rPbe = await fetch('https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champions/84.json');
+            if (rPbe.ok) {
+              const pbeJson = await rPbe.json();
+              const pbeSkin = findAkaliFirestarter(pbeJson);
+              if (pbeSkin) {
+                firestarter = pbeSkin;
+                sourceBranch = 'pbe';
+              }
+            }
+          } catch {}
+        }
+
         const built = buildAkaliSanctumItem(resolvedVer, firestarter ? {
           name: firestarter.name || 'Akali K/DA FIRESTARTER (Ignição)',
-          loadScreen: resolveCDragonAsset(firestarter.loadScreenPath),
-          splash: resolveCDragonAsset(firestarter.splashPath),
+          loadScreen: resolveCDragonAsset(firestarter.loadScreenPath, sourceBranch),
+          splash: resolveCDragonAsset(firestarter.splashPath, sourceBranch),
           skinId: String(firestarter.id || '84102'),
           skinNum: firestarter.id ? Number(firestarter.id) % 1000 : 102,
         } : undefined);
