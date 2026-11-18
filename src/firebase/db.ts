@@ -1,6 +1,22 @@
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from './config';
 import type { PlacedBet, Transaction, PokemonCard } from '../types';
+
+export const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+export const ACTIVE_24H_MS = 24 * 60 * 60 * 1000;
+
+export interface LeaderboardEntry {
+  uid: string;
+  displayName: string;
+  balance: number;
+  totalCards: number;
+  uniqueCards: number;
+  betsWon: number;
+  totalBets: number;
+  biggestWin: number;
+  lastSeen: number;
+  createdAt?: string;
+}
 
 export async function getUserData(uid: string) {
   const ref = doc(db, 'users', uid);
@@ -32,6 +48,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     kpopCollection: [],
     cs2Collection: [],
     animeCollection: [],
+    lastSeen: Date.now(),
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref, data);
@@ -40,7 +57,85 @@ export async function createUserData(uid: string, email: string, displayName?: s
 
 export async function updateBalance(uid: string, newBalance: number) {
   const ref = doc(db, 'users', uid);
-  await updateDoc(ref, { balance: newBalance });
+  await updateDoc(ref, { balance: newBalance, lastSeen: Date.now() });
+}
+
+export async function updateUserPresence(uid: string) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { lastSeen: Date.now() });
+}
+
+export async function markUserOffline(uid: string) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { lastSeen: 0 });
+}
+
+function sumCollectionStats(raw: any): { uniqueCards: number; totalCards: number } {
+  const keys = [
+    'pokemonCollection',
+    'worldCupCollection',
+    'kpopCollection',
+    'cs2Collection',
+    'animeCollection',
+  ];
+  let uniqueCards = 0;
+  let totalCards = 0;
+  for (const k of keys) {
+    const arr = raw?.[k];
+    if (!Array.isArray(arr)) continue;
+    uniqueCards += arr.length;
+    for (const c of arr) {
+      totalCards += typeof c?.quantity === 'number' && c.quantity > 0 ? c.quantity : 1;
+    }
+  }
+  return { uniqueCards, totalCards };
+}
+
+export function subscribeToLeaderboard(
+  onUpdate: (entries: LeaderboardEntry[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) => {
+      const entries: LeaderboardEntry[] = snap.docs.map((d) => {
+        const raw = d.data() || {};
+        const fallbackName = raw.email ? String(raw.email).split('@')[0] : 'Agente';
+        const displayName = String(raw.displayName || fallbackName || 'Agente').trim() || 'Agente';
+        const balance =
+          typeof raw.balance === 'number' && Number.isFinite(raw.balance) ? raw.balance : 0;
+        const { uniqueCards, totalCards } = sumCollectionStats(raw);
+
+        const bets: PlacedBet[] = Array.isArray(raw.placedBets) ? raw.placedBets : [];
+        let betsWon = 0;
+        let biggestWin = 0;
+        for (const b of bets) {
+          if (b?.status === 'won') {
+            betsWon += 1;
+            const payout = typeof b.potentialPayout === 'number' && Number.isFinite(b.potentialPayout) ? b.potentialPayout : 0;
+            if (payout > biggestWin) biggestWin = payout;
+          }
+        }
+
+        return {
+          uid: d.id,
+          displayName,
+          balance,
+          totalCards,
+          uniqueCards,
+          betsWon,
+          totalBets: bets.length,
+          biggestWin,
+          lastSeen: typeof raw.lastSeen === 'number' && Number.isFinite(raw.lastSeen) ? raw.lastSeen : 0,
+          createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
+        };
+      });
+      onUpdate(entries);
+    },
+    (err) => {
+      if (onError) onError(err);
+    }
+  );
 }
 
 export async function addBet(uid: string, bet: PlacedBet) {
@@ -325,5 +420,5 @@ export async function claimMissionReward(uid: string, missionId: string) {
   const missionDef = DAILY_MISSIONS.find(x => x.id === missionId);
   if (!missionDef) return;
   m.claimed = true;
-  await updateDoc(ref, { missions, balance: (data.balance || 0) + missionDef.reward });
+  await updateDoc(ref, { missions, balance: (data.balance || 0) + missionDef.reward, lastSeen: Date.now() });
 }

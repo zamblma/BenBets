@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { createUserData } from '../firebase/db';
+import OmnitrixLogo from './OmnitrixLogo';
 
 type Mode = 'login' | 'register';
 
@@ -40,20 +41,50 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#06070d] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 w-14 h-14 mx-auto rounded-2xl font-black text-xl flex items-center justify-center rotate-2 shadow-[0_0_20px_rgba(0,255,135,0.3)] mb-4">
-            BB
+    <div className="min-h-screen bg-[#06070d] flex items-center justify-center px-4 py-8 relative overflow-hidden">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-brand/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-3">
+            <OmnitrixLogo size="lg" animated />
           </div>
-          <h1 className="text-2xl font-extrabold text-brand">BenBets</h1>
-          <p className="text-slate-400 text-xs mt-1">Ambiente Demonstração Legal</p>
+          <h1 className="text-2xl font-black font-display tracking-tight text-white">
+            Ben<span className="text-brand">Bets</span>
+          </h1>
+          <p className="text-slate-400 text-[11px] font-mono mt-1 uppercase tracking-widest">
+            Ambiente Demonstração • Lei 14.790/2023
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-[#0c0d14] border border-[#1c1e2d] rounded-2xl p-6 space-y-4">
-          <h2 className="text-sm font-bold text-slate-200 text-center uppercase tracking-wider">
-            {mode === 'login' ? 'Entrar' : 'Criar Conta'}
-          </h2>
+        <form onSubmit={handleSubmit} className="omnitrix-panel rounded-2xl p-6 space-y-4 relative overflow-hidden">
+          <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
+
+          {/* Mode tabs */}
+          <div className="grid grid-cols-2 gap-1.5 bg-[#06070d] p-1 rounded-xl border border-[#1b1e2e]">
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setError(''); }}
+              className={`py-2 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                mode === 'login'
+                  ? 'bg-brand text-slate-950 shadow-[0_0_14px_rgba(0,255,135,0.25)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('register'); setError(''); }}
+              className={`py-2 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                mode === 'register'
+                  ? 'bg-brand text-slate-950 shadow-[0_0_14px_rgba(0,255,135,0.25)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Criar Conta
+            </button>
+          </div>
 
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs p-3 rounded-xl text-center">
@@ -63,32 +94,32 @@ export default function AuthScreen() {
 
           {mode === 'register' && (
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-slate-500 font-bold block mb-1">Nome</label>
+              <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold block mb-1.5">Nome</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Seu nome"
                 required
-                className="w-full bg-[#07080f] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/50"
+                className="w-full bg-[#06070d] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/60"
               />
             </div>
           )}
 
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-slate-500 font-bold block mb-1">Email</label>
+            <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold block mb-1.5">Email</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="seu@email.com"
               required
-              className="w-full bg-[#07080f] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/50"
+              className="w-full bg-[#06070d] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/60"
             />
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-slate-500 font-bold block mb-1">Senha</label>
+            <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold block mb-1.5">Senha</label>
             <input
               type="password"
               value={password}
@@ -96,31 +127,36 @@ export default function AuthScreen() {
               placeholder="mín. 6 caracteres"
               required
               minLength={6}
-              className="w-full bg-[#07080f] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/50"
+              className="w-full bg-[#06070d] border border-[#1b1e2e] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/60"
             />
+          </div>
+
+          <div className="flex items-center justify-between pt-0.5">
+            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border border-[#1b1e2e] bg-[#06070d] checked:bg-brand checked:border-brand accent-brand cursor-pointer"
+              />
+              Lembrar de mim
+            </label>
+            {mode === 'register' && (
+              <span className="text-[10px] font-mono text-brand font-bold">+ R$ 20,00 bônus</span>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand hover:bg-[#00e074] text-slate-950 font-black py-3 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 shadow-[0_0_12px_rgba(0,255,135,0.2)]"
+            className="w-full bg-brand hover:bg-[#00e074] text-slate-950 font-black py-3.5 rounded-xl text-sm uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 shadow-[0_0_18px_rgba(0,255,135,0.28)] hover:shadow-[0_0_26px_rgba(0,255,135,0.45)]"
           >
-            {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar Conta'}
+            {loading ? 'Autenticando...' : mode === 'login' ? 'Ativar Conta' : 'Criar Conta Grátis'}
           </button>
 
-          <p className="text-center text-[11px] text-slate-500">
-            {mode === 'login' ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-            <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={e => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border border-[#1b1e2e] bg-[#07080f] checked:bg-brand checked:border-brand accent-brand cursor-pointer"
-              />
-              Lembrar de mim
-            </label>
-
-          <button
+          <p className="text-center text-[11px] text-slate-500 pt-1">
+            {mode === 'login' ? 'Ainda não tem conta?' : 'Já possui uma conta?'}{' '}
+            <button
               type="button"
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
               className="text-brand hover:underline cursor-pointer font-bold"

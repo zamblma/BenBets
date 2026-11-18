@@ -75,8 +75,9 @@ export default function PixModal({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="w-full max-w-md bg-[#0a0b12] border border-[#1c1f32] rounded-2xl overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+        className="w-full max-w-md omnitrix-panel rounded-2xl overflow-hidden shadow-[0_16px_48px_rgba(0,0,0,0.65)] relative"
       >
+        <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
         {/* Header */}
         <div className="p-5 bg-[#07080f] border-b border-[#1c1f32] flex justify-between items-center">
           <div className="flex items-center gap-2">

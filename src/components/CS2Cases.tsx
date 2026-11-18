@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
-import { Search, ArrowLeft, TrendingUp, Crosshair } from 'lucide-react';
+import { Search, ArrowLeft, TrendingUp, Crosshair, Loader2, Sparkles } from 'lucide-react';
 import type { PokemonCard } from '../types';
 import { useSound } from '../hooks/useSound';
 
@@ -12,6 +12,7 @@ interface CSSkin {
   rarityLevel: number;
   minPrice: number;
   maxPrice: number;
+  image?: string;
 }
 
 interface CS2CaseData {
@@ -24,14 +25,22 @@ interface CS2CaseData {
   items: CSSkin[];
 }
 
+const CSGO_API_URLS = [
+  'https://bymykel.github.io/CSGO-API/api/pt-BR/crates.json',
+  'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/pt-BR/crates.json',
+];
+
+let cachedCasesMemory: CS2CaseData[] | null = null;
+let cachedSkinImagesMemory: Record<string, string> = {};
+
 function rarityColor(level: number) {
   switch (level) {
-    case 0: return { bg: 'bg-blue-500/20', border: 'border-blue-500/40', text: 'text-blue-400', glow: 'rgba(59,130,246,0.3)' };
-    case 1: return { bg: 'bg-purple-500/20', border: 'border-purple-500/40', text: 'text-purple-400', glow: 'rgba(168,85,247,0.3)' };
-    case 2: return { bg: 'bg-pink-500/20', border: 'border-pink-500/40', text: 'text-pink-400', glow: 'rgba(236,72,153,0.3)' };
-    case 3: return { bg: 'bg-red-500/20', border: 'border-red-500/40', text: 'text-red-400', glow: 'rgba(239,68,68,0.3)' };
-    case 4: return { bg: 'bg-yellow-500/20', border: 'border-yellow-500/40', text: 'text-yellow-300', glow: 'rgba(234,179,8,0.5)' };
-    default: return { bg: 'bg-slate-500/20', border: 'border-slate-500/40', text: 'text-slate-400', glow: 'rgba(100,116,139,0.3)' };
+    case 0: return { bg: 'bg-blue-500/15', border: 'border-blue-500/40', text: 'text-blue-400', glow: 'rgba(59,130,246,0.3)' };
+    case 1: return { bg: 'bg-purple-500/15', border: 'border-purple-500/40', text: 'text-purple-400', glow: 'rgba(168,85,247,0.3)' };
+    case 2: return { bg: 'bg-pink-500/15', border: 'border-pink-500/40', text: 'text-pink-400', glow: 'rgba(236,72,153,0.3)' };
+    case 3: return { bg: 'bg-red-500/15', border: 'border-red-500/40', text: 'text-red-400', glow: 'rgba(239,68,68,0.35)' };
+    case 4: return { bg: 'bg-yellow-500/15', border: 'border-yellow-500/50', text: 'text-yellow-300', glow: 'rgba(234,179,8,0.55)' };
+    default: return { bg: 'bg-slate-500/15', border: 'border-slate-500/40', text: 'text-slate-400', glow: 'rgba(100,116,139,0.3)' };
   }
 }
 
@@ -57,247 +66,217 @@ function rarityLabelShort(level: number): string {
   }
 }
 
-function tierLabel(tier: string) {
-  switch (tier) {
-    case 'daily': return { label: 'Diária Grátis', color: 'text-green-400 bg-green-500/10 border-green-500/20' };
-    case 'budget': return { label: 'Econômica', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' };
-    case 'standard': return { label: 'Padrão', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
-    case 'premium': return { label: 'Premium', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
-    case 'high': return { label: 'Alto Risco', color: 'text-red-400 bg-red-500/10 border-red-500/20' };
-    default: return { label: tier, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' };
+function rarityNameFromLevel(level: number): string {
+  switch (level) {
+    case 0: return 'Mil-Spec';
+    case 1: return 'Restricted';
+    case 2: return 'Classified';
+    case 3: return 'Covert';
+    case 4: return 'Rare Special';
+    default: return 'Mil-Spec';
   }
 }
 
-const ALL_CASES: CS2CaseData[] = [
+function mapApiRarityToLevel(rarityId?: string, rarityName?: string): number {
+  const id = (rarityId || '').toLowerCase();
+  const name = (rarityName || '').toLowerCase();
+  if (id.includes('ancient') || name.includes('oculto') || name.includes('covert')) return 3;
+  if (id.includes('legendary') || name.includes('secreto') || name.includes('classified')) return 2;
+  if (id.includes('mythical') || name.includes('restrito') || name.includes('restricted')) return 1;
+  return 0;
+}
+
+function splitWeaponAndSkin(fullName: string): { weapon: string; name: string } {
+  const clean = fullName.replace(/^★\s*/, '').replace(/^☆\s*/, '').trim();
+  const parts = clean.split('|');
+  if (parts.length >= 2) {
+    return {
+      weapon: (fullName.startsWith('★') || fullName.startsWith('☆') ? '★ ' : '') + parts[0].trim(),
+      name: parts.slice(1).join('|').trim(),
+    };
+  }
+  return {
+    weapon: fullName.startsWith('★') || fullName.startsWith('☆') ? '★ Special' : 'CS2',
+    name: clean,
+  };
+}
+
+function getPriceRange(tier: CS2CaseData['tier'], level: number): { minPrice: number; maxPrice: number } {
+  const tierFactor = tier === 'daily' ? 0.5 : tier === 'budget' ? 0.8 : tier === 'standard' ? 1 : tier === 'premium' ? 1.8 : 3.2;
+  switch (level) {
+    case 0: return { minPrice: +(0.35 * tierFactor).toFixed(2), maxPrice: +(2.8 * tierFactor).toFixed(2) };
+    case 1: return { minPrice: +(2.5 * tierFactor).toFixed(2), maxPrice: +(12 * tierFactor).toFixed(2) };
+    case 2: return { minPrice: +(12 * tierFactor).toFixed(2), maxPrice: +(52 * tierFactor).toFixed(2) };
+    case 3: return { minPrice: +(50 * tierFactor).toFixed(2), maxPrice: +(320 * tierFactor).toFixed(2) };
+    case 4: return { minPrice: +(320 * tierFactor).toFixed(2), maxPrice: +(2400 * tierFactor).toFixed(2) };
+    default: return { minPrice: 0.5, maxPrice: 2 };
+  }
+}
+
+const FALLBACK_CASES: CS2CaseData[] = [
   {
-    id: 'daily', name: 'Caixa Diária CSGOSKINS', image: '🎁', price: 0, tier: 'daily',
-    weights: [89.88, 1.60, 1.51, 6, 1],
+    id: 'daily', name: 'Caixa Diária CS2', image: '🎁', price: 0, tier: 'daily',
+    weights: [82.88, 10.60, 3.51, 2.2, 0.81],
     items: [
-      { id: 'daily_1', name: 'Sand Dune', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
-      { id: 'daily_2', name: 'Sand Mesh', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
-      { id: 'daily_3', name: 'Desert Storm', rarity: 'Mil-Spec', weapon: 'G3SG1', rarityLevel: 0, minPrice: 0.01, maxPrice: 0.05 },
-      { id: 'daily_4', name: 'Cold Fusion', rarity: 'Mil-Spec', weapon: 'Galil AR', rarityLevel: 0, minPrice: 0.02, maxPrice: 0.10 },
-      { id: 'daily_5', name: 'Freight', rarity: 'Mil-Spec', weapon: 'P90', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
-      { id: 'daily_6', name: 'Aloha', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
-      { id: 'daily_7', name: 'Necro Jr.', rarity: 'Mil-Spec', weapon: 'MP5-SD', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
-      { id: 'daily_8', name: 'Poultrygeist', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.30 },
-      { id: 'daily_9', name: 'Runic', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 0.50, maxPrice: 3 },
-      { id: 'daily_10', name: 'Violent Daimyo', rarity: 'Classified', weapon: 'Five-SeveN', rarityLevel: 2, minPrice: 5, maxPrice: 20 },
-      { id: 'daily_11', name: 'Weasel', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 5, maxPrice: 20 },
-      { id: 'daily_12', name: 'Cyrex', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 20, maxPrice: 80 },
-      { id: 'daily_13', name: 'Water Elemental', rarity: 'Covert', weapon: 'Glock-18', rarityLevel: 3, minPrice: 15, maxPrice: 50 },
-      { id: 'daily_14', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 50, maxPrice: 200 },
-      { id: 'daily_15', name: 'Aquamarine Revenge', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150 },
-      { id: 'daily_16', name: 'Hyper Beast', rarity: 'Rare Special', weapon: 'AWP', rarityLevel: 4, minPrice: 60, maxPrice: 250 },
-      { id: 'daily_17', name: 'Point Disarray', rarity: 'Rare Special', weapon: 'AK-47', rarityLevel: 4, minPrice: 40, maxPrice: 150 },
-      { id: 'daily_18', name: 'Leaded Glass', rarity: 'Rare Special', weapon: 'M4A1-S', rarityLevel: 4, minPrice: 30, maxPrice: 120 },
-    ],
-  },
-  {
-    id: 'chroma2', name: 'Chroma 2 Case', image: '🎨', price: 5.90, tier: 'budget',
-    weights: [79.45, 11.22, 2.34, 6, 1],
-    items: [
-      { id: 'ch2_1', name: 'Tigris', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
-      { id: 'ch2_2', name: 'Facets', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
-      { id: 'ch2_3', name: 'Jungle', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
-      { id: 'ch2_4', name: 'Catenary', rarity: 'Mil-Spec', weapon: 'G3SG1', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
-      { id: 'ch2_5', name: 'Osiris', rarity: 'Mil-Spec', weapon: 'UMP-45', rarityLevel: 0, minPrice: 0.3, maxPrice: 1.5 },
-      { id: 'ch2_6', name: 'Night', rarity: 'Restricted', weapon: 'AK-47', rarityLevel: 1, minPrice: 2, maxPrice: 8 },
-      { id: 'ch2_7', name: 'Big Iron', rarity: 'Restricted', weapon: 'R8 Revolver', rarityLevel: 1, minPrice: 2, maxPrice: 8 },
-      { id: 'ch2_8', name: 'Flame', rarity: 'Classified', weapon: 'FAMAS', rarityLevel: 2, minPrice: 8, maxPrice: 25 },
-      { id: 'ch2_9', name: 'Crimson Tsunami', rarity: 'Classified', weapon: 'MAG-7', rarityLevel: 2, minPrice: 8, maxPrice: 25 },
-      { id: 'ch2_10', name: 'Kill Confirmed', rarity: 'Covert', weapon: 'Glock-18', rarityLevel: 3, minPrice: 25, maxPrice: 80 },
-    ],
-  },
-  {
-    id: 'falchion', name: 'Falchion Case', image: '⚔️', price: 7.90, tier: 'budget',
-    weights: [77.40, 12.73, 2.83, 6, 1],
-    items: [
-      { id: 'fal_1', name: 'Copper Galaxy', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
-      { id: 'fal_2', name: 'Colony', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
-      { id: 'fal_3', name: 'Valence', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
-      { id: 'fal_4', name: 'Midnight Storm', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
-      { id: 'fal_5', name: 'Rapid Eye', rarity: 'Mil-Spec', weapon: 'MP7', rarityLevel: 0, minPrice: 0.3, maxPrice: 2 },
-      { id: 'fal_6', name: 'Fire Starter', rarity: 'Restricted', weapon: 'P250', rarityLevel: 1, minPrice: 2, maxPrice: 10 },
-      { id: 'fal_7', name: 'Tiger Tooth', rarity: 'Restricted', weapon: 'SSG 08', rarityLevel: 1, minPrice: 2, maxPrice: 10 },
-      { id: 'fal_8', name: 'Bone Forged', rarity: 'Classified', weapon: 'AWP', rarityLevel: 2, minPrice: 10, maxPrice: 35 },
-      { id: 'fal_9', name: 'Cyrex', rarity: 'Classified', weapon: 'M4A1-S', rarityLevel: 2, minPrice: 10, maxPrice: 35 },
-      { id: 'fal_10', name: 'Wasteland Princess', rarity: 'Covert', weapon: 'PP-Bizon', rarityLevel: 3, minPrice: 30, maxPrice: 100 },
-    ],
-  },
-  {
-    id: 'cs20', name: 'CS20 Case', image: '🎯', price: 12.90, tier: 'standard',
-    weights: [75, 15, 3, 6, 1],
-    items: [
-      { id: 'cs20_1', name: 'Stalker', rarity: 'Mil-Spec', weapon: 'AUG', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'cs20_2', name: 'Verdigris', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'cs20_3', name: 'Lead Conduit', rarity: 'Mil-Spec', weapon: 'USP-S', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'cs20_4', name: 'Spectre', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'cs20_5', name: 'Buddy', rarity: 'Mil-Spec', weapon: 'Five-SeveN', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'cs20_6', name: 'Whitefish', rarity: 'Restricted', weapon: 'MAC-10', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'cs20_7', name: 'Runic', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'cs20_8', name: 'Incinegator', rarity: 'Restricted', weapon: 'XM1014', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'cs20_9', name: 'Tooth Fairy', rarity: 'Classified', weapon: 'M4A4', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'cs20_10', name: 'Bloodsport', rarity: 'Classified', weapon: 'MP7', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'cs20_11', name: 'Atheris', rarity: 'Classified', weapon: 'AWP', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'cs20_12', name: 'Legion of Anubis', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'cs20_13', name: 'Printstream', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-    ],
-  },
-  {
-    id: 'fracture', name: 'Fracture Case', image: '💥', price: 12.90, tier: 'standard',
-    weights: [75, 15, 3, 6, 1],
-    items: [
-      { id: 'frc_1', name: 'Fragments', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'frc_2', name: 'Mount Fuji', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'frc_3', name: 'Toy Soldier', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'frc_4', name: 'Ivory', rarity: 'Mil-Spec', weapon: 'P2000', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'frc_5', name: 'Hazard', rarity: 'Restricted', weapon: 'SG 553', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'frc_6', name: 'Ensnared', rarity: 'Restricted', weapon: 'MAC-10', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'frc_7', name: 'Cassette', rarity: 'Restricted', weapon: 'P250', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'frc_8', name: 'Neo-Noir', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'frc_9', name: 'Emphorosaur-S', rarity: 'Classified', weapon: 'M4A4', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'frc_10', name: 'Justice', rarity: 'Classified', weapon: 'MAG-7', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'frc_11', name: 'Wildfire', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'frc_12', name: 'Printstream', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-    ],
-  },
-  {
-    id: 'snakebite', name: 'Snakebite Case', image: '🐍', price: 12.90, tier: 'standard',
-    weights: [75, 15, 3, 6, 1],
-    items: [
-      { id: 'snk_1', name: 'Distressed', rarity: 'Mil-Spec', weapon: 'CZ75-Auto', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'snk_2', name: 'Epicenter', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'snk_3', name: 'Food Chain', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'snk_4', name: 'Ziggy', rarity: 'Mil-Spec', weapon: 'XM1014', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'snk_5', name: 'Boost Protocol', rarity: 'Restricted', weapon: 'Five-SeveN', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'snk_6', name: 'Roadblock', rarity: 'Restricted', weapon: 'UMP-45', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'snk_7', name: 'Tom Cat', rarity: 'Restricted', weapon: 'AUG', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'snk_8', name: 'Cyber Security', rarity: 'Classified', weapon: 'M4A4', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'snk_9', name: 'Eye of the Emperor', rarity: 'Classified', weapon: 'FAMAS', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'snk_10', name: 'Rat Rod', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'snk_11', name: 'Trigger Discipline', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-    ],
-  },
-  {
-    id: 'dreams', name: 'Dreams & Nightmares', image: '🌙', price: 12.90, tier: 'standard',
-    weights: [75, 15, 3, 6, 1],
-    items: [
-      { id: 'dr_1', name: 'Dream', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'dr_2', name: 'Sakkaku', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'dr_3', name: 'Dream', rarity: 'Mil-Spec', weapon: 'MP9', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'dr_4', name: 'Night', rarity: 'Mil-Spec', weapon: 'P2000', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'dr_5', name: 'Red', rarity: 'Mil-Spec', weapon: 'XM1014', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'dr_6', name: 'Dream', rarity: 'Restricted', weapon: 'AWP', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'dr_7', name: 'Night', rarity: 'Restricted', weapon: 'FAMAS', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'dr_8', name: 'Night', rarity: 'Restricted', weapon: 'Five-SeveN', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'dr_9', name: 'Night', rarity: 'Classified', weapon: 'AWP', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'dr_10', name: 'Night', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'dr_11', name: 'Night', rarity: 'Classified', weapon: 'M4A1-S', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'dr_12', name: 'Night', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'dr_13', name: 'Night', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'dr_14', name: 'Dream', rarity: 'Covert', weapon: 'M4A4', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
+      { id: 'daily_1', name: 'Sand Dune', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.25 },
+      { id: 'daily_2', name: 'Sand Mesh', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.05, maxPrice: 0.25 },
+      { id: 'daily_3', name: 'Freight', rarity: 'Mil-Spec', weapon: 'P90', rarityLevel: 0, minPrice: 0.1, maxPrice: 0.5 },
+      { id: 'daily_4', name: 'Runic', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 0.8, maxPrice: 4 },
+      { id: 'daily_5', name: 'Violent Daimyo', rarity: 'Classified', weapon: 'Five-SeveN', rarityLevel: 2, minPrice: 5, maxPrice: 20 },
+      { id: 'daily_6', name: 'Cyrex', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 20, maxPrice: 80 },
+      { id: 'daily_7', name: '★ Karambit Fade', rarity: 'Rare Special', weapon: '★ Knife', rarityLevel: 4, minPrice: 120, maxPrice: 500 },
     ],
   },
   {
     id: 'kilowatt', name: 'Kilowatt Case', image: '⚡', price: 12.90, tier: 'standard',
-    weights: [75, 15, 3, 6, 1],
+    weights: [75, 15, 5, 4, 1],
     items: [
-      { id: 'kw_1', name: 'X-Ray', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'kw_2', name: 'Power Load', rarity: 'Mil-Spec', weapon: 'M249', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'kw_3', name: 'Heirloom', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
-      { id: 'kw_4', name: 'Kush Kit', rarity: 'Restricted', weapon: 'PP-Bizon', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'kw_5', name: 'Concrete Jungle', rarity: 'Restricted', weapon: 'MP9', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'kw_6', name: 'Copper Coated', rarity: 'Restricted', weapon: 'G3SG1', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
-      { id: 'kw_7', name: 'Vektor', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'kw_8', name: 'Fade', rarity: 'Classified', weapon: 'SSG 08', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'kw_9', name: 'Crescendo', rarity: 'Classified', weapon: 'MAG-7', rarityLevel: 2, minPrice: 12, maxPrice: 50 },
-      { id: 'kw_10', name: 'Koi', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-      { id: 'kw_11', name: 'Hot Rod', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
-    ],
-  },
-  {
-    id: 'prisma', name: 'Prisma Case', image: '🌈', price: 24.90, tier: 'premium',
-    weights: [63.63, 21.54, 7.83, 6, 1],
-    items: [
-      { id: 'prs_1', name: 'Flashback', rarity: 'Mil-Spec', weapon: 'SG 553', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
-      { id: 'prs_2', name: 'Drift Wood', rarity: 'Mil-Spec', weapon: 'AUG', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
-      { id: 'prs_3', name: 'Hazard', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
-      { id: 'prs_4', name: 'Grip', rarity: 'Mil-Spec', weapon: 'Tec-9', rarityLevel: 0, minPrice: 1, maxPrice: 5 },
-      { id: 'prs_5', name: 'Run', rarity: 'Restricted', weapon: 'MP7', rarityLevel: 1, minPrice: 5, maxPrice: 20 },
-      { id: 'prs_6', name: 'Momentum', rarity: 'Restricted', weapon: 'M4A4', rarityLevel: 1, minPrice: 5, maxPrice: 20 },
-      { id: 'prs_7', name: 'Risky', rarity: 'Restricted', weapon: 'P250', rarityLevel: 1, minPrice: 5, maxPrice: 20 },
-      { id: 'prs_8', name: 'Moonrise', rarity: 'Classified', weapon: 'AWP', rarityLevel: 2, minPrice: 20, maxPrice: 80 },
-      { id: 'prs_9', name: 'Grim', rarity: 'Classified', weapon: 'AK-47', rarityLevel: 2, minPrice: 20, maxPrice: 80 },
-      { id: 'prs_10', name: 'Tiger Moth', rarity: 'Classified', weapon: 'USP-S', rarityLevel: 2, minPrice: 20, maxPrice: 80 },
-      { id: 'prs_11', name: 'Wild Lotus', rarity: 'Covert', weapon: 'M4A1-S', rarityLevel: 3, minPrice: 100, maxPrice: 500 },
-      { id: 'prs_12', name: 'Bloodsport', rarity: 'Covert', weapon: 'Desert Eagle', rarityLevel: 3, minPrice: 100, maxPrice: 500 },
-      { id: 'prs_13', name: '★ Karambit', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 800, maxPrice: 3000 },
-      { id: 'prs_14', name: '★ M9 Bayonet', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 600, maxPrice: 2500 },
-    ],
-  },
-  {
-    id: 'spectrum', name: 'Spectrum 2 Case', image: '💎', price: 39.90, tier: 'premium',
-    weights: [55.60, 25.27, 12.13, 6, 1],
-    items: [
-      { id: 'sp2_1', name: 'Jungle Slipstream', rarity: 'Mil-Spec', weapon: 'SSG 08', rarityLevel: 0, minPrice: 1, maxPrice: 6 },
-      { id: 'sp2_2', name: 'Tread', rarity: 'Mil-Spec', weapon: 'PP-Bizon', rarityLevel: 0, minPrice: 1, maxPrice: 6 },
-      { id: 'sp2_3', name: 'Ventilator', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 1, maxPrice: 6 },
-      { id: 'sp2_4', name: 'System Lock', rarity: 'Restricted', weapon: 'MP9', rarityLevel: 1, minPrice: 6, maxPrice: 25 },
-      { id: 'sp2_5', name: 'Patch Up', rarity: 'Restricted', weapon: 'Five-SeveN', rarityLevel: 1, minPrice: 6, maxPrice: 25 },
-      { id: 'sp2_6', name: 'Kami', rarity: 'Restricted', weapon: 'FAMAS', rarityLevel: 1, minPrice: 6, maxPrice: 25 },
-      { id: 'sp2_7', name: 'Swept', rarity: 'Classified', weapon: 'MP7', rarityLevel: 2, minPrice: 25, maxPrice: 100 },
-      { id: 'sp2_8', name: 'Tiger Tooth', rarity: 'Classified', weapon: 'Glock-18', rarityLevel: 2, minPrice: 25, maxPrice: 100 },
-      { id: 'sp2_9', name: 'Harpy', rarity: 'Classified', weapon: 'P250', rarityLevel: 2, minPrice: 25, maxPrice: 100 },
-      { id: 'sp2_10', name: 'Fade', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 150, maxPrice: 700 },
-      { id: 'sp2_11', name: 'Asiimov', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 150, maxPrice: 700 },
-      { id: 'sp2_12', name: '★ Butterfly Knife', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 1200, maxPrice: 5000 },
-      { id: 'sp2_13', name: '★ Talon Knife', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 800, maxPrice: 3500 },
-      { id: 'sp2_14', name: '★ Driver Gloves', rarity: 'Rare Special', weapon: 'Gloves', rarityLevel: 4, minPrice: 600, maxPrice: 2500 },
-    ],
-  },
-  {
-    id: 'riptide', name: 'Operation Riptide', image: '🌊', price: 59.90, tier: 'high',
-    weights: [47.56, 29.59, 15.85, 6, 1],
-    items: [
-      { id: 'rip_1', name: 'M.A.C.', rarity: 'Mil-Spec', weapon: 'SCAR-20', rarityLevel: 0, minPrice: 2, maxPrice: 8 },
-      { id: 'rip_2', name: 'Spray', rarity: 'Mil-Spec', weapon: 'MAG-7', rarityLevel: 0, minPrice: 2, maxPrice: 8 },
-      { id: 'rip_3', name: 'Drift', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 2, maxPrice: 8 },
-      { id: 'rip_4', name: 'Tailored', rarity: 'Restricted', weapon: 'UMP-45', rarityLevel: 1, minPrice: 8, maxPrice: 30 },
-      { id: 'rip_5', name: 'Leaping', rarity: 'Restricted', weapon: 'CZ75-Auto', rarityLevel: 1, minPrice: 8, maxPrice: 30 },
-      { id: 'rip_6', name: 'Flow', rarity: 'Restricted', weapon: 'P2000', rarityLevel: 1, minPrice: 8, maxPrice: 30 },
-      { id: 'rip_7', name: 'Dual', rarity: 'Restricted', weapon: 'Dual Berettas', rarityLevel: 1, minPrice: 8, maxPrice: 30 },
-      { id: 'rip_8', name: 'Blueprint', rarity: 'Classified', weapon: 'M4A1-S', rarityLevel: 2, minPrice: 30, maxPrice: 150 },
-      { id: 'rip_9', name: 'Vaporwave', rarity: 'Classified', weapon: 'AWP', rarityLevel: 2, minPrice: 30, maxPrice: 150 },
-      { id: 'rip_10', name: 'Nightmare', rarity: 'Classified', weapon: 'AK-47', rarityLevel: 2, minPrice: 30, maxPrice: 150 },
-      { id: 'rip_11', name: 'Gold Arabesque', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 200, maxPrice: 1000 },
-      { id: 'rip_12', name: 'The Empress', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 200, maxPrice: 1000 },
-      { id: 'rip_13', name: '★ Skeleton Knife', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 1500, maxPrice: 6000 },
-      { id: 'rip_14', name: '★ Moto Gloves', rarity: 'Rare Special', weapon: 'Gloves', rarityLevel: 4, minPrice: 1000, maxPrice: 4000 },
-      { id: 'rip_15', name: '★ Specialist Gloves', rarity: 'Rare Special', weapon: 'Gloves', rarityLevel: 4, minPrice: 1200, maxPrice: 5000 },
-    ],
-  },
-  {
-    id: 'bravo', name: 'Operation Bravo Case', image: '🏆', price: 99.90, tier: 'high',
-    weights: [39.22, 31.37, 22.41, 6, 1],
-    items: [
-      { id: 'bra_1', name: 'Sandstorm', rarity: 'Mil-Spec', weapon: 'P250', rarityLevel: 0, minPrice: 3, maxPrice: 10 },
-      { id: 'bra_2', name: 'Death Head', rarity: 'Mil-Spec', weapon: 'SSG 08', rarityLevel: 0, minPrice: 3, maxPrice: 10 },
-      { id: 'bra_3', name: 'Agency', rarity: 'Mil-Spec', weapon: 'MAC-10', rarityLevel: 0, minPrice: 3, maxPrice: 10 },
-      { id: 'bra_4', name: 'Tuxedo', rarity: 'Restricted', weapon: 'Glock-18', rarityLevel: 1, minPrice: 10, maxPrice: 40 },
-      { id: 'bra_5', name: 'Stainless', rarity: 'Restricted', weapon: 'Five-SeveN', rarityLevel: 1, minPrice: 10, maxPrice: 40 },
-      { id: 'bra_6', name: 'Cold Blooded', rarity: 'Restricted', weapon: 'P2000', rarityLevel: 1, minPrice: 10, maxPrice: 40 },
-      { id: 'bra_7', name: 'Crimson Web', rarity: 'Classified', weapon: 'USP-S', rarityLevel: 2, minPrice: 40, maxPrice: 200 },
-      { id: 'bra_8', name: 'Case Hardened', rarity: 'Classified', weapon: 'AK-47', rarityLevel: 2, minPrice: 40, maxPrice: 200 },
-      { id: 'bra_9', name: 'Fade', rarity: 'Classified', weapon: 'M4A4', rarityLevel: 2, minPrice: 40, maxPrice: 200 },
-      { id: 'bra_10', name: 'Dragon Lore', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 500, maxPrice: 5000 },
-      { id: 'bra_11', name: 'Howl', rarity: 'Covert', weapon: 'M4A4', rarityLevel: 3, minPrice: 400, maxPrice: 3000 },
-      { id: 'bra_12', name: '★ Karambit Doppler', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 2000, maxPrice: 10000 },
-      { id: 'bra_13', name: '★ M9 Bayonet Marble', rarity: 'Rare Special', weapon: 'Knife', rarityLevel: 4, minPrice: 1500, maxPrice: 8000 },
-      { id: 'bra_14', name: '★ Hand Wraps', rarity: 'Rare Special', weapon: 'Gloves', rarityLevel: 4, minPrice: 1200, maxPrice: 6000 },
+      { id: 'kw_1', name: 'Hideout', rarity: 'Mil-Spec', weapon: 'Dual Berettas', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
+      { id: 'kw_2', name: 'Dark Sigil', rarity: 'Mil-Spec', weapon: 'Nova', rarityLevel: 0, minPrice: 0.5, maxPrice: 3 },
+      { id: 'kw_3', name: 'Block-18', rarity: 'Restricted', weapon: 'Glock-18', rarityLevel: 1, minPrice: 3, maxPrice: 12 },
+      { id: 'kw_4', name: 'Chrome Cannon', rarity: 'Covert', weapon: 'AWP', rarityLevel: 3, minPrice: 50, maxPrice: 300 },
+      { id: 'kw_5', name: 'Inheritance', rarity: 'Covert', weapon: 'AK-47', rarityLevel: 3, minPrice: 60, maxPrice: 350 },
+      { id: 'kw_6', name: '★ Kukri Knife', rarity: 'Rare Special', weapon: '★ Knife', rarityLevel: 4, minPrice: 400, maxPrice: 2000 },
     ],
   },
 ];
+
+const TIER_WEIGHTS: Record<CS2CaseData['tier'], number[]> = {
+  daily: [81, 11.5, 4.2, 2.3, 1.0],
+  budget: [78.4, 12.5, 4.6, 3.5, 1.0],
+  standard: [74.5, 14.5, 5.8, 4.1, 1.1],
+  premium: [63.6, 21.5, 8.2, 5.5, 1.2],
+  high: [48.5, 28.5, 14.2, 7.2, 1.6],
+};
+
+const TIER_PRICES: Record<CS2CaseData['tier'], number[]> = {
+  daily: [0],
+  budget: [5.90, 7.90],
+  standard: [12.90, 14.90],
+  premium: [24.90, 39.90],
+  high: [59.90, 99.90],
+};
+
+const PRIORITY_PATTERNS = [
+  'kilowatt', 'quilowatt', 'revolution', 'revolu', 'recoil', 'dreams', 'sonhos',
+  'fracture', 'fratura', 'snakebite', 'prisma', 'spectrum', 'espectro',
+  'riptide', 'correnteza', 'bravo', 'chroma', 'falchion', 'cs20',
+  'clutch', 'danger zone', 'horizon', 'horizonte', 'gallery', 'galeria',
+];
+
+function buildCasesFromApi(rawCrates: any[]): { cases: CS2CaseData[]; imageMap: Record<string, string> } {
+  const imageMap: Record<string, string> = {};
+  const validCrates = rawCrates.filter(
+    (c) => c && c.type === 'Case' && Array.isArray(c.contains) && c.contains.length >= 8 && c.image
+  );
+
+  // Prioritize iconic crates first, then fill up to 18 total
+  const prioritized = [...validCrates].sort((a, b) => {
+    const an = (a.name || '').toLowerCase();
+    const bn = (b.name || '').toLowerCase();
+    const ai = PRIORITY_PATTERNS.findIndex((p) => an.includes(p));
+    const bi = PRIORITY_PATTERNS.findIndex((p) => bn.includes(p));
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return (b.first_sale_date || '').localeCompare(a.first_sale_date || '');
+  });
+
+  const chosen = prioritized.slice(0, 18);
+  const tiersOrder: CS2CaseData['tier'][] = [
+    'budget', 'budget', 'budget', 'budget',
+    'standard', 'standard', 'standard', 'standard', 'standard', 'standard',
+    'premium', 'premium', 'premium', 'premium',
+    'high', 'high', 'high', 'high',
+  ];
+
+  const builtCases: CS2CaseData[] = chosen.map((crate, idx) => {
+    const tier = tiersOrder[idx] || 'standard';
+    const priceChoices = TIER_PRICES[tier];
+    const price = priceChoices[idx % priceChoices.length];
+
+    const standardItems: CSSkin[] = (crate.contains || []).map((skin: any, sIdx: number) => {
+      const level = mapApiRarityToLevel(skin.rarity?.id, skin.rarity?.name);
+      const { weapon, name } = splitWeaponAndSkin(skin.name || 'Skin');
+      const { minPrice, maxPrice } = getPriceRange(tier, level);
+      const itemId = skin.id || `${crate.id}_${sIdx}`;
+      if (skin.image) {
+        imageMap[itemId] = skin.image;
+        imageMap[`${weapon} | ${name}`.toLowerCase()] = skin.image;
+      }
+      return {
+        id: itemId,
+        name,
+        weapon,
+        rarity: rarityNameFromLevel(level),
+        rarityLevel: level,
+        minPrice,
+        maxPrice,
+        image: skin.image || '',
+      };
+    });
+
+    const rarePool = Array.isArray(crate.contains_rare) ? crate.contains_rare.slice(0, 12) : [];
+    const rareItems: CSSkin[] = rarePool.map((skin: any, rIdx: number) => {
+      const { weapon, name } = splitWeaponAndSkin(skin.name || 'Rare Special');
+      const { minPrice, maxPrice } = getPriceRange(tier, 4);
+      const itemId = skin.id || `${crate.id}_rare_${rIdx}`;
+      if (skin.image) {
+        imageMap[itemId] = skin.image;
+        imageMap[`${weapon} | ${name}`.toLowerCase()] = skin.image;
+      }
+      return {
+        id: itemId,
+        name,
+        weapon: weapon.startsWith('★') ? weapon : `★ ${weapon}`,
+        rarity: 'Rare Special',
+        rarityLevel: 4,
+        minPrice,
+        maxPrice,
+        image: skin.image || '',
+      };
+    });
+
+    return {
+      id: crate.id || `crate-${idx}`,
+      name: crate.name || 'CS2 Case',
+      image: crate.image,
+      price,
+      tier,
+      weights: TIER_WEIGHTS[tier],
+      items: [...standardItems, ...rareItems],
+    };
+  });
+
+  // Build free Daily Case from real API skins across chosen crates
+  const dailyPool: CSSkin[] = [];
+  for (const c of builtCases.slice(0, 6)) {
+    const pickLevel = (lvl: number) => c.items.filter((i) => i.rarityLevel === lvl).slice(0, 2);
+    dailyPool.push(
+      ...pickLevel(0).slice(0, 2),
+      ...pickLevel(1).slice(0, 1),
+      ...pickLevel(2).slice(0, 1),
+      ...pickLevel(3).slice(0, 1),
+      ...pickLevel(4).slice(0, 1),
+    );
+  }
+  const uniqueDaily = Array.from(new Map(dailyPool.map((i) => [i.id, i])).values()).slice(0, 24).map((item) => {
+    const { minPrice, maxPrice } = getPriceRange('daily', item.rarityLevel);
+    return { ...item, minPrice, maxPrice };
+  });
+
+  const dailyCase: CS2CaseData = {
+    id: 'daily',
+    name: 'Caixa Diária CS2',
+    image: builtCases[0]?.image || '🎁',
+    price: 0,
+    tier: 'daily',
+    weights: TIER_WEIGHTS.daily,
+    items: uniqueDaily.length > 0 ? uniqueDaily : FALLBACK_CASES[0].items,
+  };
+
+  return { cases: [dailyCase, ...builtCases], imageMap };
+}
 
 function pickWeightedItem(caseData: CS2CaseData): CSSkin {
   const roll = Math.random() * 100;
@@ -310,7 +289,9 @@ function pickWeightedItem(caseData: CS2CaseData): CSSkin {
   const pool = caseData.items.filter(s => s.rarityLevel === chosenLevel);
   if (pool.length === 0) {
     const fallback = caseData.items.filter(s => s.rarityLevel === 0);
-    return fallback[Math.floor(Math.random() * fallback.length)];
+    return (fallback.length > 0 ? fallback : caseData.items)[
+      Math.floor(Math.random() * (fallback.length > 0 ? fallback.length : caseData.items.length))
+    ];
   }
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -318,8 +299,8 @@ function pickWeightedItem(caseData: CS2CaseData): CSSkin {
 function generateStripItems(caseData: CS2CaseData, winner: CSSkin, winnerIndex: number): CSSkin[] {
   const items: CSSkin[] = [];
   for (let i = 0; i < 50; i++) {
-    if (i === winnerIndex) { items.push(winner); }
-    else { items.push(pickWeightedItem(caseData)); }
+    if (i === winnerIndex) items.push(winner);
+    else items.push(pickWeightedItem(caseData));
   }
   return items;
 }
@@ -335,9 +316,13 @@ interface CS2CasesProps {
 }
 
 export default function CS2Cases({
-  balance, onUpdateBalance, userId, collection,
+  balance, onUpdateBalance, collection,
   onCollectionUpdate, onSellCard, onSellAllDuplicates,
 }: CS2CasesProps) {
+  const [cases, setCases] = useState<CS2CaseData[]>(() => cachedCasesMemory || FALLBACK_CASES);
+  const [loadingApi, setLoadingApi] = useState<boolean>(() => !cachedCasesMemory);
+  const [skinImages, setSkinImages] = useState<Record<string, string>>(() => cachedSkinImagesMemory);
+
   const [tab, setTab] = useState<'cases' | 'collection' | 'market'>('cases');
   const [selectedCase, setSelectedCase] = useState<CS2CaseData | null>(null);
   const [rolling, setRolling] = useState(false);
@@ -352,7 +337,8 @@ export default function CS2Cases({
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const [resultImgError, setResultImgError] = useState(false);
-  const { playFile } = useSound();
+
+  const { playFile, play } = useSound();
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const stripInnerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -360,26 +346,77 @@ export default function CS2Cases({
   const animStartRef = useRef<number>(0);
   const animEndRef = useRef<number>(0);
 
+  // Load real CS2 crates & skin artwork from ByMykel CSGO-API
   useEffect(() => {
-    const newPrices: Record<string, number> = {};
-    ALL_CASES.forEach(c => c.items.forEach(s => {
-      newPrices[s.id] = Math.round((s.minPrice + Math.random() * (s.maxPrice - s.minPrice)) * 100) / 100;
-    }));
-    setPrices(newPrices);
+    if (cachedCasesMemory) {
+      setCases(cachedCasesMemory);
+      setSkinImages(cachedSkinImagesMemory);
+      setLoadingApi(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      for (const url of CSGO_API_URLS) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const json = await res.json();
+          if (!Array.isArray(json) || json.length === 0) continue;
+          const { cases: built, imageMap } = buildCasesFromApi(json);
+          if (built.length > 1 && !cancelled) {
+            cachedCasesMemory = built;
+            cachedSkinImagesMemory = imageMap;
+            setCases(built);
+            setSkinImages(imageMap);
+            setLoadingApi(false);
+            return;
+          }
+        } catch {
+          // Try next endpoint
+        }
+      }
+      if (!cancelled) setLoadingApi(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Build skin prices whenever cases or collection change
+  useEffect(() => {
+    setPrices(prev => {
+      const next = { ...prev };
+      cases.forEach(c => c.items.forEach(s => {
+        if (next[s.id] === undefined) {
+          next[s.id] = Math.round((s.minPrice + Math.random() * (s.maxPrice - s.minPrice)) * 100) / 100;
+        }
+      }));
+      collection.forEach(card => {
+        if (next[card.id] === undefined) {
+          const lvl = card.rarity.includes('Ouro') ? 4 : card.rarity.includes('Vermelha') ? 3 : card.rarity.includes('Rosa') ? 2 : card.rarity.includes('Roxa') ? 1 : 0;
+          const range = getPriceRange('standard', lvl);
+          next[card.id] = Math.round((range.minPrice + Math.random() * (range.maxPrice - range.minPrice)) * 100) / 100;
+        }
+      });
+      return next;
+    });
+  }, [cases, collection]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setPrices(prev => {
         const updated = { ...prev };
-        ALL_CASES.forEach(c => c.items.forEach(s => {
+        cases.forEach(c => c.items.forEach(s => {
           const current = updated[s.id] ?? (s.minPrice + s.maxPrice) / 2;
-          const change = (Math.random() - 0.5) * 0.3;
+          const change = (Math.random() - 0.5) * 0.15 * current;
           const newPrice = Math.max(s.minPrice * 0.8, Math.min(s.maxPrice * 1.2, current + change));
           updated[s.id] = Math.round(newPrice * 100) / 100;
         }));
         return updated;
       });
-    }, 3600000);
+    }, 25000);
     return () => clearInterval(interval);
-  }, []);
+  }, [cases]);
 
   useEffect(() => {
     const el = stripContainerRef.current;
@@ -432,7 +469,7 @@ export default function CS2Cases({
     animToken.current = winnerIndex;
     animStartRef.current = containerWidth;
     playFile('/BenBets/sounds/csgo-case-open.mp3', 0.5);
-  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth]);
+  }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth, playFile]);
 
   useLayoutEffect(() => {
     if (!rolling || !stripContainerRef.current || !stripInnerRef.current) return;
@@ -457,30 +494,34 @@ export default function CS2Cases({
     const duration = 3500;
     const startTime = performance.now();
 
+    let frameId = 0;
     function animate(now: number) {
       const elapsed = now - startTime;
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
       setStripX(startX + (endX - startX) * eased);
-      if (p < 1) { requestAnimationFrame(animate); }
-      else {
+      if (p < 1) {
+        frameId = requestAnimationFrame(animate);
+      } else {
         setStripX(endX);
         setResult(winnerItem);
         setResultPrice(Math.round((winnerItem.minPrice + Math.random() * (winnerItem.maxPrice - winnerItem.minPrice)) * 100) / 100);
         setResultImgError(false);
         setShowResult(true);
         setRolling(false);
+        if (winnerItem.rarityLevel >= 3) play('rare');
       }
     }
-    requestAnimationFrame(animate);
-  }, [rolling, stripItems]);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [rolling, stripItems, play]);
 
   const handleKeep = useCallback(() => {
     if (!result || !selectedCase) return;
     const card: PokemonCard = {
       id: result.id,
       name: `${result.weapon} | ${result.name}`,
-      imageUrl: '',
+      imageUrl: result.image || '',
       rarity: rarityLabel(result.rarityLevel),
       setName: selectedCase.name,
       setSeries: 'CS2',
@@ -498,7 +539,7 @@ export default function CS2Cases({
     setResult(null);
   }, [result, resultPrice, onUpdateBalance]);
 
-  const sellPrice = useCallback((card: PokemonCard): number => prices[card.id] ?? 0, [prices]);
+  const sellPrice = useCallback((card: PokemonCard): number => prices[card.id] ?? 1.0, [prices]);
 
   const handleSellSingle = useCallback((card: PokemonCard) => {
     onSellCard(card.id, sellPrice(card));
@@ -512,52 +553,77 @@ export default function CS2Cases({
     onSellAllDuplicates(dupePrices);
   }, [collection, onSellAllDuplicates, sellPrice]);
 
-  const filteredCollection = collection
-    .filter(c => c.setSeries === 'CS2')
-    .filter(c => {
-      if (rarityFilter === null) return true;
-      const rarMap: Record<string, number> = {
-        'Mil-Spec (Azul)': 0, 'Restricted (Roxa)': 1,
-        'Classified (Rosa)': 2, 'Covert (Vermelha)': 3, 'Rare Special (Ouro)': 4,
-      };
-      return rarMap[c.rarity] === rarityFilter;
-    })
-    .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredCollection = useMemo(() => {
+    return collection
+      .filter(c => c.setSeries === 'CS2')
+      .filter(c => {
+        if (rarityFilter === null) return true;
+        const rarMap: Record<string, number> = {
+          'Mil-Spec (Azul)': 0, 'Restricted (Roxa)': 1,
+          'Classified (Rosa)': 2, 'Covert (Vermelha)': 3, 'Rare Special (Ouro)': 4,
+        };
+        return rarMap[c.rarity] === rarityFilter;
+      })
+      .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [collection, rarityFilter, searchQuery]);
 
-  const casesToShow = ALL_CASES.filter(c => tierFilter ? c.tier === tierFilter : true);
+  const casesToShow = cases.filter(c => tierFilter ? c.tier === tierFilter : true);
 
-  const rarityCounts: Record<number, { total: number; collected: number }> = {};
-  [0, 1, 2, 3, 4].forEach(i => { rarityCounts[i] = { total: 0, collected: 0 }; });
-  ALL_CASES.forEach(c => c.items.forEach(s => {
-    rarityCounts[s.rarityLevel].total++;
-    if (collection.some(cc => cc.id === s.id)) rarityCounts[s.rarityLevel].collected++;
-  }));
+  const rarityCounts = useMemo(() => {
+    const counts: Record<number, { total: number; collected: number }> = {
+      0: { total: 0, collected: 0 },
+      1: { total: 0, collected: 0 },
+      2: { total: 0, collected: 0 },
+      3: { total: 0, collected: 0 },
+      4: { total: 0, collected: 0 },
+    };
+    const seenIds = new Set<string>();
+    cases.forEach(c => c.items.forEach(s => {
+      if (seenIds.has(s.id)) return;
+      seenIds.add(s.id);
+      counts[s.rarityLevel].total++;
+      if (collection.some(cc => cc.id === s.id)) counts[s.rarityLevel].collected++;
+    }));
+    return counts;
+  }, [cases, collection]);
 
-  const totalItems = ALL_CASES.reduce((sum, c) => sum + c.items.length, 0);
+  const totalItems = (Object.values(rarityCounts) as { total: number; collected: number }[]).reduce((s, r) => s + r.total, 0);
   const collectedItems = collection.filter(c => c.setSeries === 'CS2').length;
 
-  const TIER_INFO: Record<string, { label: string; icon: string; color: string }> = {
-    daily: { label: 'Diária Grátis', icon: '🎁', color: 'text-green-400 border-green-500/30 bg-green-500/5' },
-    budget: { label: 'Econômicas', icon: '🪙', color: 'text-slate-400 border-slate-500/30 bg-slate-500/5' },
-    standard: { label: 'Padrão', icon: '📦', color: 'text-blue-400 border-blue-500/30 bg-blue-500/5' },
-    premium: { label: 'Premium', icon: '💎', color: 'text-purple-400 border-purple-500/30 bg-purple-500/5' },
-    high: { label: 'Alto Risco', icon: '🔥', color: 'text-red-400 border-red-500/30 bg-red-500/5' },
+  const resolveCardImage = (card: PokemonCard): string | undefined => {
+    if (card.imageUrl) return card.imageUrl;
+    return skinImages[card.id] || skinImages[card.name.toLowerCase()];
   };
 
+  const TIER_INFO: Record<string, { label: string; icon: string; color: string }> = {
+    daily: { label: 'Diária Grátis', icon: '🎁', color: 'text-brand border-brand/30 bg-brand/10' },
+    budget: { label: 'Econômicas', icon: '🪙', color: 'text-slate-300 border-slate-500/30 bg-slate-500/10' },
+    standard: { label: 'Padrão', icon: '📦', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
+    premium: { label: 'Premium', icon: '💎', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
+    high: { label: 'Alto Risco', icon: '🔥', color: 'text-red-400 border-red-500/30 bg-red-500/10' },
+  };
+
+  const isUrl = (val: string) => val.startsWith('http');
+
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden bg-gradient-to-r from-orange-700/30 via-orange-900/15 to-orange-950/30 p-5 rounded-2xl border border-orange-900/50 flex items-center gap-4 shadow-[0_0_30px_rgba(234,88,12,0.15)]">
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
-        <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 p-3 rounded-xl border border-orange-500/30 text-orange-400 shadow-[0_0_15px_rgba(234,88,12,0.2)]">
+    <div className="space-y-5">
+      <div className="omnitrix-panel relative overflow-hidden p-4 sm:p-5 rounded-2xl flex items-center gap-4 border-orange-500/25">
+        <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-orange-400/70 to-transparent" />
+        <div className="bg-orange-500/15 p-3 rounded-xl border border-orange-500/30 text-orange-400 shadow-[0_0_16px_rgba(249,115,22,0.2)]">
           <Crosshair className="w-6 h-6" />
         </div>
-        <div className="flex-1">
-          <h3 className="font-extrabold text-white text-base">CS2 Case Opening</h3>
-          <p className="text-slate-400 text-xs">Abra caixas e ganhe skins raras do Counter-Strike 2</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-extrabold font-display text-white text-base">CS2 Case Opening</h3>
+            <span className="text-[9px] font-mono bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full">
+              CSGO API • {cases.length} Caixas
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs mt-0.5">Abra caixas reais e colecione skins & facas com artes oficiais</p>
         </div>
-        <div className="text-right">
-          <div className="text-xs text-slate-500">Progresso</div>
-          <div className="text-sm font-bold text-white">{collectedItems}/{totalItems}</div>
+        <div className="text-right shrink-0">
+          <div className="text-[10px] font-mono uppercase text-slate-500">Coleção</div>
+          <div className="text-sm font-bold font-mono text-brand">{collectedItems}/{totalItems}</div>
         </div>
       </div>
 
@@ -565,18 +631,18 @@ export default function CS2Cases({
         <div className="flex gap-2 border-b border-[#1a1c2a] pb-2">
           {[
             { id: 'cases' as const, label: 'Caixas', icon: '📦' },
-            { id: 'collection' as const, label: 'Coleção', icon: '📚' },
+            { id: 'collection' as const, label: `Coleção (${collectedItems})`, icon: '📚' },
             { id: 'market' as const, label: 'Mercado', icon: '💰' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border relative ${
                 tab === t.id
-                  ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400 shadow-[0_0_10px_rgba(255,191,0,0.15)]'
+                  ? 'border-orange-500/40 text-orange-300 shadow-[0_0_14px_rgba(249,115,22,0.18)]'
                   : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
               }`}
             >
               {tab === t.id && (
-                <motion.div layoutId="cs-tab-pill" className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border border-yellow-500/30 rounded-xl" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />
+                <motion.div layoutId="cs-tab-pill" className="absolute inset-0 bg-gradient-to-r from-orange-500/15 to-amber-600/10 border border-orange-500/30 rounded-xl" transition={{ type: 'spring', stiffness: 300, damping: 30 }} />
               )}
               <span className="relative z-10 flex items-center gap-1.5"><span>{t.icon}</span>{t.label}</span>
             </button>
@@ -587,38 +653,60 @@ export default function CS2Cases({
       <AnimatePresence mode="wait">
         {tab === 'cases' && !selectedCase && (
           <motion.div key="case-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap items-center">
               <button onClick={() => setTierFilter(null)}
                 className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                  tierFilter === null ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'
+                  tierFilter === null ? 'bg-orange-500/15 border-orange-500/40 text-orange-300' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'
                 }`}>Todas</button>
               {Object.entries(TIER_INFO).map(([key, info]) => (
                 <button key={key} onClick={() => setTierFilter(key)}
                   className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${info.color} ${
-                    tierFilter === key ? 'ring-1 ring-yellow-500/50' : ''
+                    tierFilter === key ? 'ring-1 ring-brand/60' : 'opacity-80 hover:opacity-100'
                   }`}
                 >{info.icon} {info.label}</button>
               ))}
+              {loadingApi && (
+                <span className="text-[10px] font-mono text-brand flex items-center gap-1 ml-auto">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Carregando caixas...
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {casesToShow.map(c => {
                 const tInfo = TIER_INFO[c.tier] || { label: '', icon: '', color: 'text-slate-400' };
                 return (
                   <motion.div
                     key={c.id}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ scale: 1.03 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 22 }}
                   >
-                    <button onClick={() => setSelectedCase(c)}
-                      className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 text-center hover:border-orange-500/30 transition-all cursor-pointer group w-full relative overflow-hidden"
+                    <button onClick={() => { setSelectedCase(c); setShowResult(false); setResult(null); }}
+                      className="omnitrix-card rounded-2xl p-3.5 text-center hover:border-orange-500/40 transition-all cursor-pointer group w-full flex flex-col items-center justify-between h-full"
                     >
-                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400/20 to-transparent" />
-                      <motion.div className="text-4xl mb-2" whileHover={{ rotate: [0, -10, 10, -10, 0] }} transition={{ duration: 0.5 }}>{c.image}</motion.div>
-                      <div className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">{c.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">R$ {c.price.toFixed(2)}</div>
-                      <div className={`text-[9px] mt-1 px-1.5 py-0.5 rounded inline-block border ${tInfo.color}`}>{tInfo.icon} {tInfo.label}</div>
+                      <div className="w-full h-24 bg-[#06070d] rounded-xl border border-[#1a1d2d] flex items-center justify-center mb-2.5 overflow-hidden p-2">
+                        {isUrl(c.image) ? (
+                          <img
+                            src={c.image}
+                            alt={c.name}
+                            className="max-h-20 object-contain group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="text-4xl">{c.image}</span>
+                        )}
+                      </div>
+                      <div className="w-full">
+                        <div className="text-xs font-extrabold text-white group-hover:text-orange-300 transition-colors truncate">{c.name}</div>
+                        <div className="text-xs font-mono font-bold text-brand mt-1">
+                          {c.price === 0 ? 'GRÁTIS' : `R$ ${c.price.toFixed(2)}`}
+                        </div>
+                        <div className={`text-[9px] mt-1.5 px-2 py-0.5 rounded-full inline-block border ${tInfo.color}`}>
+                          {tInfo.icon} {tInfo.label}
+                        </div>
+                      </div>
                     </button>
                   </motion.div>
                 );
@@ -628,26 +716,31 @@ export default function CS2Cases({
         )}
 
         {tab === 'cases' && selectedCase && (
-          <motion.div key="case-detail" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-            <button onClick={() => setSelectedCase(null)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer">
-              <ArrowLeft className="w-3 h-3" /> Voltar
+          <motion.div key="case-detail" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+            <button onClick={() => setSelectedCase(null)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand transition-colors cursor-pointer">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar para todas as caixas
             </button>
 
-            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-5 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400/40 to-transparent" />
+            <div className="omnitrix-panel rounded-2xl p-4 sm:p-5 relative overflow-hidden">
+              <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-orange-400/60 to-transparent" />
               <div className="flex items-center gap-4 mb-4">
-                <motion.div className="text-5xl" animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 3 }}>{selectedCase.image}</motion.div>
-                <div>
-                  <h4 className="text-lg font-bold text-white">{selectedCase.name}</h4>
-                  <p className="text-sm text-slate-400">R$ {selectedCase.price.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500">{selectedCase.items.length} skins possíveis</p>
-                  <div className={`text-[10px] mt-1 px-1.5 py-0.5 rounded inline-block border ${(TIER_INFO[selectedCase.tier] || {}).color || ''}`}>
-                    {(TIER_INFO[selectedCase.tier] || {}).icon} {(TIER_INFO[selectedCase.tier] || {}).label}
-                  </div>
+                <div className="w-20 h-20 rounded-xl bg-[#06070d] border border-[#1a1d2d] flex items-center justify-center p-2 shrink-0">
+                  {isUrl(selectedCase.image) ? (
+                    <img src={selectedCase.image} alt={selectedCase.name} className="w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.7)]" />
+                  ) : (
+                    <span className="text-4xl">{selectedCase.image}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-lg font-extrabold font-display text-white truncate">{selectedCase.name}</h4>
+                  <p className="text-sm font-mono font-bold text-brand">
+                    {selectedCase.price === 0 ? 'Caixa Gratuita Diária' : `R$ ${selectedCase.price.toFixed(2)}`}
+                  </p>
+                  <p className="text-xs text-slate-400">{selectedCase.items.length} skins & itens especiais</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-5 gap-2 mb-4">
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-4">
                 {[
                   { level: 0, label: 'Azul', chance: `${selectedCase.weights[0]}%`, color: 'text-blue-400' },
                   { level: 1, label: 'Roxa', chance: `${selectedCase.weights[1]}%`, color: 'text-purple-400' },
@@ -655,11 +748,10 @@ export default function CS2Cases({
                   { level: 3, label: 'Verm.', chance: `${selectedCase.weights[3]}%`, color: 'text-red-400' },
                   { level: 4, label: 'Ouro', chance: `${selectedCase.weights[4]}%`, color: 'text-yellow-300' },
                 ].map(o => (
-                  <div key={o.level} className={`bg-[#0a0b12] border border-[#1a1d2d] rounded-lg p-2 text-center ${o.color} relative overflow-hidden`}>
-                    {o.level >= 3 && <div className="absolute inset-0 bg-gradient-to-b from-current/5 to-transparent" />}
-                    <div className="text-xs font-bold relative z-10">{o.label}</div>
-                    <div className={`text-lg font-black relative z-10 ${o.level >= 3 ? 'drop-shadow-[0_0_6px_rgba(255,255,255,0.2)]' : ''}`}>{o.chance}</div>
-                    <div className="text-[10px] opacity-60 relative z-10">{rarityCounts[o.level].collected}/{rarityCounts[o.level].total}</div>
+                  <div key={o.level} className={`bg-[#06070d] border border-[#1a1d2d] rounded-xl p-2 text-center ${o.color}`}>
+                    <div className="text-[10px] font-bold">{o.label}</div>
+                    <div className="text-sm sm:text-base font-black font-mono">{o.chance}</div>
+                    <div className="text-[9px] opacity-60">{rarityCounts[o.level].collected}/{rarityCounts[o.level].total}</div>
                   </div>
                 ))}
               </div>
@@ -668,14 +760,14 @@ export default function CS2Cases({
                 {!rolling && !showResult && (
                   <motion.button onClick={openCase}
                     disabled={balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)}
-                    whileHover={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 1.02 } : {}}
-                    whileTap={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 0.98 } : {}}
-                    className={`w-full py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+                    whileHover={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 1.01 } : {}}
+                    whileTap={!(balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)) ? { scale: 0.99 } : {}}
+                    className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${
                       balance < selectedCase.price || (selectedCase.tier === 'daily' && dailyCooldown > 0)
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
                         : selectedCase.price === 0
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                        : 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 hover:from-yellow-400 hover:to-amber-500 hover:shadow-[0_0_25px_rgba(255,191,0,0.4)] shadow-[0_0_15px_rgba(255,191,0,0.3)]'
+                        ? 'bg-brand hover:bg-[#00e074] text-slate-950 shadow-[0_0_20px_rgba(0,255,135,0.35)]'
+                        : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 hover:from-yellow-400 hover:to-amber-400 shadow-[0_0_22px_rgba(245,158,11,0.35)]'
                     }`}
                   >
                     {selectedCase.tier === 'daily' && dailyCooldown > 0
@@ -686,123 +778,119 @@ export default function CS2Cases({
                   </motion.button>
                 )}
 
-                <div className={`relative ${!(rolling || showResult) ? 'invisible absolute pointer-events-none' : ''}`} style={!(rolling || showResult) ? { height: '160px' } : {}}>
-                    <div ref={stripContainerRef} className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#0a0b12] mb-4" style={{ height: '160px' }}>
-                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/30 to-transparent z-10" />
-                      {rolling && (
+                <div className={`relative ${!(rolling || showResult) ? 'invisible absolute pointer-events-none' : ''}`} style={!(rolling || showResult) ? { height: '165px' } : {}}>
+                  <div ref={stripContainerRef} className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#06070d] mb-4" style={{ height: '165px' }}>
+                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent z-10" />
+                    <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-400/70 z-20 shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
+                      <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[14px] border-l-transparent border-r-transparent border-t-amber-400" />
+                    </div>
+                    <div ref={stripInnerRef}
+                      className="flex gap-2 items-center py-5 absolute"
+                      style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
+                    >
+                      {stripItems.map((item, i) => {
+                        const rColor = rarityColor(item.rarityLevel);
+                        const isWinner = result && i === animToken.current && !rolling;
+                        return (
+                          <div key={`s-${i}`}
+                            className={`shrink-0 w-[96px] h-[116px] rounded-xl border-2 ${rColor.border} ${rColor.bg} p-1.5 flex flex-col items-center justify-between text-center ${isWinner ? 'ring-2 ring-amber-400 scale-105' : ''}`}
+                            style={{ boxShadow: `0 0 ${isWinner ? '18' : '6'}px ${rColor.glow}` }}
+                          >
+                            <div className="w-full h-14 flex items-center justify-center overflow-hidden">
+                              {item.image ? (
+                                <img src={item.image} alt={item.name} className="max-h-14 max-w-full object-contain drop-shadow-[0_3px_6px_rgba(0,0,0,0.7)]" />
+                              ) : (
+                                <span className="text-2xl">{item.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                              )}
+                            </div>
+                            <div className="w-full">
+                              <div className="text-[8px] font-mono text-slate-400 truncate">{item.weapon}</div>
+                              <div className={`text-[9px] font-bold ${rColor.text} truncate leading-tight`}>{item.name}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {showResult && result && (
+                    <motion.div initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
+                      className="omnitrix-panel rounded-2xl p-5 sm:p-6 text-center relative overflow-hidden"
+                    >
+                      <div className="text-xs font-mono uppercase tracking-widest text-brand mb-2 flex items-center justify-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> Item Obtido!
+                      </div>
+                      <div className="flex justify-center mb-3">
                         <motion.div
-                          className="absolute inset-0 z-10 pointer-events-none"
-                          animate={{ background: ['linear-gradient(90deg, transparent, rgba(251,191,36,0.08), transparent)', 'linear-gradient(90deg, transparent, rgba(251,191,36,0.15), transparent)', 'linear-gradient(90deg, transparent, rgba(251,191,36,0.08), transparent)'] }}
-                          transition={{ repeat: Infinity, duration: 0.8 }}
-                        />
-                      )}
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
-                        <motion.div
-                          animate={rolling ? { y: [0, -3, 0] } : {}}
-                          transition={{ repeat: Infinity, duration: 0.5 }}
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                          className={`w-44 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} holo-foil p-3`}
+                          style={{ boxShadow: `0 0 42px ${rarityColor(result.rarityLevel).glow}` }}
                         >
-                          <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                          {result.image && !resultImgError ? (
+                            <img
+                              src={result.image}
+                              onError={() => setResultImgError(true)}
+                              alt={result.name}
+                              className="max-h-28 max-w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.75)]"
+                            />
+                          ) : (
+                            <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                          )}
                         </motion.div>
                       </div>
-                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-24 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent rounded-full" />
-                      <div ref={stripInnerRef}
-                        className="flex gap-1.5 items-center py-8 absolute"
-                        style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
-                      >
-                        {stripItems.map((item, i) => {
-                          const rColor = rarityColor(item.rarityLevel);
-                          const isWinner = result && item.id === result.id && !rolling;
-                          return (
-                            <motion.div key={`s-${i}`}
-                              initial={false}
-                              animate={isWinner ? { scale: [1, 1.15, 1], transition: { duration: 0.4 } } : {}}
-                              className={`shrink-0 w-[80px] rounded-lg border-2 ${rColor.border} ${rColor.bg} p-1.5 text-center ${isWinner ? 'ring-2 ring-amber-400' : ''}`}
-                              style={{ boxShadow: `0 0 ${isWinner ? '16' : '6'}px ${rColor.glow}` }}
-                            >
-                              <div className="text-[9px] font-mono text-slate-400 truncate">{item.weapon}</div>
-                              <div className={`text-[10px] font-bold ${rColor.text} truncate leading-tight`}>{item.name}</div>
-                            </motion.div>
-                          );
-                        })}
+                      <div className={`text-xs font-mono ${rarityColor(result.rarityLevel).text} opacity-85`}>{result.weapon}</div>
+                      <div className={`text-lg sm:text-xl font-extrabold font-display ${rarityColor(result.rarityLevel).text} leading-tight`}>
+                        {result.name}
                       </div>
-                    </div>
-
-                    {showResult && result && (
-                      <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-6 text-center relative overflow-hidden"
-                      >
-                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
-                        <div className="text-sm text-slate-400 mb-3">🎉 Você ganhou!</div>
-                        <div className="flex justify-center mb-3">
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1, rotate: [0, 5, -5, 0] }}
-                            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                            className={`w-36 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} overflow-hidden`}
-                            style={{ boxShadow: `0 0 50px ${rarityColor(result.rarityLevel).glow}` }}
-                          >
-                            {result.rarityLevel >= 4 && (
-                              <motion.div
-                                className="absolute inset-0 bg-gradient-to-br from-yellow-400/20 via-transparent to-yellow-600/20"
-                                animate={{ opacity: [0.3, 0.6, 0.3] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                              />
-                            )}
-                            {resultImgError ? (
-                              <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
-                            ) : (
-                              <img
-                                src={`https://csimg.glitch.me/${encodeURIComponent(result.weapon + ' | ' + result.name)}?t=${Date.now()}`}
-                                onError={() => setResultImgError(true)}
-                                alt={result.name}
-                                className="w-full h-full object-contain p-1"
-                              />
-                            )}
-                          </motion.div>
-                        </div>
-                        <div className={`text-sm font-mono ${rarityColor(result.rarityLevel).text} opacity-80 mb-0.5`}>
-                          {result.weapon}
-                        </div>
-                        <div className={`text-lg md:text-xl font-bold ${rarityColor(result.rarityLevel).text} px-4 max-w-xs mx-auto leading-tight drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>
-                          {result.name}
-                        </div>
-                        <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-70 mt-0.5`}>
-                          {rarityLabelShort(result.rarityLevel)}
-                        </div>
-                        <div className={`text-xl font-black mt-2 ${result.rarityLevel >= 4 ? 'text-yellow-400 drop-shadow-[0_0_12px_rgba(234,179,8,0.4)]' : 'text-brand'}`}>R$ {resultPrice.toFixed(2)}</div>
-                        <div className="flex gap-2 mt-4">
-                          <button onClick={handleSellNow}
-                            className="flex-1 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 rounded-xl text-xs font-bold hover:from-yellow-400 hover:to-amber-500 transition-all cursor-pointer shadow-[0_0_12px_rgba(255,191,0,0.2)]"
-                          >Vender por R$ {resultPrice.toFixed(2)}</button>
-                          <button onClick={handleKeep}
-                            className="flex-1 py-2.5 bg-[#1a1d2d] text-slate-200 rounded-xl text-xs font-bold hover:bg-[#242738] transition-all cursor-pointer border border-[#2a2d3d]"
-                          >Guardar na Coleção</button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
+                      <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-75 mt-0.5`}>
+                        {rarityLabelShort(result.rarityLevel)}
+                      </div>
+                      <div className="text-xl font-black font-mono mt-2 text-brand">R$ {resultPrice.toFixed(2)}</div>
+                      <div className="flex gap-2 mt-4">
+                        <button onClick={handleSellNow}
+                          className="flex-1 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 rounded-xl text-xs font-black hover:from-yellow-400 hover:to-amber-400 transition-all cursor-pointer"
+                        >Vender por R$ {resultPrice.toFixed(2)}</button>
+                        <button onClick={handleKeep}
+                          className="flex-1 py-2.5 bg-brand hover:bg-[#00e074] text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer"
+                        >Guardar na Coleção</button>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
+              </div>
 
-              <div className="mt-4">
-                <h5 className="text-sm font-bold text-slate-300 mb-2">Conteúdo da Caixa</h5>
-                {[0, 1, 2, 3, 4].map(level => {
+              <div className="mt-5">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Conteúdo da Caixa</h5>
+                {[4, 3, 2, 1, 0].map(level => {
                   const items = selectedCase.items.filter(s => s.rarityLevel === level);
                   if (items.length === 0) return null;
                   const rColor = rarityColor(level);
                   return (
-                    <div key={level} className="mb-2">
-                      <div className={`text-xs font-bold ${rColor.text} mb-1 flex items-center gap-1.5`}>
-                        <span className={`w-2 h-2 rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                    <div key={level} className="mb-3">
+                      <div className={`text-[11px] font-bold ${rColor.text} mb-1.5 flex items-center gap-1.5`}>
+                        <span className={`w-2 h-2 rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-yellow-400'}`} />
                         {rarityLabel(level)}
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
                         {items.map(s => {
                           const owned = collection.some(c => c.id === s.id && c.setSeries === 'CS2');
                           return (
                             <div key={s.id}
-                              className={`text-[10px] px-2 py-1 rounded-lg border ${rColor.border} ${rColor.bg} ${owned ? 'opacity-60' : ''} transition-all`}
+                              className={`flex items-center gap-2 text-[10px] px-2 py-1.5 rounded-xl border ${rColor.border} ${rColor.bg} ${owned ? 'ring-1 ring-brand/40' : ''}`}
                             >
-                              {s.weapon} | {s.name}{owned && <span className="text-brand ml-1">✓</span>}
+                              {s.image ? (
+                                <img src={s.image} alt={s.name} className="w-9 h-7 object-contain shrink-0" loading="lazy" />
+                              ) : (
+                                <span className="text-sm shrink-0">🔫</span>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[8px] font-mono text-slate-400 truncate">{s.weapon}</div>
+                                <div className={`font-bold truncate ${rColor.text}`}>{s.name}</div>
+                              </div>
+                              {owned && <span className="text-brand font-bold shrink-0">✓</span>}
                             </div>
                           );
                         })}
@@ -818,13 +906,13 @@ export default function CS2Cases({
         {tab === 'collection' && (
           <motion.div key="collection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
             <div className="flex gap-2 flex-wrap">
-              <div className="relative flex-1 max-w-xs">
+              <div className="relative flex-1 min-w-[160px] max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                 <input type="text" placeholder="Buscar skin..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#0d0e16] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-yellow-500/30" />
+                  className="w-full bg-[#0d0e16] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/40" />
               </div>
               <button onClick={() => setRarityFilter(null)}
-                className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${rarityFilter === null ? 'bg-gradient-to-r from-yellow-500/10 to-amber-600/10 border-yellow-500/30 text-yellow-400' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'}`}>Todas</button>
+                className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${rarityFilter === null ? 'bg-orange-500/15 border-orange-500/40 text-orange-300' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'}`}>Todas</button>
               {[
                 { level: 0, label: 'Azul', color: 'text-blue-400' },
                 { level: 1, label: 'Roxa', color: 'text-purple-400' },
@@ -833,86 +921,100 @@ export default function CS2Cases({
                 { level: 4, label: 'Ouro', color: 'text-yellow-300' },
               ].map(r => (
                 <button key={r.level} onClick={() => setRarityFilter(rarityFilter === r.level ? null : r.level)}
-                  className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${r.color} ${rarityFilter === r.level ? 'bg-white/5' : 'bg-[#0d0e16] border-[#1a1d2d]'}`}>{r.label}</button>
+                  className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${r.color} ${rarityFilter === r.level ? 'bg-white/10 border-white/25' : 'bg-[#0d0e16] border-[#1a1d2d]'}`}>{r.label}</button>
               ))}
             </div>
 
-            {filteredCollection.length === 0
-              ? <div className="text-center py-12 text-slate-500 text-sm">Nenhuma skin na coleção</div>
-              : <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {filteredCollection.map(card => {
-                    const rarMap: Record<string, number> = {
-                      'Mil-Spec (Azul)': 0, 'Restricted (Roxa)': 1,
-                      'Classified (Rosa)': 2, 'Covert (Vermelha)': 3, 'Rare Special (Ouro)': 4,
-                    };
-                    const level = rarMap[card.rarity] ?? 0;
-                    const rColor = rarityColor(level);
-                    const price = prices[card.id] ?? 0;
-                    return (
-                      <motion.div key={card.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        whileHover={{ scale: 1.03 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                        className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center hover:shadow-lg`}
-                        style={{ boxShadow: `0 0 8px ${rColor.glow}` }}>
-                        <div className="text-3xl mb-1">{level === 4 ? '⭐' : '🔫'}</div>
-                        <div className="text-[10px] font-mono text-slate-500 truncate">{card.name.split(' | ')[0]}</div>
+            {filteredCollection.length === 0 ? (
+              <div className="omnitrix-card rounded-2xl text-center py-12 text-slate-500 text-sm">Nenhuma skin na coleção</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                {filteredCollection.map(card => {
+                  const rarMap: Record<string, number> = {
+                    'Mil-Spec (Azul)': 0, 'Restricted (Roxa)': 1,
+                    'Classified (Rosa)': 2, 'Covert (Vermelha)': 3, 'Rare Special (Ouro)': 4,
+                  };
+                  const level = rarMap[card.rarity] ?? 0;
+                  const rColor = rarityColor(level);
+                  const price = prices[card.id] ?? 1;
+                  const img = resolveCardImage(card);
+                  return (
+                    <motion.div key={card.id}
+                      initial={{ opacity: 0, scale: 0.94 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.02 }}
+                      className={`bg-[#090b13] border ${rColor.border} rounded-xl p-3 text-center holo-foil flex flex-col justify-between`}
+                      style={{ boxShadow: `0 0 12px ${rColor.glow}` }}>
+                      <div className="h-20 flex items-center justify-center mb-1.5">
+                        {img ? (
+                          <img src={img} alt={card.name} className="max-h-20 max-w-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.7)]" loading="lazy" />
+                        ) : (
+                          <span className="text-3xl">{level === 4 ? '⭐' : '🔫'}</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-400 truncate">{card.name.split(' | ')[0]}</div>
                         <div className="text-xs font-bold text-white truncate">{card.name.split(' | ')[1] || card.name}</div>
-                        <div className={`text-[10px] ${rColor.text} ${level >= 4 ? 'drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : ''}`}>{card.rarity}</div>
-                        <div className={`text-xs font-bold mt-1 ${level >= 4 ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.3)]' : 'text-brand'}`}>R$ {price.toFixed(2)}</div>
-                        {card.quantity > 1 && <div className="text-[10px] text-slate-500 mt-0.5">{card.quantity}x</div>}
+                        <div className={`text-[9px] font-semibold mt-0.5 ${rColor.text}`}>{rarityLabelShort(level)}</div>
+                        <div className="text-xs font-mono font-bold mt-1 text-brand">R$ {price.toFixed(2)}</div>
+                        {card.quantity > 1 && <div className="text-[10px] text-slate-400 mt-0.5">×{card.quantity}</div>}
                         {card.quantity > 1 && (
                           <button onClick={() => handleSellSingle(card)}
-                            className="mt-1.5 w-full py-1 bg-[#1a1d2d] text-slate-300 rounded-lg text-[10px] font-bold hover:bg-red-500/20 hover:text-red-400 transition-all cursor-pointer border border-[#2a2d3d]"
+                            className="mt-2 w-full py-1 bg-[#161927] text-slate-200 rounded-lg text-[10px] font-bold hover:bg-brand hover:text-slate-950 transition-all cursor-pointer border border-[#2a2d3d]"
                           >Vender 1x R$ {price.toFixed(2)}</button>
                         )}
-                      </motion.div>
-                    );
-                  })}
-                </div>}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         )}
 
         {tab === 'market' && (
           <motion.div key="market" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            <div className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-4 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent" />
+            <div className="omnitrix-panel rounded-2xl p-4 relative overflow-hidden">
               <div className="flex items-center justify-between mb-1">
                 <div className="text-sm font-bold text-white">Mercado de Skins CS2</div>
                 <TrendingUp className="w-4 h-4 text-brand" />
               </div>
-              <p className="text-[10px] text-slate-500">Preços flutuam a cada 20s</p>
+              <p className="text-[10px] text-slate-400">Preços atualizam a cada 25s</p>
               {collection.filter(c => c.setSeries === 'CS2' && c.quantity > 1).length > 0 && (
                 <button onClick={handleSellAllDups}
-                  className="mt-3 w-full py-2.5 bg-brand/10 border border-brand/30 text-brand rounded-xl text-xs font-bold hover:bg-brand/20 transition-all cursor-pointer"
+                  className="mt-3 w-full py-2.5 bg-brand/15 border border-brand/35 text-brand rounded-xl text-xs font-bold hover:bg-brand hover:text-slate-950 transition-all cursor-pointer"
                 >Vender Todas Repetidas</button>
               )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {ALL_CASES.flatMap(c => c.items).map(skin => {
-                const owned = collection.filter(c => c.id === skin.id && c.setSeries === 'CS2');
-                const quantity = owned.reduce((s, c) => s + c.quantity, 0);
-                const rColor = rarityColor(skin.rarityLevel);
-                const price = prices[skin.id] ?? 0;
-                if (quantity <= 1) return null;
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+              {collection.filter(c => c.setSeries === 'CS2' && c.quantity > 1).map(card => {
+                const rarMap: Record<string, number> = {
+                  'Mil-Spec (Azul)': 0, 'Restricted (Roxa)': 1,
+                  'Classified (Rosa)': 2, 'Covert (Vermelha)': 3, 'Rare Special (Ouro)': 4,
+                };
+                const level = rarMap[card.rarity] ?? 0;
+                const rColor = rarityColor(level);
+                const price = prices[card.id] ?? 1;
+                const img = resolveCardImage(card);
                 return (
-                  <motion.div key={skin.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.03 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    className={`bg-[#0d0e16] border ${rColor.border} rounded-xl p-3 text-center hover:shadow-lg`}
-                    style={{ boxShadow: `0 0 6px ${rColor.glow}` }}>
-                    <div className={`text-[10px] font-mono ${rColor.text}`}>{skin.weapon}</div>
-                    <div className="text-xs font-bold text-white truncate">{skin.name}</div>
-                    <div className="text-[10px] text-slate-400">{rarityLabelShort(skin.rarityLevel)}</div>
-                    <div className={`text-xs font-bold mt-1 ${skin.rarityLevel >= 4 ? 'text-yellow-400 drop-shadow-[0_0_6px_rgba(234,179,8,0.3)]' : 'text-brand'}`}>R$ {price.toFixed(2)}</div>
-                    <div className="text-[10px] text-slate-500">{quantity - 1} repetidas</div>
-                    <button onClick={() => { const c = owned[0]; if (c) handleSellSingle(c); }}
-                      className="mt-1.5 w-full py-1 bg-[#1a1d2d] text-slate-300 rounded-lg text-[10px] font-bold hover:bg-brand/20 hover:text-brand transition-all cursor-pointer border border-[#2a2d3d]"
+                  <div key={card.id}
+                    className={`bg-[#090b13] border ${rColor.border} rounded-xl p-3 text-center`}
+                    style={{ boxShadow: `0 0 8px ${rColor.glow}` }}>
+                    <div className="h-16 flex items-center justify-center mb-1">
+                      {img ? (
+                        <img src={img} alt={card.name} className="max-h-16 object-contain" loading="lazy" />
+                      ) : (
+                        <span className="text-2xl">{level === 4 ? '⭐' : '🔫'}</span>
+                      )}
+                    </div>
+                    <div className={`text-[10px] font-mono ${rColor.text} truncate`}>{card.name.split(' | ')[0]}</div>
+                    <div className="text-xs font-bold text-white truncate">{card.name.split(' | ')[1] || card.name}</div>
+                    <div className="text-xs font-mono font-bold mt-1 text-brand">R$ {price.toFixed(2)}</div>
+                    <div className="text-[10px] text-slate-500">{card.quantity - 1} repetidas</div>
+                    <button onClick={() => handleSellSingle(card)}
+                      className="mt-2 w-full py-1.5 bg-[#1a1d2d] text-slate-200 rounded-lg text-[10px] font-bold hover:bg-brand hover:text-slate-950 transition-all cursor-pointer border border-[#2a2d3d]"
                     >Vender 1x R$ {price.toFixed(2)}</button>
-                  </motion.div>
+                  </div>
                 );
               })}
               {collection.filter(c => c.setSeries === 'CS2' && c.quantity > 1).length === 0 && (
@@ -929,9 +1031,9 @@ export default function CS2Cases({
             const rColor = rarityColor(level);
             const pct = rarityCounts[level].total > 0 ? Math.round((rarityCounts[level].collected / rarityCounts[level].total) * 100) : 0;
             return (
-              <div key={level} className="bg-[#0d0e16] border border-[#1a1d2d] rounded-xl p-3">
-                <div className={`text-[10px] font-bold ${rColor.text}`}>{rarityLabelShort(level)}</div>
-                <div className="text-lg font-black text-white mt-0.5">{rarityCounts[level].collected}/{rarityCounts[level].total}</div>
+              <div key={level} className="bg-[#0a0c14] border border-[#1a1d2d] rounded-xl p-2.5 sm:p-3">
+                <div className={`text-[9px] sm:text-[10px] font-bold truncate ${rColor.text}`}>{rarityLabelShort(level)}</div>
+                <div className="text-sm sm:text-lg font-black font-mono text-white mt-0.5">{rarityCounts[level].collected}/{rarityCounts[level].total}</div>
                 <div className="w-full h-1.5 bg-[#1a1d2d] rounded-full mt-1 overflow-hidden">
                   <div className={`h-full rounded-full ${level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : level === 2 ? 'bg-pink-500' : level === 3 ? 'bg-red-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'}`}
                     style={{ width: `${pct}%` }} />

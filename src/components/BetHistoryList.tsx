@@ -27,8 +27,10 @@ export default function BetHistoryList({
   const [activeTab, setActiveTab] = useState<'slip' | 'history'>('history');
   const [stakeInput, setStakeInput] = useState<string>('');
 
-  // Compute multi accumulator odds
-  const totalOdds = selections.reduce((accum, sel) => accum * sel.odds, 1.0);
+  // Compute multi accumulator odds (+15% bonus when 2+ selections)
+  const rawOdds = selections.reduce((accum, sel) => accum * sel.odds, 1.0);
+  const hasAccBonus = selections.length >= 2;
+  const totalOdds = hasAccBonus ? rawOdds * 1.15 : rawOdds;
   const formattedOdds = selections.length > 0 ? parseFloat(totalOdds.toFixed(2)) : 1.0;
   const stake = parseFloat(stakeInput) || 0;
   const potentialPayout = parseFloat((stake * formattedOdds).toFixed(2));
@@ -82,7 +84,8 @@ export default function BetHistoryList({
   };
 
   return (
-    <div className="bg-[#0b0c13] border border-[#1b1e2e] rounded-2xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.45)] flex flex-col h-[420px] lg:h-[520px]">
+    <div className="omnitrix-panel rounded-2xl overflow-hidden flex flex-col h-[420px] lg:h-[540px] relative">
+      <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent pointer-events-none" />
       {/* Header Tabs */}
       <div className="flex border-b border-[#1b1e2e] bg-[#07080f] p-1">
         <button
@@ -149,11 +152,11 @@ export default function BetHistoryList({
                 <div className="border-t border-[#141520] pt-3 space-y-3 bg-[#0b0c13]">
                   {/* Multiplier review */}
                   {selections.length > 1 && (
-                    <div className="flex justify-between items-center text-xs bg-brand/5 border border-brand/20 p-2.5 rounded-xl">
+                    <div className="flex justify-between items-center text-xs bg-brand/10 border border-brand/30 p-2.5 rounded-xl">
                       <span className="text-brand font-bold flex items-center gap-1">
-                        <Percent className="w-3.5 h-3.5" /> Bônus de Acumulada Ativo
+                        <Percent className="w-3.5 h-3.5" /> Bônus Acumulada (+15%)
                       </span>
-                      <span className="font-mono text-brand font-bold">@{formattedOdds}</span>
+                      <span className="font-mono text-brand font-bold">@{formattedOdds.toFixed(2)}</span>
                     </div>
                   )}
 

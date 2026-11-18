@@ -6,6 +6,12 @@ import { useSound } from '../hooks/useSound';
 import { updateMissionProgress } from '../firebase/db';
 
 const API_BASE = 'https://api.pokemontcg.io/v2';
+const CDN_DATA_BASE = 'https://cdn.jsdelivr.net/gh/PokemonTCG/pokemon-tcg-data@master';
+const TCGDEX_SETS_URL = 'https://api.tcgdex.net/v2/en/sets';
+const TCGDEX_GRAPHQL_URL = 'https://api.tcgdex.net/v2/graphql';
+
+let cachedPokemonSetsMemory: TCGSets[] | null = null;
+const cachedPokemonCardsMemory: Record<string, TCGCard[]> = {};
 const PACK_BASE_PRICE = 14.90;
 const PACK_OPTIONS = [
   { qty: 1, price: 14.90, label: '1 pacote' },
@@ -57,9 +63,12 @@ function getCardRarityLevel(rarity: string): number {
   if (!rarity || rarity === 'Common') return 0;
   if (rarity === 'Uncommon') return 1;
   if (rarity === 'Rare') return 2;
-  if (rarity === 'Rare Holo' || rarity === 'Rare Holo V') return 3;
-  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow') return 4;
-  if (rarity === 'Rare Secret') return 5;
+  if (rarity === 'Rare Holo' || rarity === 'Rare Holo V' || rarity === 'Holo Rare' || rarity === 'Double Rare') return 3;
+  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow' || rarity === 'Ultra Rare' || rarity === 'Illustration Rare') return 4;
+  if (rarity === 'Rare Secret' || rarity === 'Secret Rare' || rarity === 'Hyper Rare' || rarity === 'Special Illustration Rare') return 5;
+  if (rarity.includes('Holo')) return 3;
+  if (rarity.includes('Ultra')) return 4;
+  if (rarity.includes('Secret')) return 5;
   if (rarity.includes('Rare')) return 2;
   return 0;
 }
@@ -97,9 +106,9 @@ function getSetCapabilities(series: string): { tier: string; label: string; colo
 function categorizeRarity(rarity: string | undefined): string {
   if (!rarity || rarity === 'Common') return 'Common';
   if (rarity === 'Uncommon') return 'Uncommon';
-  if (rarity.includes('Secret')) return 'Rare Secret';
-  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow') return 'Rare Ultra';
-  if (rarity.includes('Holo')) return 'Rare Holo';
+  if (rarity.includes('Secret') || rarity === 'Hyper Rare' || rarity === 'Special Illustration Rare') return 'Rare Secret';
+  if (rarity === 'Rare Ultra' || rarity === 'Rare Rainbow' || rarity === 'Ultra Rare' || rarity === 'Illustration Rare') return 'Rare Ultra';
+  if (rarity.includes('Holo') || rarity === 'Double Rare') return 'Rare Holo';
   if (rarity.includes('Rare')) return 'Rare';
   return 'Common';
 }
@@ -245,35 +254,197 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     });
 
   useEffect(() => {
-    const cached = sessionStorage.getItem('pokemonSets');
-    if (cached) { const parsed = JSON.parse(cached); if (parsed.length >= 200) { setSets(parsed); setSetsLoading(false); return; } }
-    sessionStorage.removeItem('pokemonSets');
-    fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=250`)
-      .then(r => r.json()).then(d => {
-        const list: TCGSets[] = d.data || [];
+    if (cachedPokemonSetsMemory && cachedPokemonSetsMemory.length > 0) {
+      setSets(cachedPokemonSetsMemory);
+      setSetsLoading(false);
+      return;
+    }
+
+    try {
+      const cached = sessionStorage.getItem('pokemonSets_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length >= 100) {
+          cachedPokemonSetsMemory = parsed;
+          setSets(parsed);
+          setSetsLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    let cancelled = false;
+    (async () => {
+      let list: TCGSets[] = [];
+      try {
+        const res = await fetch(`${CDN_DATA_BASE}/sets/en.json`);
+        if (res.ok) {
+          const cdnSets = await res.json();
+          if (Array.isArray(cdnSets)) {
+            list = cdnSets.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              series: s.series || 'Other',
+              releaseDate: s.releaseDate || '2000-01-01',
+              printedTotal: s.printedTotal || s.total || 0,
+              total: s.total || s.printedTotal || 0,
+              images: s.images || { logo: '', symbol: '' },
+            }));
+          }
+        }
+      } catch {}
+
+      // Supplement with newer sets from TCGdex API if missing
+      try {
+        const tRes = await fetch(TCGDEX_SETS_URL);
+        if (tRes.ok) {
+          const dexSets = await tRes.json();
+          if (Array.isArray(dexSets)) {
+            const existingNames = new Set(list.map(s => s.name.toLowerCase()));
+            const existingIds = new Set(list.map(s => s.id.toLowerCase()));
+            for (const ds of dexSets) {
+              if (!ds?.id || !ds?.name) continue;
+              if (existingIds.has(ds.id.toLowerCase()) || existingNames.has(ds.name.toLowerCase())) continue;
+              const isModern = ds.id.startsWith('sv') || ds.id.startsWith('me');
+              if (!isModern) continue;
+              list.push({
+                id: ds.id,
+                name: ds.name,
+                series: 'Scarlet & Violet',
+                releaseDate: '2025/01/01',
+                printedTotal: ds.cardCount?.official || ds.cardCount?.total || 100,
+                total: ds.cardCount?.total || ds.cardCount?.official || 100,
+                images: {
+                  logo: ds.logo ? `${ds.logo}.png` : '',
+                  symbol: ds.symbol ? `${ds.symbol}.png` : '',
+                },
+              });
+            }
+          }
+        }
+      } catch {}
+
+      // Last fallback to legacy pokemontcg.io API
+      if (list.length === 0) {
+        try {
+          const r = await fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=250`);
+          if (r.ok) {
+            const d = await r.json();
+            list = d.data || [];
+          }
+        } catch {}
+      }
+
+      list.sort((a, b) =>
+        (b.releaseDate || '').replace(/-/g, '/').localeCompare((a.releaseDate || '').replace(/-/g, '/'))
+      );
+
+      if (!cancelled) {
+        cachedPokemonSetsMemory = list;
         setSets(list);
-        sessionStorage.setItem('pokemonSets', JSON.stringify(list));
-      }).catch(() => {}).finally(() => setSetsLoading(false));
+        setSetsLoading(false);
+        try {
+          sessionStorage.setItem('pokemonSets_v2', JSON.stringify(list));
+        } catch {}
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, []);
 
   const fetchSetCards = useCallback(async (setId: string): Promise<TCGCard[]> => {
-    const cacheKey = `pokemonCards_${setId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached) as TCGCard[];
-      if (parsed.length > 0) { setSetCards(parsed); cardsSetIdRef.current = setId; return parsed; }
+    if (cachedPokemonCardsMemory[setId]?.length > 0) {
+      setSetCards(cachedPokemonCardsMemory[setId]);
+      cardsSetIdRef.current = setId;
+      return cachedPokemonCardsMemory[setId];
     }
+
+    const cacheKey = `pokemonCards_${setId}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as TCGCard[];
+        if (parsed.length > 0) {
+          cachedPokemonCardsMemory[setId] = parsed;
+          setSetCards(parsed);
+          cardsSetIdRef.current = setId;
+          return parsed;
+        }
+      }
+    } catch {}
+
     setCardsLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/cards?q=set.id:${setId}&pageSize=250`);
-      const d = await r.json();
-      const cards = d.data || [];
+      let cards: TCGCard[] = [];
+
+      // 1) Fast jsDelivr CDN dataset
+      try {
+        const cdnRes = await fetch(`${CDN_DATA_BASE}/cards/en/${encodeURIComponent(setId)}.json`);
+        if (cdnRes.ok) {
+          const cdnData = await cdnRes.json();
+          if (Array.isArray(cdnData) && cdnData.length > 0) {
+            cards = cdnData;
+          }
+        }
+      } catch {}
+
+      // 2) TCGdex GraphQL API for newer sets not in legacy repo
+      if (cards.length === 0) {
+        try {
+          const gqlRes = await fetch(TCGDEX_GRAPHQL_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              query: `{ set(id: "${setId.replace(/"/g, '')}") { id name serie { name } cards { id name rarity image } } }`,
+            }),
+          });
+          if (gqlRes.ok) {
+            const gqlJson = await gqlRes.json();
+            const dexSet = gqlJson?.data?.set;
+            if (Array.isArray(dexSet?.cards) && dexSet.cards.length > 0) {
+              cards = dexSet.cards
+                .filter((c: any) => c?.image)
+                .map((c: any) => ({
+                  id: c.id,
+                  name: c.name,
+                  rarity: c.rarity || 'Common',
+                  images: {
+                    small: `${c.image}/low.webp`,
+                    large: `${c.image}/high.webp`,
+                  },
+                  set: {
+                    name: dexSet.name || setId,
+                    series: dexSet.serie?.name || 'Scarlet & Violet',
+                  },
+                }));
+            }
+          }
+        } catch {}
+      }
+
+      // 3) Legacy pokemontcg.io fallback
+      if (cards.length === 0) {
+        try {
+          const r = await fetch(`${API_BASE}/cards?q=set.id:${setId}&pageSize=250`);
+          if (r.ok) {
+            const d = await r.json();
+            cards = d.data || [];
+          }
+        } catch {}
+      }
+
+      cachedPokemonCardsMemory[setId] = cards;
       setSetCards(cards);
       cardsSetIdRef.current = setId;
-      sessionStorage.setItem(cacheKey, JSON.stringify(cards));
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(cards));
+      } catch {}
       return cards;
-    } catch { return []; }
-    finally { setCardsLoading(false); }
+    } catch {
+      return [];
+    } finally {
+      setCardsLoading(false);
+    }
   }, []);
 
   const handleOpenPack = async () => {
@@ -342,14 +513,19 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   return (
     <div className="space-y-4">
-      <div className="relative overflow-hidden bg-gradient-to-r from-amber-700/30 via-amber-900/15 to-amber-950/30 p-5 rounded-2xl border border-amber-900/50 flex items-center gap-4 shadow-[0_0_30px_rgba(180,83,9,0.15)]">
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-        <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 p-3 rounded-xl border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.2)]">
+      <div className="omnitrix-panel relative overflow-hidden p-4 sm:p-5 rounded-2xl border-amber-500/25 flex items-center gap-4">
+        <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
+        <div className="bg-amber-500/15 p-3 rounded-xl border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.2)]">
           <Gift className="w-6 h-6" />
         </div>
-        <div>
-          <h3 className="font-extrabold text-white text-base">Pokémon TCG — Pacotes & Coleção</h3>
-          <p className="text-slate-400 text-xs">A partir de R$ 14,90 por pacote • Preços reais do mercado brasileiro</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-extrabold font-display text-white text-base">Pokémon TCG — Pacotes & Coleção</h3>
+            <span className="text-[9px] font-mono bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full">
+              CDN + TCGdex API
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs mt-0.5">A partir de R$ 14,90 por pacote • {sets.length} expansões disponíveis</p>
         </div>
       </div>
 

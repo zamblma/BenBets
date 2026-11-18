@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -13,6 +12,11 @@
 body {
   font-family: var(--font-sans);
   background-color: #06070d;
+  background-image:
+    radial-gradient(ellipse 80% 45% at 50% -10%, rgba(0, 255, 135, 0.10), transparent 70%),
+    radial-gradient(rgba(0, 255, 135, 0.055) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
+  background-attachment: fixed;
   color: #f1f5f9;
   overflow-x: hidden;
 }
@@ -28,6 +32,84 @@ body {
 
 .glow-btn:hover {
   box-shadow: 0 0 25px rgba(0, 255, 135, 0.45);
+}
+
+/* Omnitrix HUD surfaces */
+.omnitrix-panel {
+  background: linear-gradient(165deg, rgba(14, 17, 28, 0.92), rgba(7, 8, 15, 0.97));
+  border: 1px solid rgba(0, 255, 135, 0.14);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+.omnitrix-card {
+  position: relative;
+  background: linear-gradient(160deg, rgba(13, 16, 26, 0.94), rgba(7, 8, 14, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+}
+
+.omnitrix-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 135, 0.45), transparent);
+  pointer-events: none;
+}
+
+.omnitrix-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 255, 135, 0.28);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55), 0 0 22px rgba(0, 255, 135, 0.09);
+}
+
+/* Holographic foil sweep for rare collectibles */
+.holo-foil {
+  position: relative;
+  overflow: hidden;
+}
+
+.holo-foil::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.16) 46%,
+    rgba(0, 255, 135, 0.14) 50%,
+    rgba(168, 85, 247, 0.14) 54%,
+    transparent 65%
+  );
+  transform: translateX(-60%) rotate(8deg);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+
+.holo-foil:hover::after {
+  transform: translateX(60%) rotate(8deg);
+}
+
+@keyframes omnitrix-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes omnitrix-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+.animate-omnitrix-spin {
+  animation: omnitrix-spin 22s linear infinite;
+}
+
+.animate-omnitrix-pulse {
+  animation: omnitrix-pulse 3.2s ease-in-out infinite;
 }
 
 /* Custom scrollbars */
@@ -140,14 +222,15 @@ body {
   transform: translateY(-4px) scale(1.02);
 }
 
-/* Enhanced game card with gradient border */
+/* Enhanced game card with gradient border & diagonal sweep */
 .game-card {
   position: relative;
-  background: linear-gradient(145deg, rgba(15,16,23,0.95), rgba(10,11,18,0.98));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(155deg, rgba(16, 19, 30, 0.96), rgba(8, 10, 17, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 1rem;
   overflow: hidden;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .game-card::before {
   content: '';
@@ -155,15 +238,28 @@ body {
   inset: 0;
   border-radius: 1rem;
   padding: 1px;
-  background: linear-gradient(135deg, var(--card-accent, rgba(255,255,255,0.1)), transparent 50%);
+  background: linear-gradient(135deg, var(--card-accent, rgba(0, 255, 135, 0.2)), transparent 55%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
 }
+.game-card::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.08) 50%, transparent 60%);
+  transform: translateX(-75%) rotate(10deg);
+  transition: transform 0.65s ease;
+  pointer-events: none;
+}
 .game-card:hover {
-  transform: translateY(-6px) scale(1.03);
-  box-shadow: 0 0 30px var(--card-glow, rgba(0,255,135,0.15)), 0 20px 40px rgba(0,0,0,0.4);
+  transform: translateY(-5px) scale(1.025);
+  border-color: rgba(0, 255, 135, 0.22);
+  box-shadow: 0 0 32px var(--card-glow, rgba(0, 255, 135, 0.18)), 0 22px 44px rgba(0, 0, 0, 0.55);
+}
+.game-card:hover::after {
+  transform: translateX(75%) rotate(10deg);
 }
 .game-card:hover .game-card-icon {
   transform: scale(1.15) rotate(-3deg);
@@ -184,27 +280,25 @@ body {
 
 /* Game card corner chip */
 .game-card-chip {
-  opacity: 0.4;
+  opacity: 0.45;
   transform: translate(5px, -5px) rotate(12deg);
   transition: all 0.3s ease;
 }
 
 /* Play indicator */
 .game-card-play {
-  opacity: 0.5;
+  opacity: 0.6;
   transition: all 0.3s ease;
 }
 
 /* Decorative corner accent */
 .game-card-corner {
   position: absolute;
-  width: 60px;
-  height: 60px;
-  border-radius: 0 1rem 0 60%;
-  background: var(--card-accent, rgba(255,255,255,0.03));
+  width: 68px;
+  height: 68px;
+  border-radius: 0 1rem 0 65%;
+  background: var(--card-accent, rgba(0, 255, 135, 0.05));
   top: 0;
   right: 0;
   pointer-events: none;
 }
-
-

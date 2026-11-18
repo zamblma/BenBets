@@ -10,8 +10,9 @@ interface DailyMissionsProps {
 
 export default function DailyMissions({ userId, missions, onClaim }: DailyMissionsProps) {
   return (
-    <div className="bg-[#0a0b12] border border-[#1b1e2e] rounded-2xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.45)]">
-      <div className="bg-gradient-to-r from-amber-600/20 via-amber-500/10 to-transparent border-b border-[#1b1e2e] p-4 flex items-center gap-3">
+    <div className="omnitrix-panel rounded-2xl overflow-hidden shadow-[0_16px_48px_rgba(0,0,0,0.6)] relative">
+      <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
+      <div className="bg-gradient-to-r from-brand/15 via-amber-500/10 to-transparent border-b border-[#1b1e2e] p-4 flex items-center gap-3">
         <div className="p-2 bg-amber-500/20 rounded-xl">
           <Star className="w-5 h-5 text-amber-400" />
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { 
   ShieldCheck, 
@@ -20,7 +20,8 @@ import {
   Flame,
   Award,
   LogOut,
-  Star
+  Star,
+  Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -31,8 +32,8 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS } from './firebase/db';
-import type { MissionProgress } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline } from './firebase/db';
+import type { MissionProgress, LeaderboardEntry } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -52,6 +53,8 @@ import AuthScreen from './components/AuthScreen';
 import HomeMenu from './components/HomeMenu';
 import AdminPanel from './components/AdminPanel';
 import DailyMissions from './components/DailyMissions';
+import OmnitrixLogo from './components/OmnitrixLogo';
+import Leaderboard from './components/Leaderboard';
 
 export default function App() {
   // Firebase Auth
@@ -87,6 +90,8 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
   const [missionsRecord, setMissionsRecord] = useState<Record<string, MissionProgress>>({});
+  const [leaderboardRaw, setLeaderboardRaw] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   // Cache local do usuário (backup quando o Firestore estiver indisponível)
   const [loadError, setLoadError] = useState('');
@@ -216,6 +221,50 @@ export default function App() {
       [missionId]: { ...prev[missionId], claimed: true, completed: true },
     }));
   };
+
+  // Realtime Firestore leaderboard listener
+  useEffect(() => {
+    if (!firebaseUser) {
+      setLeaderboardRaw([]);
+      setLeaderboardLoading(false);
+      return;
+    }
+    setLeaderboardLoading(true);
+    const unsub = subscribeToLeaderboard(
+      (list) => {
+        setLeaderboardRaw(list);
+        setLeaderboardLoading(false);
+      },
+      () => {
+        setLeaderboardLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [firebaseUser]);
+
+  // Presence heartbeat (lastSeen) for active online status
+  useEffect(() => {
+    if (!firebaseUser || !initialDataLoaded) return;
+    updateUserPresence(firebaseUser.uid).catch(() => {});
+
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        updateUserPresence(firebaseUser.uid).catch(() => {});
+      }
+    }, 60_000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        updateUserPresence(firebaseUser.uid).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [firebaseUser, initialDataLoaded]);
 
   // Dynamic Live Matches State Feed
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
@@ -406,7 +455,7 @@ export default function App() {
       const merged = [...prev];
       for (const newCard of cards) {
         const idx = merged.findIndex(c => c.id === newCard.id);
-        if (idx >= 0) merged[idx].quantity += 1;
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
         else merged.push(newCard);
       }
       if (firebaseUser) addPokemonCards(firebaseUser.uid, cards).catch(() => {});
@@ -441,7 +490,7 @@ export default function App() {
       const merged = [...prev];
       for (const c of cards) {
         const idx = merged.findIndex(x => x.id === c.id);
-        if (idx >= 0) merged[idx].quantity += 1;
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
         else merged.push(c);
       }
       if (firebaseUser) addWorldCupStickers(firebaseUser.uid, cards).catch(() => {});
@@ -476,7 +525,7 @@ export default function App() {
       const merged = [...prev];
       for (const c of cards) {
         const idx = merged.findIndex(x => x.id === c.id);
-        if (idx >= 0) merged[idx].quantity += 1;
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
         else merged.push(c);
       }
       if (firebaseUser) addKpopCards(firebaseUser.uid, cards).catch(() => {});
@@ -495,7 +544,7 @@ export default function App() {
       const merged = [...prev];
       for (const c of cards) {
         const idx = merged.findIndex(x => x.id === c.id);
-        if (idx >= 0) merged[idx].quantity += 1;
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
         else merged.push(c);
       }
       if (firebaseUser) addCS2Cards(firebaseUser.uid, cards).catch(() => {});
@@ -530,7 +579,7 @@ export default function App() {
       const merged = [...prev];
       for (const c of cards) {
         const idx = merged.findIndex(x => x.id === c.id);
-        if (idx >= 0) merged[idx].quantity += 1;
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
         else merged.push(c);
       }
       if (firebaseUser) addAnimeCards(firebaseUser.uid, cards).catch(() => {});
@@ -590,10 +639,77 @@ export default function App() {
     return match.sport === selectedSport && matchesSearch;
   });
 
+  const liveLeaderboard = useMemo<LeaderboardEntry[]>(() => {
+    if (!firebaseUser) return leaderboardRaw;
+    const allCols = [
+      pokemonCollection,
+      worldCupCollection,
+      kpopCollection,
+      cs2Collection,
+      animeCollection,
+    ];
+    let uniqueCards = 0;
+    let totalCards = 0;
+    for (const col of allCols) {
+      uniqueCards += col.length;
+      for (const c of col) totalCards += c.quantity || 1;
+    }
+    let betsWon = 0;
+    let biggestWin = 0;
+    for (const b of placedBets) {
+      if (b.status === 'won') {
+        betsWon += 1;
+        if (b.potentialPayout > biggestWin) biggestWin = b.potentialPayout;
+      }
+    }
+    const selfName = (userName || firebaseUser.email?.split('@')[0] || 'Você').trim();
+    const selfEntry: LeaderboardEntry = {
+      uid: firebaseUser.uid,
+      displayName: selfName,
+      balance,
+      totalCards,
+      uniqueCards,
+      betsWon,
+      totalBets: placedBets.length,
+      biggestWin,
+      lastSeen: Date.now(),
+    };
+    const exists = leaderboardRaw.some((e) => e.uid === firebaseUser.uid);
+    if (!exists) return [selfEntry, ...leaderboardRaw];
+    return leaderboardRaw.map((e) => (e.uid === firebaseUser.uid ? { ...e, ...selfEntry } : e));
+  }, [
+    firebaseUser,
+    leaderboardRaw,
+    userName,
+    balance,
+    placedBets,
+    pokemonCollection,
+    worldCupCollection,
+    kpopCollection,
+    cs2Collection,
+    animeCollection,
+  ]);
+
+  const myBalanceRank = useMemo(() => {
+    if (!firebaseUser || liveLeaderboard.length === 0) return null;
+    const sorted = [...liveLeaderboard].sort((a, b) =>
+      b.balance !== a.balance ? b.balance - a.balance : b.betsWon - a.betsWon
+    );
+    const idx = sorted.findIndex((e) => e.uid === firebaseUser.uid);
+    return idx >= 0 ? idx + 1 : null;
+  }, [firebaseUser, liveLeaderboard]);
+
+  const hasClaimableMission = (Object.values(missionsRecord) as MissionProgress[]).some(
+    (m) => m && m.completed && !m.claimed
+  );
+
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#06070d] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#06070d] flex flex-col items-center justify-center gap-4">
+        <OmnitrixLogo size="lg" animated />
+        <p className="text-xs font-mono text-brand/80 uppercase tracking-widest animate-pulse">
+          Calibrando Omnitrix...
+        </p>
       </div>
     );
   }
@@ -607,27 +723,40 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#06070d] font-sans text-slate-100 flex flex-col justify-between">
+    <div className="min-h-screen font-sans text-slate-100 flex flex-col justify-between">
       
       {/* 🇧🇷 NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#0c0d14]/90 border-b border-[#1c1e2d] backdrop-blur-md px-3 py-2.5 md:px-8 lg:px-12">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-[#080a12]/90 border-b border-brand/15 backdrop-blur-xl px-3 py-2.5 md:px-8 lg:px-12 relative">
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
           
           {/* Logo & Slogan */}
-          <button onClick={() => { setSelectedSport('Home'); window.scrollTo({ top: 0, behavior: 'smooth' }); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 cursor-pointer text-left">
-            <div className="bg-gradient-to-tr from-brand to-emerald-400 text-slate-950 p-2 rounded-xl font-black tracking-tighter text-xs sm:text-sm font-display leading-none rotate-2 shadow-[0_0_15px_rgba(0,255,135,0.3)]">
-              BB
-            </div>
+          <button
+            onClick={() => {
+              setSelectedSport('Home');
+              setSelectedCasinoGame(null);
+              setSelectedColecionavel(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setIsMobileMenuOpen(false);
+            }}
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer text-left group"
+          >
+            <OmnitrixLogo size="sm" className="group-hover:scale-105 transition-transform" />
             <div className="hidden sm:block">
-              <h1 className="font-extrabold text-brand font-sans text-lg tracking-tight leading-none">
-                BenBets
-              </h1>
-              <p className="text-[9px] text-slate-400 font-medium">Ambiente Demonstração Legal • Lei 14.790/2023</p>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-black font-display text-lg tracking-tight leading-none text-white">
+                  Ben<span className="text-brand">Bets</span>
+                </h1>
+                <span className="text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-brand/10 text-brand border border-brand/25">
+                  .bet.br
+                </span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-medium mt-0.5">Ambiente Demonstração Legal • Lei 14.790/2023</p>
             </div>
           </button>
 
           {/* User Account Controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             
             {/* Mobile Hamburger */}
             <button 
@@ -638,63 +767,91 @@ export default function App() {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Balance Component */}
-            <div className="bg-[#07080f] px-3 py-1.5 md:px-4 md:py-2 rounded-xl border border-[#1b1e2e] flex items-center gap-2.5">
-              <div className="p-1 bg-brand/10 rounded-lg text-brand hidden sm:block">
+            {/* Balance Visor (Omnitrix HUD) */}
+            <div className="bg-[#06070d]/95 px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-xl border border-brand/25 shadow-[0_0_20px_rgba(0,255,135,0.08)] flex items-center gap-2.5">
+              <div className="hidden sm:flex items-center justify-center p-1.5 bg-brand/10 border border-brand/20 rounded-lg text-brand relative">
                 <Wallet className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand animate-pulse" />
               </div>
               <div className="text-right">
-                <span className="block text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Minha Conta</span>
-                <span className="font-mono text-brand font-extrabold text-sm md:text-base tracking-tight select-none">
+                <span className="flex items-center justify-end gap-1 text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand sm:hidden animate-pulse" />
+                  Saldo
+                </span>
+                <span className="font-mono text-brand font-extrabold text-sm md:text-base tracking-tight select-none drop-shadow-[0_0_10px_rgba(0,255,135,0.25)]">
                   R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <button 
                 onClick={() => setIsPixOpen(true)}
-                className="ml-1 w-7 h-7 flex items-center justify-center rounded-lg bg-brand/20 hover:bg-brand text-slate-950 font-black text-lg leading-none cursor-pointer transition-all hover:shadow-[0_0_10px_rgba(0,255,135,0.3)] shrink-0"
-                title="Depositar / Sacar"
+                className="ml-0.5 w-7 h-7 flex items-center justify-center rounded-lg bg-brand hover:bg-[#00e074] text-slate-950 font-black text-lg leading-none cursor-pointer transition-all shadow-[0_0_12px_rgba(0,255,135,0.3)] hover:scale-105 shrink-0"
+                title="Depositar / Sacar / Cupons"
               >
                 +
               </button>
             </div>
 
-            {/* Logout */}
-            {firebaseUser && (
-              <button 
-                onClick={() => signOut(auth)}
-                className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-rose-400 rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
-                title="Sair"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            )}
-
-            {/* Regulation Manual */}
-            <button 
-              onClick={() => setIsInfoOpen(true)}
-              className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-brand rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
-              title="Ler Legislação das Bets"
+            {/* Leaderboard shortcut */}
+            <button
+              onClick={() => { setSelectedSport('Ranking'); setSelectedCasinoGame(null); setSelectedColecionavel(null); }}
+              className={`px-2 sm:px-2.5 py-2 border rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+                selectedSport === 'Ranking'
+                  ? 'bg-brand/15 border-brand text-brand shadow-[0_0_12px_rgba(0,255,135,0.2)]'
+                  : 'border-[#1c1e2d] hover:border-brand/40 text-slate-400 hover:text-brand bg-[#0a0c14] hover:bg-[#131726]'
+              }`}
+              title="Ranking em Tempo Real"
             >
-              <ShieldCheck className="w-5 h-5 text-brand" />
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-brand" />
+              {myBalanceRank && (
+                <span className="hidden sm:inline font-mono text-[11px] font-extrabold text-brand">
+                  #{myBalanceRank}
+                </span>
+              )}
             </button>
 
             {/* Daily Missions */}
             <button
               onClick={() => { setShowMissions(true); loadMissions(); }}
-              className="p-2 border border-[#1c1e2d] text-slate-400 hover:text-amber-400 rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
+              className="relative p-2 border border-[#1c1e2d] hover:border-amber-500/40 text-slate-400 hover:text-amber-400 rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
               title="Missões Diárias"
             >
-              <Star className="w-5 h-5 text-amber-500" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              {hasClaimableMission && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-brand border-2 border-[#080a12] animate-pulse" />
+              )}
+            </button>
+
+            {/* Regulation Manual */}
+            <button 
+              onClick={() => setIsInfoOpen(true)}
+              className="p-2 border border-[#1c1e2d] hover:border-brand/40 text-slate-400 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
+              title="Ler Legislação das Bets"
+            >
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-brand" />
             </button>
 
             {/* Admin */}
             <button 
               onClick={() => setShowAdmin(true)}
-              className="p-1.5 border border-[#1c1e2d] text-slate-600 hover:text-brand rounded-xl hover:bg-[#161826] transition-colors cursor-pointer block"
+              className="p-2 border border-[#1c1e2d] hover:border-brand/30 text-slate-500 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
               title="Admin"
             >
               <Shield className="w-4 h-4" />
             </button>
+
+            {/* Logout */}
+            {firebaseUser && (
+              <button 
+                onClick={async () => {
+                  await markUserOffline(firebaseUser.uid).catch(() => {});
+                  await signOut(auth);
+                }}
+                className="p-2 border border-[#1c1e2d] hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
+                title="Sair"
+              >
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            )}
           </div>
 
         </div>
@@ -715,6 +872,7 @@ export default function App() {
                 { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
                 { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
                 { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
+                { id: 'Ranking', label: 'Ranking', icon: '🏆' },
               ].map((sport) => (
                 <button
                   key={sport.id}
@@ -772,6 +930,7 @@ export default function App() {
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
               { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
               { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
+              { id: 'Ranking', label: 'Ranking', icon: '🏆' },
             ].map((sport) => (
               <button
                 key={sport.id}
@@ -790,19 +949,30 @@ export default function App() {
 
           {/* Sub Panels Based on Category */}
           {selectedSport === 'Home' ? (
-            <HomeMenu onSelect={(section) => { setSelectedSport(section); setSelectedCasinoGame(null); setSelectedColecionavel(null); }} />
+            <HomeMenu
+              onSelect={(section) => { setSelectedSport(section); setSelectedCasinoGame(null); setSelectedColecionavel(null); }}
+              leaderboard={liveLeaderboard}
+              currentUserId={firebaseUser.uid}
+            />
+          ) : selectedSport === 'Ranking' ? (
+            <Leaderboard
+              entries={liveLeaderboard}
+              currentUserId={firebaseUser.uid}
+              loading={leaderboardLoading}
+            />
           ) : selectedSport === 'Cassino' ? (
             <div className="space-y-6">
               {selectedCasinoGame === null ? (
                 <>
-                  <div className="relative overflow-hidden bg-gradient-to-r from-[#161a2b]/60 via-[#0e1017] to-[#161a2b]/30 p-3 sm:p-5 rounded-2xl border border-[#1c1f32]">
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.08),transparent_60%)] pointer-events-none" />
+                  <div className="omnitrix-panel relative overflow-hidden p-3.5 sm:p-5 rounded-2xl">
+                    <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,255,135,0.10),transparent_60%)] pointer-events-none" />
                     <div className="flex items-center gap-3 sm:gap-4 relative z-10">
-                      <div className="bg-gradient-to-br from-brand/20 to-emerald-900/20 p-2 sm:p-3 rounded-xl border border-brand/20 animate-neon-pulse">
+                      <div className="bg-brand/15 p-2.5 sm:p-3 rounded-xl border border-brand/30 shadow-[0_0_16px_rgba(0,255,135,0.2)]">
                         <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-brand" />
                       </div>
                       <div>
-                        <h3 className="font-extrabold text-white text-sm sm:text-base">🎰 Cassino BenBets</h3>
+                        <h3 className="font-extrabold font-display text-white text-sm sm:text-base">🎰 Cassino BenBets</h3>
                         <p className="text-slate-400 text-[10px] sm:text-xs">Jogos auditados com gerador de números aleatórios (RNG). Resultados puramente demonstrativos.</p>
                       </div>
                     </div>
@@ -867,27 +1037,28 @@ export default function App() {
             <div className="space-y-6">
               {selectedColecionavel === null ? (
                 <>
-                  <div className="relative overflow-hidden bg-gradient-to-r from-purple-900/20 via-[#0e1017] to-purple-900/10 p-3 sm:p-5 rounded-2xl border border-purple-950/40">
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(168,85,247,0.08),transparent_60%)] pointer-events-none" />
+                  <div className="omnitrix-panel relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border-purple-500/20">
+                    <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-purple-400/60 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(168,85,247,0.12),transparent_60%)] pointer-events-none" />
                     <div className="flex items-center gap-3 sm:gap-4 relative z-10">
-                      <div className="bg-gradient-to-br from-purple-500/20 to-purple-900/20 p-2 sm:p-3 rounded-xl border border-purple-500/20">
+                      <div className="bg-purple-500/15 p-2.5 sm:p-3 rounded-xl border border-purple-500/30 shadow-[0_0_16px_rgba(168,85,247,0.2)]">
                         <Star className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
                       </div>
                       <div>
-                        <h3 className="font-extrabold text-white text-sm sm:text-base">💎 Colecionáveis & Gacha</h3>
-                        <p className="text-slate-400 text-[10px] sm:text-xs">Abra pacotes, colecione personagens, cartas, skins e muito mais!</p>
+                        <h3 className="font-extrabold font-display text-white text-sm sm:text-base">💎 Colecionáveis & Gacha</h3>
+                        <p className="text-slate-400 text-[10px] sm:text-xs">Abra pacotes e colecione personagens, cartas, skins e figurinhas com APIs reais!</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
-                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', gradient: 'from-yellow-400 via-amber-500 to-orange-500', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🎴', badge: '' },
-                      { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', gradient: 'from-amber-400 via-yellow-500 to-red-500', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: '' },
-                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins do CS', gradient: 'from-orange-400 via-amber-500 to-yellow-600', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: '' },
-                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards dos seus grupos favoritos', gradient: 'from-pink-400 via-fuchsia-500 to-purple-500', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: '' },
-                      { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa 2026', gradient: 'from-emerald-400 via-green-500 to-teal-500', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '⚽', badge: '' },
-                      { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Champions e skins de League of Legends', gradient: 'from-blue-400 via-indigo-500 to-purple-600', accent: 'rgba(59,130,246,0.4)', glow: 'rgba(59,130,246,0.2)', chip: '🏆', badge: '' },
+                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🎴', badge: 'AniList API' },
+                      { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: 'TCGdex CDN' },
+                      { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: 'Abra cases e colecione skins reais do CS2', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: 'CSGO API' },
+                      { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards individuais dos seus grupos favoritos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Wiki Portraits' },
+                      { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa 2026 com craques', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '⚽', badge: 'SportsDB + Flags' },
+                      { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Campeões e skins oficiais de League of Legends', accent: 'rgba(59,130,246,0.4)', glow: 'rgba(59,130,246,0.2)', chip: '🏆', badge: 'Riot DataDragon' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedColecionavel(game.id)}
                         className="game-card relative p-4 sm:p-5 text-left cursor-pointer group"
@@ -898,14 +1069,14 @@ export default function App() {
                             <span className="text-3xl sm:text-4xl game-card-icon">{game.icon}</span>
                             <span className="text-lg sm:text-xl game-card-chip">{game.chip}</span>
                           </div>
-                          <h4 className="text-sm sm:text-base font-extrabold text-white group-hover:text-purple-400 transition-colors mb-1">{game.name}</h4>
+                          <h4 className="text-sm sm:text-base font-extrabold font-display text-white group-hover:text-purple-300 transition-colors mb-1">{game.name}</h4>
                           <p className="text-[9px] sm:text-[11px] text-slate-400 leading-relaxed mb-3">{game.desc}</p>
                           {game.badge && (
-                            <span className="inline-block text-[8px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full mb-3">{game.badge}</span>
+                            <span className="inline-block text-[8px] font-mono font-bold bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full mb-3">{game.badge}</span>
                           )}
                           <div className="flex items-center gap-1.5 game-card-play">
                             <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                            <span className="text-[8px] sm:text-[9px] text-purple-400/70 uppercase tracking-[0.1em] font-bold">Abrir</span>
+                            <span className="text-[8px] sm:text-[9px] text-purple-400/80 uppercase tracking-[0.1em] font-bold">Abrir</span>
                           </div>
                         </div>
                       </button>
@@ -979,6 +1150,7 @@ export default function App() {
                       balance={balance}
                       onUpdateBalance={handleDepositSuccess}
                       onAddBetHistory={handleAddPlacedBet}
+                      userId={firebaseUser?.uid || ''}
                     />
                   )}
                 </div>
@@ -1047,39 +1219,59 @@ export default function App() {
                   filteredMatches.map((match) => (
                     <div 
                       key={match.id}
-                      className="bg-[#0b0c13]/90 border border-[#1b1e2e]/90 hover:border-[#2b2f47] rounded-2xl p-3 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 transition-all duration-300 shadow-lg"
+                      className="omnitrix-card rounded-2xl p-3.5 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 overflow-hidden"
                     >
+                      <div
+                        className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${
+                          match.isLive
+                            ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
+                            : 'bg-brand/70 shadow-[0_0_10px_rgba(0,255,135,0.35)]'
+                        }`}
+                      />
                       {/* Left: League & Teams labels */}
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-[#171a29] text-[9px] font-bold text-slate-400 px-2 py-0.5 rounded border border-[#23273e] font-mono uppercase">
+                      <div className="flex-1 space-y-2 pl-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="bg-[#111524] text-[9px] font-bold text-brand/90 px-2 py-0.5 rounded border border-brand/20 font-mono uppercase">
                             {match.sport}
                           </span>
                           <span className="text-[10px] text-slate-400 font-medium">
                             {match.league}
                           </span>
                           {match.isLive && (
-                            <span className="bg-rose-500 text-white font-bold px-1.5 py-0.2 rounded text-[8px] animate-pulse uppercase shrink-0">
+                            <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1 uppercase shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                               Ao vivo
                             </span>
                           )}
                         </div>
 
                         {/* Teams Name and Live Score */}
-                        <div className="flex items-center justify-between md:justify-start gap-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-100 text-sm">{match.teamHome}</span>
-                              {match.isLive && (
-                                <span className="font-mono font-black text-rose-500 bg-[#07080f] px-1.5 py-0.5 rounded text-xs border border-rose-950/40">{match.scoreHome}</span>
-                              )}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between md:justify-start gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-6 h-6 rounded-lg bg-[#070910] border border-[#1e2438] text-[9px] font-mono font-bold text-brand flex items-center justify-center shrink-0">
+                                {match.teamHome.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-100 text-sm">{match.teamAway}</span>
-                              {match.isLive && (
-                                <span className="font-mono font-black text-rose-500 bg-[#07080f] px-1.5 py-0.5 rounded text-xs border border-rose-950/40">{match.scoreAway}</span>
-                              )}
+                            {match.isLive && (
+                              <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[28px] text-center">
+                                {match.scoreHome}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between md:justify-start gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-6 h-6 rounded-lg bg-[#070910] border border-[#1e2438] text-[9px] font-mono font-bold text-slate-300 flex items-center justify-center shrink-0">
+                                {match.teamAway.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
                             </div>
+                            {match.isLive && (
+                              <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[28px] text-center">
+                                {match.scoreAway}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1095,49 +1287,49 @@ export default function App() {
                       </div>
 
                       {/* Right: Interactive Odds Buttons */}
-                      <div className="flex gap-2 md:self-center">
+                      <div className="flex gap-2 md:self-center pl-2 md:pl-0">
                         {/* 1 (Vence Home) */}
                         <button
                           onClick={() => handleOddsClick(match, 'home', match.odds.home)}
-                          className={`flex-1 md:w-24 p-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                          className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
                             selections.some(s => s.matchId === match.id && s.type === 'home')
-                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_12px_rgba(0,255,135,0.35)]'
-                              : 'bg-[#07080d] hover:bg-[#111320] hover:border-brand/35 text-slate-300 border-[#1c1e2d]'
+                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                              : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
                           }`}
                         >
-                          <span className="text-[9px] uppercase font-bold text-slate-500">1</span>
+                          <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'home') ? 'text-slate-900' : 'text-slate-500'}`}>1</span>
                           <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.home.toFixed(2)}</span>
-                          <span className="text-[8px] block opacity-50 font-sans tracking-wide">Casa</span>
+                          <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Casa</span>
                         </button>
 
                         {/* X (Draw Selection - Only if Draw Odds exist) */}
                         {match.odds.draw !== undefined && (
                           <button
                             onClick={() => handleOddsClick(match, 'draw', match.odds.draw!)}
-                            className={`flex-1 md:w-24 p-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                            className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
                               selections.some(s => s.matchId === match.id && s.type === 'draw')
-                                ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_12px_rgba(0,255,135,0.35)]'
-                                : 'bg-[#07080d] hover:bg-[#111320] hover:border-brand/35 text-slate-300 border-[#1c1e2d]'
+                                ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                                : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
                             }`}
                           >
-                            <span className="text-[9px] uppercase font-bold text-slate-500">X</span>
+                            <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'draw') ? 'text-slate-900' : 'text-slate-500'}`}>X</span>
                             <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.draw.toFixed(2)}</span>
-                            <span className="text-[8px] block opacity-50 font-sans tracking-wide">Empate</span>
+                            <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Empate</span>
                           </button>
                         )}
 
                         {/* 2 (Vence Away) */}
                         <button
                           onClick={() => handleOddsClick(match, 'away', match.odds.away)}
-                          className={`flex-1 md:w-24 p-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                          className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
                             selections.some(s => s.matchId === match.id && s.type === 'away')
-                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_12px_rgba(0,255,135,0.35)]'
-                              : 'bg-[#07080d] hover:bg-[#111320] hover:border-brand/35 text-slate-300 border-[#1c1e2d]'
+                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                              : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
                           }`}
                         >
-                          <span className="text-[9px] uppercase font-bold text-slate-500">2</span>
+                          <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'away') ? 'text-slate-900' : 'text-slate-500'}`}>2</span>
                           <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.away.toFixed(2)}</span>
-                          <span className="text-[8px] block opacity-50 font-sans tracking-wide">Fora</span>
+                          <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Fora</span>
                         </button>
                       </div>
 
@@ -1174,7 +1366,7 @@ export default function App() {
         </section>
 
         {/* RIGHT COLUMN: ACTIVE BET SLIP & PLACED HISTORY LEDGER */}
-        <section className="col-span-1 lg:col-span-4 space-y-4 lg:space-y-6">
+        <section className="col-span-1 lg:col-span-4 space-y-4 lg:space-y-6 lg:sticky lg:top-20 lg:self-start">
           <BetHistoryList
             selections={selections}
             onRemoveSelection={handleRemoveSelection}
