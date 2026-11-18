@@ -32,7 +32,7 @@ const sections = [
     accent: 'rgba(234,179,8,0.42)',
     glow: 'rgba(234,179,8,0.16)',
     iconBg: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25',
-    games: ['⭐ Anime', '🃏 Pokémon', '🔫 CS2', '🎤 K-pop', '🌍 Copa', '⚔️ LoL'],
+    games: ['⭐ Anime', '🃏 Pokémon', '🔫 CS2', '🎤 K-pop', '🌍 Copa', '⚔️ LoL', '🗡️ Santuário Akali'],
     tag: 'Abrir Cápsulas',
     tagColor: 'text-yellow-400',
     code: 'MOD-02',
@@ -97,7 +97,7 @@ export default function HomeMenu({ onSelect, leaderboard = [], currentUserId }: 
               <Zap className="w-3 h-3 text-brand" /> RNG Auditado
             </span>
             <span className="text-[10px] font-mono bg-[#07080f]/80 border border-yellow-500/20 text-slate-300 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-              <Cpu className="w-3 h-3 text-yellow-400" /> 6 Gachas com API
+              <Cpu className="w-3 h-3 text-yellow-400" /> 7 Gachas com API
             </span>
             <span className="text-[10px] font-mono bg-[#07080f]/80 border border-emerald-500/20 text-slate-300 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
               <ShieldCheck className="w-3 h-3 text-emerald-400" /> Lei 14.790/2023

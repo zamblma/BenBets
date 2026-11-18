@@ -21,7 +21,9 @@ import {
   Award,
   LogOut,
   Star,
-  Trophy
+  Trophy,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -55,8 +57,10 @@ import AdminPanel from './components/AdminPanel';
 import DailyMissions from './components/DailyMissions';
 import OmnitrixLogo from './components/OmnitrixLogo';
 import Leaderboard from './components/Leaderboard';
+import { useSound } from './hooks/useSound';
 
 export default function App() {
+  const { muted, toggleMute } = useSound();
   // Firebase Auth
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -821,6 +825,19 @@ export default function App() {
               )}
             </button>
 
+            {/* Sound toggle */}
+            <button
+              onClick={toggleMute}
+              className={`p-2 border rounded-xl transition-colors cursor-pointer block ${
+                muted
+                  ? 'border-[#1c1e2d] text-slate-500 hover:text-slate-300 bg-[#0a0c14] hover:bg-[#131726]'
+                  : 'border-[#1c1e2d] hover:border-brand/40 text-brand bg-[#0a0c14] hover:bg-[#131726]'
+              }`}
+              title={muted ? 'Ativar Sons' : 'Silenciar Sons'}
+            >
+              {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </button>
+
             {/* Regulation Manual */}
             <button 
               onClick={() => setIsInfoOpen(true)}
@@ -1059,6 +1076,7 @@ export default function App() {
                       { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Photocards individuais dos seus grupos favoritos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Wiki Portraits' },
                       { id: 'Copa', name: 'Copa do Mundo', icon: '🌍', desc: 'Álbum de figurinhas da Copa 2026 com craques', accent: 'rgba(16,185,129,0.4)', glow: 'rgba(16,185,129,0.2)', chip: '⚽', badge: 'SportsDB + Flags' },
                       { id: 'LoL', name: 'Baús LoL', icon: '⚔️', desc: 'Campeões e skins oficiais de League of Legends', accent: 'rgba(59,130,246,0.4)', glow: 'rgba(59,130,246,0.2)', chip: '🏆', badge: 'Riot DataDragon' },
+                      { id: 'AkaliSanctum', name: 'Santuário: Akali', icon: '🗡️', desc: 'Gacha oficial do LoL: Akali K/DA FIRESTARTER com 0,5% de chance e Pity em 40 (16.000 RP)', accent: 'rgba(244,63,94,0.45)', glow: 'rgba(244,63,94,0.24)', chip: '🔥', badge: '🔥 NOVO • 0,5%' },
                     ].map(game => (
                       <button key={game.id} onClick={() => setSelectedColecionavel(game.id)}
                         className="game-card relative p-4 sm:p-5 text-left cursor-pointer group"
@@ -1145,12 +1163,13 @@ export default function App() {
                       onSellAllDuplicates={handleSellAllAnimeDuplicates}
                     />
                   )}
-                  {selectedColecionavel === 'LoL' && (
+                  {(selectedColecionavel === 'LoL' || selectedColecionavel === 'AkaliSanctum') && (
                     <LoLChests
                       balance={balance}
                       onUpdateBalance={handleDepositSuccess}
                       onAddBetHistory={handleAddPlacedBet}
                       userId={firebaseUser?.uid || ''}
+                      initialTab={selectedColecionavel === 'AkaliSanctum' ? 'sanctum' : 'chests'}
                     />
                   )}
                 </div>

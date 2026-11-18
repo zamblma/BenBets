@@ -222,6 +222,7 @@ export default function KpopPhotocards({
   const [packResult, setPackResult] = useState<PokemonCard[]>([]);
   const [opening, setOpening] = useState(false);
   const [revealingIndex, setRevealingIndex] = useState(-1);
+  const [ownedSnapshot, setOwnedSnapshot] = useState<Set<string>>(new Set());
   const [filterRarity, setFilterRarity] = useState('todas');
   const [searchQuery, setSearchQuery] = useState('');
   const skipRef = useRef(false);
@@ -250,10 +251,13 @@ export default function KpopPhotocards({
     return null;
   };
 
-  const handleOpenPack = async () => {
-    if (balance < PACK_PRICE || opening) return;
-    play('reveal');
+  const handleOpenPack = async (fromOverlay = false) => {
+    const isStillRevealing = opening && revealingIndex < packResult.length - 1;
+    if (balance < PACK_PRICE || isStillRevealing || (opening && !fromOverlay)) return;
+
+    play('packOpen');
     onUpdateBalance(-PACK_PRICE);
+    setOwnedSnapshot(new Set(collection.map(c => c.id)));
     setOpening(true);
     setPackResult([]);
     setRevealingIndex(-1);
@@ -263,10 +267,11 @@ export default function KpopPhotocards({
     const allCards = genPack(wikiPhotos);
     setPackResult(allCards);
     for (let i = 0; i < allCards.length; i++) {
-      await new Promise(r => setTimeout(r, 280));
+      await new Promise(r => setTimeout(r, 300));
       if (skipRef.current) break;
       setRevealingIndex(i);
-      if (getRarityLevel(allCards[i].rarity) >= 2) play('rare');
+      const lvl = getRarityLevel(allCards[i].rarity);
+      play(lvl >= 3 ? 'legendary' : lvl === 2 ? 'rare' : 'cardFlip');
     }
     if (!skipRef.current) onCollectionUpdate(allCards);
   };
@@ -320,7 +325,7 @@ export default function KpopPhotocards({
             </p>
           </div>
         </div>
-        <button onClick={handleOpenPack} disabled={balance < PACK_PRICE}
+        <button onClick={() => handleOpenPack(false)} disabled={balance < PACK_PRICE}
           className={`bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-400 hover:to-fuchsia-500 text-white font-black px-5 py-3 rounded-xl text-xs transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-[0_0_18px_rgba(236,72,153,0.3)] ${balance < PACK_PRICE ? 'opacity-40 cursor-not-allowed' : ''}`}>
           <Package className="w-4 h-4" /> Comprar (R$ {PACK_PRICE.toFixed(2)})
         </button>
@@ -361,13 +366,13 @@ export default function KpopPhotocards({
 
       <AnimatePresence>
         {opening && packResult.length > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/94 backdrop-blur-md flex items-center justify-center p-4">
             <div className="text-center max-w-3xl w-full">
-              <motion.h3 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-pink-400 font-extrabold font-display text-lg mb-2">
+              <motion.h3 initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-pink-400 font-extrabold font-display text-lg mb-2">
                 🎴 Pacote de Photocards
               </motion.h3>
-              <div className="flex items-center justify-center gap-3 mb-5">
-                <p className="text-slate-400 text-xs">{Math.min(revealingIndex + 1, packResult.length)} de {packResult.length} photocards</p>
+              <div className="flex items-center justify-center gap-3 mb-5 flex-wrap">
+                <p className="text-slate-400 text-xs font-mono">{Math.max(0, revealingIndex + 1)} de {packResult.length} photocards</p>
                 {revealingIndex < packResult.length - 1 ? (
                   <button
                     onClick={() => {
@@ -375,39 +380,88 @@ export default function KpopPhotocards({
                       skipHandledRef.current = true;
                       skipRef.current = true;
                       setRevealingIndex(packResult.length - 1);
+                      const maxLvl = Math.max(...packResult.map(c => getRarityLevel(c.rarity)));
+                      play(maxLvl >= 3 ? 'legendary' : maxLvl === 2 ? 'rare' : 'reveal');
                       onCollectionUpdate(packResult);
                     }}
-                    className="text-xs text-pink-300 font-bold uppercase tracking-wider cursor-pointer px-3 py-1 rounded-lg bg-pink-500/15 border border-pink-500/30"
+                    className="text-xs text-pink-300 font-bold uppercase tracking-wider cursor-pointer px-3 py-1.5 rounded-lg bg-pink-500/15 border border-pink-500/35"
                   >
                     Revelar Tudo
                   </button>
                 ) : (
-                  <button
-                    onClick={() => { setOpening(false); setPackResult([]); }}
-                    className="text-xs text-slate-950 bg-brand hover:bg-[#00e074] font-black uppercase tracking-wider cursor-pointer px-4 py-1.5 rounded-lg"
-                  >
-                    Concluir
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    {balance >= PACK_PRICE && (
+                      <button
+                        onClick={() => handleOpenPack(true)}
+                        className="text-xs text-white bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-400 hover:to-fuchsia-500 font-black uppercase tracking-wider cursor-pointer px-4 py-1.5 rounded-lg shadow-[0_0_16px_rgba(236,72,153,0.35)]"
+                      >
+                        🔄 Abrir Mais Um (R$ {PACK_PRICE.toFixed(2)})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setOpening(false); setPackResult([]); }}
+                      className="text-xs text-slate-950 bg-brand hover:bg-[#00e074] font-black uppercase tracking-wider cursor-pointer px-4 py-1.5 rounded-lg"
+                    >
+                      Concluir
+                    </button>
+                  </div>
                 )}
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 justify-items-center">
                 {packResult.map((card, idx) => {
-                  const isRare = getRarityLevel(card.rarity) >= 2;
+                  const lvl = getRarityLevel(card.rarity);
+                  const isRare = lvl >= 2;
+                  const isRevealed = idx <= revealingIndex;
+                  const isNew = !ownedSnapshot.has(card.id);
                   const photo = resolvePhoto(card);
+
+                  if (!isRevealed) {
+                    return (
+                      <motion.div
+                        key={`back-${idx}`}
+                        initial={{ scale: 0.75, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`w-full max-w-[125px] aspect-[2/3] rounded-xl border-2 gacha-card-back flex flex-col items-center justify-center p-2 ${
+                          lvl >= 3
+                            ? 'border-purple-400/80 shadow-[0_0_18px_rgba(168,85,247,0.45)]'
+                            : lvl === 2
+                            ? 'border-pink-400/80 shadow-[0_0_14px_rgba(236,72,153,0.35)]'
+                            : 'border-pink-500/25'
+                        }`}
+                      >
+                        <Medal className={`w-6 h-6 animate-pulse ${isRare ? 'text-pink-300' : 'text-brand'}`} />
+                        <span className="text-[7px] font-mono text-slate-400 mt-2 uppercase tracking-widest">
+                          {isRare ? 'Bias Raro' : 'K-pop'}
+                        </span>
+                      </motion.div>
+                    );
+                  }
+
                   return (
                     <motion.div key={idx}
-                      initial={{ rotateY: 180, opacity: 0, scale: 0.35 }}
-                      animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1 } : {}}
+                      initial={{ rotateY: 90, opacity: 0, scale: 0.8 }}
+                      animate={{ rotateY: 0, opacity: 1, scale: 1 }}
                       transition={{ type: 'spring', stiffness: 180, damping: 18 }}
-                      className={`w-full max-w-[125px] bg-[#0c0e18] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} ${isRare ? 'holo-foil' : ''} shadow-lg relative`}
+                      className={`w-full max-w-[125px] bg-[#0c0e18] rounded-xl overflow-hidden border-2 ${getRarityBorder(card.rarity)} ${isRare ? 'holo-foil gacha-float' : ''} shadow-lg relative`}
                     >
                       {isRare && (
+                        <div
+                          className="gacha-light-beam opacity-50"
+                          style={{ '--beam-color': lvl >= 3 ? 'rgba(168,85,247,0.28)' : 'rgba(236,72,153,0.25)' } as React.CSSProperties}
+                        />
+                      )}
+                      {isNew && (
+                        <span className="absolute top-1.5 right-1.5 z-30 bg-brand text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full shadow">
+                          NEW
+                        </span>
+                      )}
+                      {!isNew && isRare && (
                         <div className="absolute top-1.5 right-1.5 z-20">
-                          <Star className={`w-3.5 h-3.5 ${getRarityLevel(card.rarity) >= 3 ? 'text-purple-300' : 'text-pink-400'}`} fill="currentColor" />
+                          <Star className={`w-3.5 h-3.5 ${lvl >= 3 ? 'text-purple-300' : 'text-pink-400'}`} fill="currentColor" />
                         </div>
                       )}
-                      <div className="aspect-[2/3] relative overflow-hidden bg-[#06070d]">
+                      <div className="aspect-[2/3] relative overflow-hidden bg-[#06070d] z-10">
                         {photo ? (
                           <img src={photo} alt={card.name} className="w-full h-full object-cover object-top"
                             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -421,12 +475,10 @@ export default function KpopPhotocards({
                         </span>
                         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
                       </div>
-                      {idx <= revealingIndex && (
-                        <div className="p-1.5 text-center bg-[#080a12]">
-                          <p className="text-[10px] font-bold text-slate-100 truncate">{card.name}</p>
-                          <p className={`text-[8px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p>
-                        </div>
-                      )}
+                      <div className="p-1.5 text-center bg-[#080a12] relative z-10">
+                        <p className="text-[10px] font-bold text-slate-100 truncate">{card.name}</p>
+                        <p className={`text-[8px] font-bold ${isRare ? 'text-pink-400' : 'text-slate-400'}`}>{getRarityLabel(card.rarity)}</p>
+                      </div>
                     </motion.div>
                   );
                 })}

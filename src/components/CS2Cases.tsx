@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, type CSSProperties } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Search, ArrowLeft, TrendingUp, Crosshair, Loader2, Sparkles } from 'lucide-react';
 import type { PokemonCard } from '../types';
@@ -345,6 +345,7 @@ export default function CS2Cases({
   const animToken = useRef<number>(0);
   const animStartRef = useRef<number>(0);
   const animEndRef = useRef<number>(0);
+  const lastTickIdxRef = useRef<number>(-1);
 
   // Load real CS2 crates & skin artwork from ByMykel CSGO-API
   useEffect(() => {
@@ -468,7 +469,8 @@ export default function CS2Cases({
     setStripX(containerWidth);
     animToken.current = winnerIndex;
     animStartRef.current = containerWidth;
-    playFile('/BenBets/sounds/csgo-case-open.mp3', 0.5);
+    lastTickIdxRef.current = -1;
+    playFile('/BenBets/sounds/csgo-case-open.mp3', 0.14);
   }, [selectedCase, rolling, balance, onUpdateBalance, containerWidth, playFile]);
 
   useLayoutEffect(() => {
@@ -481,12 +483,17 @@ export default function CS2Cases({
 
     const winnerIndex = animToken.current;
     const winnerEl = inner.children[winnerIndex] as HTMLElement | undefined;
+    const firstEl = inner.children[0] as HTMLElement | undefined;
     if (!winnerEl) return;
     const winnerItem = stripItems[winnerIndex];
     if (!winnerItem) return;
 
     const itemRect = winnerEl.getBoundingClientRect();
     const itemCenter = itemRect.left + itemRect.width / 2;
+    const firstCenter = firstEl
+      ? firstEl.getBoundingClientRect().left + firstEl.getBoundingClientRect().width / 2
+      : itemCenter - winnerIndex * 104;
+    const pitch = winnerIndex > 0 ? (itemCenter - firstCenter) / winnerIndex : 104;
 
     const startX = animStartRef.current;
     const endX = startX - (itemCenter - arrowX);
@@ -499,7 +506,15 @@ export default function CS2Cases({
       const elapsed = now - startTime;
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setStripX(startX + (endX - startX) * eased);
+      const curX = startX + (endX - startX) * eased;
+      setStripX(curX);
+
+      const centerIdx = Math.round((arrowX - (firstCenter + (curX - startX))) / (pitch || 104));
+      if (centerIdx !== lastTickIdxRef.current && centerIdx >= 0 && centerIdx < stripItems.length) {
+        lastTickIdxRef.current = centerIdx;
+        play('tick');
+      }
+
       if (p < 1) {
         frameId = requestAnimationFrame(animate);
       } else {
@@ -509,7 +524,7 @@ export default function CS2Cases({
         setResultImgError(false);
         setShowResult(true);
         setRolling(false);
-        if (winnerItem.rarityLevel >= 3) play('rare');
+        play(winnerItem.rarityLevel >= 3 ? 'legendary' : winnerItem.rarityLevel >= 1 ? 'rare' : 'reveal');
       }
     }
     frameId = requestAnimationFrame(animate);
@@ -815,47 +830,66 @@ export default function CS2Cases({
                   </div>
 
                   {showResult && result && (
-                    <motion.div initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                       className="omnitrix-panel rounded-2xl p-5 sm:p-6 text-center relative overflow-hidden"
                     >
-                      <div className="text-xs font-mono uppercase tracking-widest text-brand mb-2 flex items-center justify-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" /> Item Obtido!
-                      </div>
-                      <div className="flex justify-center mb-3">
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                          className={`w-44 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} holo-foil p-3`}
-                          style={{ boxShadow: `0 0 42px ${rarityColor(result.rarityLevel).glow}` }}
-                        >
-                          {result.image && !resultImgError ? (
-                            <img
-                              src={result.image}
-                              onError={() => setResultImgError(true)}
-                              alt={result.name}
-                              className="max-h-28 max-w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.75)]"
-                            />
-                          ) : (
-                            <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                      {result.rarityLevel >= 1 && (
+                        <div
+                          className="gacha-light-beam opacity-65"
+                          style={{ '--beam-color': rarityColor(result.rarityLevel).glow } as CSSProperties}
+                        />
+                      )}
+                      <div className="relative z-10">
+                        <div className="text-xs font-mono uppercase tracking-widest text-brand mb-2 flex items-center justify-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" /> Item Obtido!
+                        </div>
+                        <div className="flex justify-center mb-3">
+                          <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                            className={`w-44 h-36 rounded-2xl border-2 flex items-center justify-center relative ${rarityColor(result.rarityLevel).border} ${rarityColor(result.rarityLevel).bg} holo-foil gacha-float p-3`}
+                            style={{ boxShadow: `0 0 42px ${rarityColor(result.rarityLevel).glow}` }}
+                          >
+                            {result.image && !resultImgError ? (
+                              <img
+                                src={result.image}
+                                onError={() => setResultImgError(true)}
+                                alt={result.name}
+                                className="max-h-28 max-w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.75)]"
+                              />
+                            ) : (
+                              <span className="text-5xl">{result.rarityLevel === 4 ? '⭐' : '🔫'}</span>
+                            )}
+                          </motion.div>
+                        </div>
+                        <div className={`text-xs font-mono ${rarityColor(result.rarityLevel).text} opacity-85`}>{result.weapon}</div>
+                        <div className={`text-lg sm:text-xl font-extrabold font-display ${rarityColor(result.rarityLevel).text} leading-tight`}>
+                          {result.name}
+                        </div>
+                        <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-75 mt-0.5`}>
+                          {rarityLabelShort(result.rarityLevel)}
+                        </div>
+                        <div className="text-xl font-black font-mono mt-2 text-brand">R$ {resultPrice.toFixed(2)}</div>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <button onClick={handleSellNow}
+                            className="flex-1 min-w-[130px] py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 rounded-xl text-xs font-black hover:from-yellow-400 hover:to-amber-400 transition-all cursor-pointer"
+                          >Vender por R$ {resultPrice.toFixed(2)}</button>
+                          <button onClick={handleKeep}
+                            className="flex-1 min-w-[130px] py-2.5 bg-brand hover:bg-[#00e074] text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer"
+                          >Guardar na Coleção</button>
+                          {selectedCase.price > 0 && balance >= selectedCase.price && (
+                            <button
+                              onClick={() => {
+                                handleKeep();
+                                setTimeout(() => openCase(), 40);
+                              }}
+                              className="w-full py-2.5 bg-[#121625] hover:bg-[#1a2036] text-orange-300 border border-orange-500/40 rounded-xl text-xs font-extrabold transition-all cursor-pointer"
+                            >
+                              🔄 Guardar & Girar de Novo (R$ {selectedCase.price.toFixed(2)})
+                            </button>
                           )}
-                        </motion.div>
-                      </div>
-                      <div className={`text-xs font-mono ${rarityColor(result.rarityLevel).text} opacity-85`}>{result.weapon}</div>
-                      <div className={`text-lg sm:text-xl font-extrabold font-display ${rarityColor(result.rarityLevel).text} leading-tight`}>
-                        {result.name}
-                      </div>
-                      <div className={`text-xs ${rarityColor(result.rarityLevel).text} opacity-75 mt-0.5`}>
-                        {rarityLabelShort(result.rarityLevel)}
-                      </div>
-                      <div className="text-xl font-black font-mono mt-2 text-brand">R$ {resultPrice.toFixed(2)}</div>
-                      <div className="flex gap-2 mt-4">
-                        <button onClick={handleSellNow}
-                          className="flex-1 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 rounded-xl text-xs font-black hover:from-yellow-400 hover:to-amber-400 transition-all cursor-pointer"
-                        >Vender por R$ {resultPrice.toFixed(2)}</button>
-                        <button onClick={handleKeep}
-                          className="flex-1 py-2.5 bg-brand hover:bg-[#00e074] text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer"
-                        >Guardar na Coleção</button>
+                        </div>
                       </div>
                     </motion.div>
                   )}

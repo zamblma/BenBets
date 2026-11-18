@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
 import type { PokemonCard } from '../types';
@@ -449,13 +449,21 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
   const handleOpenPack = async () => {
     if (!selectedSet || !canBuy) return;
+    await launchPack();
+  };
 
-    play('reveal');
+  const launchPack = async (overrideBalanceCheck = false) => {
+    if (!selectedSet || cardsLoading) return;
+    if (!overrideBalanceCheck && balance < selectedOption.price) return;
+
+    play('packOpen');
     onUpdateBalance(-selectedOption.price);
     updateMissionProgress(userId, 'pokemon_packs', 1).catch(() => {});
     setOpening(true);
     setPackResult([]);
     setRevealingIndex(-1);
+    setRareFlash({ show: false, rarity: '', label: '' });
+    setStarBurst({ show: false, label: '', isSecret: false });
 
     let cards = setCards;
     if (cards.length === 0 || cardsSetIdRef.current !== selectedSet.id) {
@@ -467,26 +475,28 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     for (let i = 0; i < packQty; i++) {
       allCards.push(...generatePack(cards, selectedSet.name, selectedSet.series, packQty));
     }
-    allCards.sort((a, b) => getCardRarityLevel(b.rarity) - getCardRarityLevel(a.rarity));
+    // Sort ascending so rarest cards build anticipation at the end!
+    allCards.sort((a, b) => getCardRarityLevel(a.rarity) - getCardRarityLevel(b.rarity));
     setPackResult(allCards);
 
     skipRef.current = false;
 
     const bestLevel = Math.max(...allCards.map(c => getCardRarityLevel(c.rarity)));
     if (bestLevel >= 3) {
-      play('rare');
-      const isSecret = allCards.some(c => c.rarity === 'Rare Secret');
+      const isSecret = allCards.some(c => getCardRarityLevel(c.rarity) >= 5);
       const label = isSecret ? '⭐ SECRETA!' : bestLevel >= 4 ? '💎 ULTRA RARA!' : '✨ HOLO!';
       setStarBurst({ show: true, label, isSecret });
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 950));
       setStarBurst(prev => ({ ...prev, show: false }));
     }
 
-    const delay = 350;
+    const delay = 320;
     for (let i = 0; i < allCards.length; i++) {
       await new Promise(r => setTimeout(r, delay));
       if (skipRef.current) break;
       setRevealingIndex(i);
+      const lvl = getCardRarityLevel(allCards[i].rarity);
+      play(lvl >= 4 ? 'legendary' : lvl === 3 ? 'rare' : 'cardFlip');
     }
   };
 
@@ -495,9 +505,9 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
     const card = packResult[revealingIndex];
     const lvl = getCardRarityLevel(card.rarity);
     if (lvl >= 3) {
-      const label = card.rarity === 'Rare Secret' ? '⭐ Secreta' : card.rarity === 'Rare Rainbow' ? '🌈 Arco-Íris' : card.rarity === 'Rare Ultra' ? '💎 Ultra' : '✨ Holo';
+      const label = lvl >= 5 ? '⭐ Secreta' : card.rarity === 'Rare Rainbow' ? '🌈 Arco-Íris' : lvl >= 4 ? '💎 Ultra Rara' : '✨ Holo';
       setRareFlash({ show: true, rarity: card.rarity, label });
-      const t = setTimeout(() => setRareFlash(prev => ({ ...prev, show: false })), 1200);
+      const t = setTimeout(() => setRareFlash(prev => ({ ...prev, show: false })), 900);
       return () => clearTimeout(t);
     }
   }, [revealingIndex, packResult]);
@@ -552,7 +562,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
             <AnimatePresence>
               {starBurst.show && (
@@ -561,132 +571,141 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/60"
+                  className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none"
                 >
+                  <div
+                    className="gacha-light-beam"
+                    style={{ '--beam-color': starBurst.isSecret ? 'rgba(248,113,113,0.28)' : 'rgba(250,204,21,0.25)' } as CSSProperties}
+                  />
                   <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{
-                      scale: [0, 1.5, 0.8, 1.2, 1],
-                      rotate: [-180, 0, 360, 720, 1080],
-                    }}
-                    transition={{ duration: 1.8, times: [0, 0.3, 0.5, 0.7, 1] }}
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 1.15, opacity: 0 }}
+                    className="relative z-10 px-6 py-4 rounded-2xl omnitrix-panel border-amber-400/40 text-center"
                   >
-                    <motion.span
-                      animate={{
-                        scale: [1, 1.4, 0.9, 1.3, 1],
-                        opacity: [0, 1, 0.5, 1, 0],
-                      }}
-                      transition={{ duration: 1.8, times: [0, 0.1, 0.3, 0.5, 1] }}
-                      className="text-8xl sm:text-9xl block"
-                      style={{ filter: 'drop-shadow(0 0 80px rgba(255,200,0,0.8))' }}
-                    >
-                      {starBurst.isSecret ? '⭐' : '💎'}
-                    </motion.span>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: [0, 1, 1, 0], y: [50, 0, 0, -30] }}
-                    transition={{ duration: 1.8, times: [0, 0.15, 0.6, 1] }}
-                    className="absolute bottom-[30%] text-center"
-                  >
-                    <span className={`text-3xl sm:text-5xl font-black drop-shadow-[0_0_40px_rgba(255,255,255,0.6)] ${starBurst.isSecret ? 'text-red-400' : 'text-purple-400'}`}>
+                    <span className="text-4xl sm:text-5xl block mb-1">{starBurst.isSecret ? '⭐' : '💎'}</span>
+                    <span className={`text-xl sm:text-3xl font-black font-display ${starBurst.isSecret ? 'text-red-400' : 'text-amber-300'}`}>
                       {starBurst.label}
                     </span>
+                    <p className="text-[10px] font-mono text-slate-300 mt-1">Carta rara detectada neste pacote!</p>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
+
             <AnimatePresence>
               {rareFlash.show && (
                 <motion.div
                   key="rareflash"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: [0, 1, 1, 0], scale: [0.5, 1.3, 1.1, 1] }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
-                  className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+                  initial={{ opacity: 0, y: -16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] pointer-events-none"
                 >
-                  <motion.div
-                    animate={{ opacity: [0, 0.6, 0.4, 0] }}
-                    transition={{ duration: 1.2, times: [0, 0.1, 0.4, 1] }}
-                    className={`absolute inset-0 ${rareFlash.rarity === 'Rare Secret' ? 'bg-red-500' : rareFlash.rarity === 'Rare Rainbow' ? 'bg-purple-500' : rareFlash.rarity === 'Rare Ultra' ? 'bg-amber-500' : 'bg-yellow-500'}`}
-                  />
-                  <motion.span
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: [0, 1, 1, 0], y: [30, 0, 0, -20] }}
-                    transition={{ duration: 1.2, times: [0, 0.15, 0.5, 1] }}
-                    className="relative z-10 text-center px-4"
-                  >
-                    <span className="text-5xl sm:text-7xl block mb-2">{rareFlash.label.split(' ')[0]}</span>
-                    <span className="text-2xl sm:text-4xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.5)]">{rareFlash.label.slice(rareFlash.label.indexOf(' ') + 1)}</span>
-                  </motion.span>
+                  <div className="omnitrix-panel px-5 py-2.5 rounded-full border-amber-400/45 shadow-[0_0_24px_rgba(250,204,21,0.28)] flex items-center gap-2">
+                    <span className="text-lg">{rareFlash.label.split(' ')[0]}</span>
+                    <span className="text-sm font-black text-amber-300 uppercase tracking-wider">
+                      {rareFlash.label.slice(rareFlash.label.indexOf(' ') + 1)}
+                    </span>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="text-center max-w-2xl w-full py-4">
+
+            <div className="text-center max-w-2xl w-full py-4 relative">
               <motion.h3
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="text-amber-400 font-extrabold text-lg mb-2 flex items-center justify-center gap-2"
+                className="text-amber-400 font-extrabold font-display text-lg mb-2 flex items-center justify-center gap-2"
               >
-                <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 2 }}>🎴</motion.span>
+                <span>🎴</span>
                 {packQty > 1 ? `${packQty} Pacotes` : 'Pacote'} — {selectedSet?.name}
               </motion.h3>
               <div className="flex items-center justify-center gap-3 mb-4">
-                <p className="text-slate-500 text-xs">
-                  {revealingIndex + 1} de {packResult.length} cartas reveladas
+                <p className="text-slate-400 text-xs font-mono">
+                  {Math.max(0, revealingIndex + 1)} de {packResult.length} cartas reveladas
                 </p>
-                <button onClick={() => { skipRef.current = true; setRevealingIndex(packResult.length - 1); }} className="text-xs sm:text-sm text-amber-400/60 hover:text-amber-400 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-amber-500/5 hover:bg-amber-500/10 ml-auto">Pular</button>
+                {revealingIndex < packResult.length - 1 && (
+                  <button
+                    onClick={() => {
+                      skipRef.current = true;
+                      setRevealingIndex(packResult.length - 1);
+                      const bestLvl = Math.max(...packResult.map(c => getCardRarityLevel(c.rarity)));
+                      play(bestLvl >= 4 ? 'legendary' : bestLvl === 3 ? 'rare' : 'reveal');
+                    }}
+                    className="text-xs text-amber-300 hover:text-amber-200 font-bold uppercase tracking-wider transition-colors cursor-pointer px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30"
+                  >
+                    Revelar Tudo
+                  </button>
+                )}
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[70vh] overflow-y-auto px-2">
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center max-h-[65vh] overflow-y-auto px-2 py-2">
                 {packResult.map((card, idx) => {
                   const lvl = getCardRarityLevel(card.rarity);
                   const border = getRarityBorder(card.rarity);
+                  const isRevealed = idx <= revealingIndex;
                   const isRare = lvl >= 3;
                   const isNew = !collection.some(c => c.id === card.id);
+                  const anticipationBorder =
+                    lvl >= 5
+                      ? 'border-red-400/80 shadow-[0_0_22px_rgba(248,113,113,0.45)]'
+                      : lvl === 4
+                      ? 'border-purple-400/80 shadow-[0_0_20px_rgba(168,85,247,0.4)]'
+                      : lvl === 3
+                      ? 'border-amber-400/80 shadow-[0_0_16px_rgba(250,204,21,0.35)]'
+                      : 'border-brand/25';
+
+                  if (!isRevealed) {
+                    return (
+                      <motion.div
+                        key={`back-${card.id}-${idx}`}
+                        initial={{ scale: 0.75, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: Math.min(idx * 0.03, 0.3) }}
+                        className={`w-full aspect-[2/3] rounded-xl border-2 gacha-card-back ${anticipationBorder} flex flex-col items-center justify-center p-2 relative overflow-hidden`}
+                      >
+                        <div className="w-9 h-9 rounded-full border border-brand/40 bg-brand/10 flex items-center justify-center animate-pulse">
+                          <Sparkles className="w-4 h-4 text-brand" />
+                        </div>
+                        <span className="text-[8px] font-mono uppercase tracking-widest text-slate-400 mt-2">
+                          {isRare ? 'Aura Rara' : 'BenBets'}
+                        </span>
+                      </motion.div>
+                    );
+                  }
+
                   return (
                     <motion.div
                       key={`${card.id}-${idx}`}
-                      initial={{ rotateY: 180, opacity: 0, scale: 0.2, y: 60, rotateX: 20 }}
-                      animate={idx <= revealingIndex ? { rotateY: 0, opacity: 1, scale: 1, y: 0, rotateX: 0 } : {}}
-                      transition={{ type: 'spring', stiffness: 100, damping: 12, mass: 1.1 }}
-                      className={`bg-[#1a1c2a] rounded-xl overflow-hidden border-2 ${border} shadow-lg ${isRare ? 'relative' : ''}`}
+                      initial={{ rotateY: 90, opacity: 0, scale: 0.8 }}
+                      animate={{ rotateY: 0, opacity: 1, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 160, damping: 16 }}
+                      className={`w-full bg-[#121521] rounded-xl overflow-hidden border-2 ${border} shadow-lg relative ${isRare ? 'holo-foil gacha-float' : ''}`}
                     >
                       {isRare && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={idx <= revealingIndex ? { opacity: [0, 0.5, 0.3] } : {}}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none z-10"
+                        <div
+                          className="gacha-light-beam opacity-60"
+                          style={{ '--beam-color': lvl >= 5 ? 'rgba(248,113,113,0.28)' : lvl >= 4 ? 'rgba(168,85,247,0.28)' : 'rgba(250,204,21,0.24)' } as CSSProperties}
                         />
                       )}
-                      {lvl >= 4 && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={idx <= revealingIndex ? { opacity: [0, 0.8, 0.2, 0.5, 0.3] } : {}}
-                          transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                          className="absolute inset-0 bg-gradient-to-br from-purple-400/10 via-transparent to-red-400/10 pointer-events-none z-10"
-                        />
-                      )}
-                      {isNew && revealingIndex >= idx && (
+                      {isNew && (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', stiffness: 300 }}
-                          className="absolute top-1 left-1 z-20 bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-lg"
+                          className="absolute top-1 left-1 z-20 bg-brand text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg"
                         >NEW</motion.div>
                       )}
-                      <motion.img
+                      <img
                         src={card.imageUrl} alt={card.name}
-                        className="w-full aspect-[2/3] object-cover relative z-0"
+                        className="w-full aspect-[2/3] object-cover relative z-10"
                         loading="lazy"
-                        animate={idx <= revealingIndex && isRare ? { scale: [1, 1.05, 1] } : {}}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 3 }}
                       />
-                      <div className="p-1.5 text-center relative z-10">
+                      <div className="p-1.5 text-center relative z-10 bg-[#0b0e17]">
                         <p className="text-[8px] font-bold text-slate-200 truncate">{card.name}</p>
-                        <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${lvl >= 3 ? 'text-yellow-300 drop-shadow-[0_0_6px_rgba(234,179,8,0.5)]' : lvl === 1 ? 'text-green-400' : 'text-slate-400'}`}>
-                          {card.rarity === 'Rare Secret' ? '⭐' : card.rarity === 'Rare Rainbow' ? '🌈' : card.rarity === 'Rare Ultra' ? '💎' : ''}
+                        <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${lvl >= 3 ? 'text-yellow-300' : lvl === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                          {lvl >= 5 ? '⭐' : card.rarity === 'Rare Rainbow' ? '🌈' : lvl === 4 ? '💎' : ''}
                           {getRarityLabel(card.rarity)}
                         </span>
                       </div>
@@ -694,44 +713,52 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   );
                 })}
               </div>
+
               {revealingIndex >= packResult.length - 1 && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
                   {packResult.some(c => isSpecial(c.rarity)) && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: [0, 1.2, 1] }}
-                      transition={{ type: 'spring', stiffness: 200 }}
-                      className="text-yellow-400 font-extrabold text-sm mt-4 flex items-center justify-center gap-2"
-                    >
-                      <Star className="w-5 h-5 fill-yellow-400" /> Carta&nbsp;
-                      {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 'Especiais' : 'Especial'} Encontrada
-                      {packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 's' : ''}! <Star className="w-5 h-5 fill-yellow-400" />
-                    </motion.div>
+                    <div className="text-yellow-400 font-extrabold text-sm mt-3 flex items-center justify-center gap-2">
+                      <Star className="w-4 h-4 fill-yellow-400" /> Carta{packResult.filter(c => isSpecial(c.rarity)).length > 1 ? 's Especiais' : ' Especial'}!
+                    </div>
                   )}
-                  <div className="flex items-center justify-center gap-3 mt-4">
-                    <button
-                      onClick={() => {
-                        const newCards = packResult.filter(c => !collection.some(x => x.id === c.id));
-                        if (newCards.length > 0) onCollectionUpdate(newCards);
-                        if (sellTotal > 0) onUpdateBalance(sellTotal);
-                        setOpening(false);
-                        setPackResult([]);
-                      }}
-                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                    >
-                      <DollarSign className="w-4 h-4 inline mr-1.5" /> Vender Repetidas — R$ {sellTotal.toFixed(2)}
-                    </button>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+                    {sellTotal > 0 && (
+                      <button
+                        onClick={() => {
+                          const newCards = packResult.filter(c => !collection.some(x => x.id === c.id));
+                          if (newCards.length > 0) onCollectionUpdate(newCards);
+                          if (sellTotal > 0) onUpdateBalance(sellTotal);
+                          play('cashout');
+                          setOpening(false);
+                          setPackResult([]);
+                        }}
+                        className="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/40 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+                      >
+                        <DollarSign className="w-3.5 h-3.5 inline mr-1" /> Vender Repetidas — R$ {sellTotal.toFixed(2)}
+                      </button>
+                    )}
                     <button
                       onClick={() => { onCollectionUpdate(packResult); setOpening(false); setPackResult([]); }}
-                      className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all cursor-pointer shadow-[0_0_15px_rgba(255,191,0,0.3)]"
+                      className="bg-[#161927] hover:bg-[#1f2438] text-slate-100 border border-[#2b3148] font-bold px-5 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-4 h-4 inline mr-1.5" /> Guardar na Coleção
+                      <Sparkles className="w-3.5 h-3.5 inline mr-1" /> Guardar e Fechar
                     </button>
+                    {balance >= selectedOption.price && (
+                      <button
+                        onClick={() => {
+                          onCollectionUpdate(packResult);
+                          launchPack(true);
+                        }}
+                        className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition-all cursor-pointer shadow-[0_0_18px_rgba(245,158,11,0.35)]"
+                      >
+                        🔄 Abrir Mais {packQty}x (R$ {selectedOption.price.toFixed(2)})
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
               {revealingIndex < packResult.length - 1 && (
-                <p className="mt-4 text-amber-400/60 text-xs animate-pulse">✨ Revelando cartas...</p>
+                <p className="mt-4 text-amber-400/70 text-xs animate-pulse font-mono">✨ Revelando cartas...</p>
               )}
             </div>
           </motion.div>

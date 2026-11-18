@@ -302,3 +302,64 @@ body {
   right: 0;
   pointer-events: none;
 }
+
+/* Gacha Upgrade Effects */
+.gacha-card-back {
+  background:
+    radial-gradient(circle at center, rgba(0, 255, 135, 0.16) 0%, rgba(10, 14, 24, 0.96) 62%, #06070d 100%),
+    repeating-linear-gradient(45deg, rgba(0, 255, 135, 0.03) 0 8px, transparent 8px 16px);
+  box-shadow: inset 0 0 24px rgba(0, 255, 135, 0.09);
+}
+
+@keyframes gacha-beam-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.gacha-light-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 240%;
+  height: 240%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 22deg,
+    var(--beam-color, rgba(0, 255, 135, 0.22)) 32deg,
+    transparent 44deg 112deg,
+    var(--beam-color, rgba(0, 255, 135, 0.22)) 124deg,
+    transparent 136deg 202deg,
+    var(--beam-color, rgba(0, 255, 135, 0.22)) 214deg,
+    transparent 226deg 292deg,
+    var(--beam-color, rgba(0, 255, 135, 0.22)) 304deg,
+    transparent 316deg 360deg
+  );
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 15%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 15%, transparent 70%);
+  animation: gacha-beam-spin 11s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes gacha-charge {
+  0%, 100% {
+    transform: scale(0.96);
+    box-shadow: 0 0 18px var(--charge-color, rgba(0, 255, 135, 0.25));
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 42px var(--charge-color, rgba(0, 255, 135, 0.55));
+  }
+}
+
+.gacha-pack-charge {
+  animation: gacha-charge 1.15s ease-in-out infinite;
+}
+
+@keyframes gacha-hover-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.gacha-float {
+  animation: gacha-hover-float 3s ease-in-out infinite;
+}
