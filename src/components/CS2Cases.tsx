@@ -116,6 +116,7 @@ function CS2Image({
       alt={alt}
       className={className}
       loading="lazy"
+      decoding="async"
       onError={() => setIdx((p) => p + 1)}
     />
   );
@@ -524,7 +525,6 @@ export default function CS2Cases({
   const [resultPrice, setResultPrice] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [stripItems, setStripItems] = useState<CSSkin[]>([]);
-  const [stripX, setStripX] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState<number | null>(null);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
@@ -535,6 +535,7 @@ export default function CS2Cases({
   const { playFile, play } = useSound();
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const stripInnerRef = useRef<HTMLDivElement>(null);
+  const stripXRef = useRef<number>(0);
   const [containerWidth, setContainerWidth] = useState(600);
   const animToken = useRef<number>(0);
   const animStartRef = useRef<number>(0);
@@ -684,7 +685,10 @@ export default function CS2Cases({
     const winnerIndex = 35 + Math.floor(Math.random() * 8);
     const items = generateStripItems(selectedCase, winner, winnerIndex);
     setStripItems(items);
-    setStripX(containerWidth);
+    stripXRef.current = containerWidth;
+    if (stripInnerRef.current) {
+      stripInnerRef.current.style.transform = `translate3d(${containerWidth}px, 0, 0)`;
+    }
     animToken.current = winnerIndex;
     animStartRef.current = containerWidth;
     lastTickIdxRef.current = -1;
@@ -696,6 +700,9 @@ export default function CS2Cases({
     if (stripItems.length === 0) return;
     const container = stripContainerRef.current;
     const inner = stripInnerRef.current;
+    const startX = animStartRef.current;
+    inner.style.transform = `translate3d(${startX}px, 0, 0)`;
+
     const containerRect = container.getBoundingClientRect();
     const arrowX = containerRect.left + containerRect.width / 2;
 
@@ -713,8 +720,8 @@ export default function CS2Cases({
       : itemCenter - winnerIndex * 108;
     const pitch = winnerIndex > 0 ? (itemCenter - firstCenter) / winnerIndex : 108;
 
-    const startX = animStartRef.current;
-    const endX = startX - (itemCenter - arrowX);
+    const jitter = (Math.random() - 0.5) * 32;
+    const endX = startX - (itemCenter - arrowX) + jitter;
     const duration = turboMode ? 1200 : 3500;
     const startTime = performance.now();
 
@@ -722,9 +729,10 @@ export default function CS2Cases({
     function animate(now: number) {
       const elapsed = now - startTime;
       const p = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
+      const eased = 1 - Math.pow(1 - p, 3.2);
       const curX = startX + (endX - startX) * eased;
-      setStripX(curX);
+      stripXRef.current = curX;
+      inner.style.transform = `translate3d(${curX}px, 0, 0)`;
 
       const centerIdx = Math.round((arrowX - (firstCenter + (curX - startX))) / (pitch || 108));
       if (centerIdx !== lastTickIdxRef.current && centerIdx >= 0 && centerIdx < stripItems.length) {
@@ -739,7 +747,8 @@ export default function CS2Cases({
         const baseMid = winnerItem.minPrice + Math.random() * (winnerItem.maxPrice - winnerItem.minPrice);
         const finalPrice = Math.max(0.25, Math.round(baseMid * metaWrap.priceMult * 100) / 100);
 
-        setStripX(endX);
+        stripXRef.current = endX;
+        inner.style.transform = `translate3d(${endX}px, 0, 0)`;
         setResult(winnerItem);
         setResultMeta(metaWrap.meta);
         setResultPrice(finalPrice);
@@ -1135,16 +1144,22 @@ export default function CS2Cases({
                 )}
 
                 <div className={`relative ${!(rolling || showResult) ? 'invisible absolute pointer-events-none' : ''}`} style={!(rolling || showResult) ? { height: '165px' } : {}}>
-                  <div ref={stripContainerRef} className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#06070d] mb-4" style={{ height: '165px' }}>
+                  <div
+                    ref={stripContainerRef}
+                    className="relative overflow-hidden rounded-xl border border-[#1a1d2d] bg-[#06070d] mb-4"
+                    style={{ height: '165px', contain: 'paint' }}
+                  >
+                    <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#06070d] to-transparent z-10" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#06070d] to-transparent z-10" />
                     <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent z-10" />
-                    <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-400/75 z-20 shadow-[0_0_10px_rgba(251,191,36,0.85)]" />
+                    <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-400/80 z-20" />
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
                       <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[14px] border-l-transparent border-r-transparent border-t-amber-400" />
                     </div>
                     <div
                       ref={stripInnerRef}
-                      className="flex gap-2 items-center py-5 absolute"
-                      style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
+                      className="flex gap-2 items-center py-5 absolute gpu-strip"
+                      style={{ transform: `translate3d(${stripXRef.current}px, 0, 0)` }}
                     >
                       {stripItems.map((item, i) => {
                         const rColor = rarityColor(item.rarityLevel);
@@ -1158,12 +1173,12 @@ export default function CS2Cases({
                             } p-1.5 flex flex-col items-center justify-between text-center ${
                               isWinner ? 'ring-2 ring-amber-400 scale-105' : ''
                             }`}
-                            style={{ boxShadow: `0 0 ${isWinner ? '18' : '6'}px ${rColor.glow}` }}
+                            style={isWinner ? { boxShadow: `0 0 18px ${rColor.glow}` } : undefined}
                           >
                             {hideGoldTile ? (
                               <>
                                 <div className="w-full h-14 flex items-center justify-center">
-                                  <span className="text-3xl text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]">★</span>
+                                  <span className="text-3xl text-amber-300">★</span>
                                 </div>
                                 <div className="w-full">
                                   <div className="text-[7px] font-mono text-amber-200/80 uppercase">RARE SPECIAL</div>
@@ -1176,7 +1191,7 @@ export default function CS2Cases({
                                   <CS2Image
                                     src={item.image}
                                     alt={item.name}
-                                    className="max-h-14 max-w-full object-contain drop-shadow-[0_3px_6px_rgba(0,0,0,0.7)]"
+                                    className="max-h-14 max-w-full object-contain"
                                     fallbackEmoji={item.rarityLevel === 4 ? '⭐' : '🔫'}
                                   />
                                 </div>

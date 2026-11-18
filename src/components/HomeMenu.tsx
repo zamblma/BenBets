@@ -167,10 +167,13 @@ export default function HomeMenu({ onSelect, leaderboard = [], currentUserId }: 
                 <Trophy className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-xs sm:text-sm font-extrabold font-display text-white flex items-center gap-2">
-                  Top 3 Ao Vivo
+                <h3 className="text-xs sm:text-sm font-extrabold font-display text-white flex items-center gap-2 flex-wrap">
+                  Top 3 do Ranking
                   <span className="text-[9px] font-mono font-bold text-brand bg-brand/10 border border-brand/25 px-2 py-0.5 rounded-full">
                     🟢 {onlineCount} online
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                    {leaderboard.length} cadastrado{leaderboard.length === 1 ? '' : 's'}
                   </span>
                 </h3>
               </div>

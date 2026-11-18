@@ -57,13 +57,13 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
     white: 0,
   });
   const [spinning, setSpinning] = useState(false);
-  const [stripX, setStripX] = useState(0);
   const [containerWidth, setContainerWidth] = useState(600);
   const [history, setHistory] = useState<TileSpec[]>(INITIAL_HISTORY);
   const [lastOutcome, setLastOutcome] = useState<{ tile: TileSpec; payout: number; staked: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
+  const stripXRef = useRef<number>(0);
   const winnerStripIdxRef = useRef<number>(45);
   const activeBetsRef = useRef(bets);
   const lastTickRef = useRef(-1);
@@ -123,7 +123,11 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
 
     const tileOffset = Math.floor(Math.random() * WHEEL_TILES.length); // 0..14 (1/15 branco, 7/15 verm, 7/15 preto)
     winnerStripIdxRef.current = 45 + tileOffset;
-    setStripX(containerWidth * 0.25);
+    const initX = containerWidth * 0.25;
+    stripXRef.current = initX;
+    if (innerRef.current) {
+      innerRef.current.style.transform = `translate3d(${initX}px, 0, 0)`;
+    }
     lastTickRef.current = -1;
     setSpinning(true);
   };
@@ -133,6 +137,9 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
     const containerRect = containerRef.current.getBoundingClientRect();
     const arrowX = containerRect.left + containerRect.width / 2;
     const inner = innerRef.current;
+    const startX = containerWidth * 0.25;
+    inner.style.transform = `translate3d(${startX}px, 0, 0)`;
+
     const targetIdx = winnerStripIdxRef.current;
     const targetEl = inner.children[targetIdx] as HTMLElement | undefined;
     const firstEl = inner.children[0] as HTMLElement | undefined;
@@ -142,7 +149,6 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
     const targetCenter = targetEl.getBoundingClientRect().left + targetEl.getBoundingClientRect().width / 2;
     const pitch = targetIdx > 0 ? (targetCenter - firstCenter) / targetIdx : 64;
 
-    const startX = containerWidth * 0.25;
     const jitter = (Math.random() - 0.5) * 20;
     const endX = startX - (targetCenter - arrowX) + jitter;
     const duration = 2650;
@@ -153,7 +159,8 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
       const p = Math.min((now - startTime) / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
       const curX = startX + (endX - startX) * eased;
-      setStripX(curX);
+      stripXRef.current = curX;
+      inner.style.transform = `translate3d(${curX}px, 0, 0)`;
 
       const curIdx = Math.round((arrowX - (firstCenter + (curX - startX))) / (pitch || 64));
       if (curIdx !== lastTickRef.current && curIdx >= 0 && curIdx < REPEATED_STRIP.length) {
@@ -164,7 +171,8 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
       if (p < 1) {
         rafId = requestAnimationFrame(step);
       } else {
-        setStripX(endX);
+        stripXRef.current = endX;
+        inner.style.transform = `translate3d(${endX}px, 0, 0)`;
         setSpinning(false);
         const winningTile = REPEATED_STRIP[targetIdx];
         const placed = activeBetsRef.current;
@@ -256,13 +264,16 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
       <div
         ref={containerRef}
         className="relative overflow-hidden rounded-2xl border border-[#1d2136] bg-[#05060b] h-28 flex items-center"
+        style={{ contain: 'paint' }}
       >
-        <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-brand z-20 shadow-[0_0_12px_rgba(0,255,135,0.9)]" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05060b] to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#05060b] to-transparent z-10" />
+        <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-brand z-20" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[8px] border-r-[8px] border-t-[11px] border-l-transparent border-r-transparent border-t-brand" />
         <div
           ref={innerRef}
-          className="flex gap-2 items-center absolute left-0"
-          style={{ transform: `translateX(${stripX}px)`, transition: 'none', willChange: 'transform' }}
+          className="flex gap-2 items-center absolute left-0 gpu-strip"
+          style={{ transform: `translate3d(${stripXRef.current}px, 0, 0)` }}
         >
           {REPEATED_STRIP.map((t, idx) => (
             <div

@@ -99,8 +99,16 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
   const [missionsRecord, setMissionsRecord] = useState<Record<string, MissionProgress>>({});
-  const [leaderboardRaw, setLeaderboardRaw] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardRaw, setLeaderboardRaw] = useState<LeaderboardEntry[]>(() => {
+    try {
+      const cached = localStorage.getItem('benbets_leaderboard_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardPermissionError, setLeaderboardPermissionError] = useState(false);
 
   // Cache local do usuário (backup quando o Firestore estiver indisponível)
   const [loadError, setLoadError] = useState('');
@@ -150,9 +158,20 @@ export default function App() {
             setTimeout(() => setShowBonus(false), 4500);
           }
         } else {
-          // Documento de usuário não existe: apenas padrão, sem marcar como carregado
-          setBalance(20);
-          gotData = false;
+          // Documento de usuário não existia no Firestore: cria automaticamente para sincronizar no ranking
+          try {
+            const fallbackName = user.displayName || user.email?.split('@')[0] || 'Agente';
+            const newData = await createUserData(user.uid, user.email || '', fallbackName);
+            applyData(newData);
+            saveLocal(newData);
+            gotData = true;
+            setShowBonus(true);
+            setTimeout(() => setShowBonus(false), 4500);
+          } catch (createErr) {
+            console.error('Falha ao auto-criar usuário no Firestore:', createErr);
+            setBalance(20);
+            gotData = false;
+          }
         }
       } catch (err) {
         console.error('Falha ao carregar dados do usuário:', err);
@@ -236,6 +255,7 @@ export default function App() {
     if (!firebaseUser) {
       setLeaderboardRaw([]);
       setLeaderboardLoading(false);
+      setLeaderboardPermissionError(false);
       return;
     }
     setLeaderboardLoading(true);
@@ -243,9 +263,16 @@ export default function App() {
       (list) => {
         setLeaderboardRaw(list);
         setLeaderboardLoading(false);
+        setLeaderboardPermissionError(false);
+        try {
+          localStorage.setItem('benbets_leaderboard_cache', JSON.stringify(list));
+        } catch { /* quota */ }
       },
-      () => {
+      (err: any) => {
         setLeaderboardLoading(false);
+        if (err?.code === 'permission-denied') {
+          setLeaderboardPermissionError(true);
+        }
       }
     );
     return () => unsub();
@@ -981,6 +1008,7 @@ export default function App() {
               entries={liveLeaderboard}
               currentUserId={firebaseUser.uid}
               loading={leaderboardLoading}
+              permissionError={leaderboardPermissionError}
             />
           ) : selectedSport === 'Cassino' ? (() => {
             const CASINO_GAMES = [

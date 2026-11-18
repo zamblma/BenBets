@@ -352,11 +352,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
   return (
     <div className="relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-500/40 to-transparent" />
-      <motion.div
-        animate={{ boxShadow: ['0 0 0px rgba(0,255,135,0)', '0 0 16px rgba(0,255,135,0.08)', '0 0 0px rgba(0,255,135,0)'] }}
-        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-        className="rounded-2xl"
-      >
+      <div className="rounded-2xl">
         <div className="bg-gradient-to-b from-[#0a0b12] to-[#06070d] border border-[#1b1e2e] rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
           <div className="bg-gradient-to-r from-[#1a1c2e]/80 via-[#0f111f]/80 to-[#1a1c2e]/80 border border-[#2a2d42]/30 rounded-xl p-3 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-transparent to-emerald-500/5" />
@@ -532,7 +528,7 @@ export default function BlackjackGame({ balance, onUpdateBalance, onAddBetHistor
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

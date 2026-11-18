@@ -93,7 +93,7 @@ function sumCollectionStats(raw: any): { uniqueCards: number; totalCards: number
 
 export function subscribeToLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: any) => void
 ): () => void {
   return onSnapshot(
     collection(db, 'users'),
@@ -133,6 +133,7 @@ export function subscribeToLeaderboard(
       onUpdate(entries);
     },
     (err) => {
+      console.warn('[BenBets] Erro no snapshot da coleção users:', err?.code || err);
       if (onError) onError(err);
     }
   );

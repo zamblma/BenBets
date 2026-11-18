@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Crown, Medal, Search, Sparkles, Radio, Users, Flame, Gem, Target } from 'lucide-react';
+import { Trophy, Crown, Medal, Search, Sparkles, Radio, Users, Flame, Gem, Target, ShieldAlert, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { ONLINE_WINDOW_MS, ACTIVE_24H_MS, type LeaderboardEntry } from '../firebase/db';
 
 type RankingCategory = 'balance' | 'collector' | 'wins';
-type ActivityFilter = 'all' | 'online' | '24h';
+type ActivityFilter = 'all' | 'online' | '24h' | 'offline';
 
 interface LeaderboardProps {
   entries: LeaderboardEntry[];
   currentUserId: string;
   loading?: boolean;
+  permissionError?: boolean;
 }
 
 function getOmnitrixTitle(rank: number, balance: number): { label: string; color: string } {
@@ -71,12 +72,19 @@ function formatScore(entry: LeaderboardEntry, category: RankingCategory): string
   return `${entry.betsWon} vitória${entry.betsWon === 1 ? '' : 's'}`;
 }
 
-export default function Leaderboard({ entries, currentUserId, loading = false }: LeaderboardProps) {
+export default function Leaderboard({
+  entries,
+  currentUserId,
+  loading = false,
+  permissionError = false,
+}: LeaderboardProps) {
   const [category, setCategory] = useState<RankingCategory>('balance');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [pulseLive, setPulseLive] = useState(false);
+  const [showRuleGuide, setShowRuleGuide] = useState(false);
+  const [copiedRule, setCopiedRule] = useState(false);
 
   // Refresh presence labels every 15s even without new Firestore snapshots
   useEffect(() => {
@@ -91,22 +99,41 @@ export default function Leaderboard({ entries, currentUserId, loading = false }:
     return () => clearTimeout(t);
   }, [entries]);
 
+  const handleCopyRule = () => {
+    const snippet = `match /users/{userId} {\n  allow read: if request.auth != null;\n  allow write: if request.auth != null && request.auth.uid == userId;\n}`;
+    navigator.clipboard.writeText(snippet);
+    setCopiedRule(true);
+    setTimeout(() => setCopiedRule(false), 3000);
+  };
+
   const counts = useMemo(() => {
     let online = 0;
     let active24h = 0;
+    let offline = 0;
     for (const e of entries) {
       if (e.lastSeen > 0) {
         const diff = Math.max(0, now - e.lastSeen);
-        if (diff < ONLINE_WINDOW_MS) online++;
-        if (diff < ACTIVE_24H_MS) active24h++;
+        if (diff < ONLINE_WINDOW_MS) {
+          online++;
+        } else {
+          offline++;
+          if (diff < ACTIVE_24H_MS) active24h++;
+        }
+      } else {
+        offline++;
       }
     }
-    return { total: entries.length, online, active24h };
+    return { total: entries.length, online, active24h, offline };
   }, [entries, now]);
 
   const activityFiltered = useMemo(() => {
     return entries.filter((e) => {
       if (activityFilter === 'all') return true;
+      if (activityFilter === 'offline') {
+        if (!e.lastSeen || e.lastSeen <= 0) return true;
+        const diff = Math.max(0, now - e.lastSeen);
+        return diff >= ONLINE_WINDOW_MS;
+      }
       if (!e.lastSeen || e.lastSeen <= 0) return false;
       const diff = Math.max(0, now - e.lastSeen);
       if (activityFilter === 'online') return diff < ONLINE_WINDOW_MS;
@@ -178,7 +205,7 @@ export default function Leaderboard({ entries, currentUserId, loading = false }:
                 </span>
               </div>
               <p className="text-slate-400 text-[10px] sm:text-xs mt-0.5">
-                Classificação sincronizada em tempo real via Firebase • {counts.online} online agora
+                Classificação em tempo real via Firebase • {counts.total} jogadores ({counts.online} online agora • {counts.offline} offline)
               </p>
             </div>
           </div>
@@ -187,11 +214,75 @@ export default function Leaderboard({ entries, currentUserId, loading = false }:
             <div className="bg-[#06070d] border border-[#1d2236] px-3 py-1.5 rounded-xl flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-brand" />
               <span className="text-white font-bold">{counts.total}</span>
-              <span className="text-slate-500 text-[10px]">agentes</span>
+              <span className="text-slate-500 text-[10px]">jogadores</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Permission alert banner if Firestore collection read is restricted */}
+      {permissionError && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-xs space-y-3 relative overflow-hidden"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-bold text-amber-200 text-sm">
+                  Configuração de Regras do Firestore
+                </h4>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Para que todos os usuários registrados no Firebase apareçam no ranking (e não apenas quem está jogando no momento), é necessário permitir a leitura na coleção <code className="text-amber-300 font-mono bg-black/40 px-1 py-0.5 rounded">users</code> no Console do Firebase.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowRuleGuide((prev) => !prev)}
+              className="text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300 shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 cursor-pointer flex items-center gap-1"
+            >
+              <span>{showRuleGuide ? 'Ocultar Guia' : 'Como Liberar (1 min)'}</span>
+              {showRuleGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {showRuleGuide && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="pt-2 border-t border-amber-500/20 space-y-2.5"
+            >
+              <div className="space-y-1 text-slate-300 text-[11px]">
+                <p>1. Acesse o <strong className="text-white">Firebase Console</strong> → Projeto <strong className="text-brand">benbets-bbd49</strong> → <strong className="text-white">Firestore Database</strong> → Aba <strong className="text-white">Regras (Rules)</strong>.</p>
+                <p>2. Adicione ou substitua a regra da coleção <code className="text-amber-300 font-mono bg-black/40 px-1 py-0.5 rounded">users</code>:</p>
+              </div>
+
+              <div className="relative bg-[#06070d] border border-amber-500/25 rounded-xl p-3 font-mono text-[11px] text-amber-200">
+                <pre className="overflow-x-auto select-all">{`match /users/{userId} {
+  allow read: if request.auth != null;
+  allow write: if request.auth != null && request.auth.uid == userId;
+}`}</pre>
+                <button
+                  type="button"
+                  onClick={handleCopyRule}
+                  className="absolute top-2 right-2 px-2.5 py-1 bg-amber-500 text-slate-950 font-sans font-bold text-[10px] rounded-lg hover:bg-amber-400 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedRule ? <Check className="w-3 h-3 text-slate-950" /> : <Copy className="w-3 h-3 text-slate-950" />}
+                  <span>{copiedRule ? 'Copiado!' : 'Copiar Regra'}</span>
+                </button>
+              </div>
+
+              <p className="text-[10px] text-slate-400">
+                3. Clique em <strong className="text-white">Publicar</strong>. Todos os usuários registrados no Firebase passarão a aparecer no ranking em tempo real!
+              </p>
+            </motion.div>
+          )}
+        </motion.div>
+      )}
 
       {/* User Personal Rank Banner */}
       {myEntry && myTitle && (
@@ -266,6 +357,7 @@ export default function Leaderboard({ entries, currentUserId, loading = false }:
             { id: 'all' as const, label: `Todos (${counts.total})` },
             { id: 'online' as const, label: `🟢 Online Agora (${counts.online})` },
             { id: '24h' as const, label: `⚡ Ativos 24h (${counts.active24h})` },
+            { id: 'offline' as const, label: `💤 Offline (${counts.offline})` },
           ].map((f) => (
             <button
               key={f.id}
@@ -304,6 +396,8 @@ export default function Leaderboard({ entries, currentUserId, loading = false }:
           <p className="text-sm font-bold text-slate-300">
             {activityFilter === 'online'
               ? 'Nenhum outro jogador online neste momento'
+              : activityFilter === 'offline'
+              ? 'Nenhum jogador offline registrado'
               : 'Nenhum jogador encontrado neste filtro'}
           </p>
           {activityFilter !== 'all' && (
