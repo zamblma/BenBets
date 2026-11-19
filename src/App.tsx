@@ -908,7 +908,20 @@ export default function App() {
   }
 
   if (showAdmin) {
-    return <AdminPanel onBack={() => setShowAdmin(false)} />;
+    return (
+      <AdminPanel
+        onBack={() => setShowAdmin(false)}
+        currentUser={firebaseUser}
+        currentBalance={balance}
+        currentUserName={userName}
+        fallbackLeaderboard={liveLeaderboard}
+        onSyncCurrentUserBalance={(val) => {
+          if (typeof val === 'number' && Number.isFinite(val) && val >= 0) {
+            setBalance(val);
+          }
+        }}
+      />
+    );
   }
 
   return (

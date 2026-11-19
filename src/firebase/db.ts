@@ -18,6 +18,27 @@ export interface LeaderboardEntry {
   createdAt?: string;
 }
 
+export interface AdminUserRecord {
+  uid: string;
+  email: string;
+  displayName: string;
+  balance: number;
+  rawBalanceWasInvalid: boolean;
+  createdAt?: string;
+  lastSeen: number;
+  placedBets: PlacedBet[];
+  transactions: Transaction[];
+  pokemonCollection: PokemonCard[];
+  worldCupCollection: PokemonCard[];
+  kpopCollection: PokemonCard[];
+  cs2Collection: PokemonCard[];
+  animeCollection: PokemonCard[];
+  totalCards: number;
+  uniqueCards: number;
+  betsWon: number;
+  biggestWin: number;
+}
+
 export function sanitizePlacedBets(rawBets: any): { bets: PlacedBet[]; repaired: boolean } {
   if (!Array.isArray(rawBets)) return { bets: [], repaired: false };
   let repaired = false;
@@ -199,6 +220,49 @@ function sumCollectionStats(raw: any): { uniqueCards: number; totalCards: number
   return { uniqueCards, totalCards };
 }
 
+function mapDocToAdminRecord(uid: string, raw: any): { record: AdminUserRecord; needsRepair: boolean } {
+  const email = typeof raw?.email === 'string' ? raw.email : '';
+  const fallbackName = email ? email.split('@')[0] : 'Agente';
+  const displayName = String(raw?.displayName || fallbackName || 'Agente').trim() || 'Agente';
+  const { bets, repaired: betsRepaired } = sanitizePlacedBets(raw?.placedBets);
+  const { balance, repaired: balRepaired } = recoverValidBalance(raw, bets);
+  const { uniqueCards, totalCards } = sumCollectionStats(raw);
+
+  let betsWon = 0;
+  let biggestWin = 0;
+  for (const b of bets) {
+    if (b?.status === 'won') {
+      betsWon += 1;
+      const payout = typeof b.potentialPayout === 'number' && Number.isFinite(b.potentialPayout) ? b.potentialPayout : 0;
+      if (payout > biggestWin) biggestWin = payout;
+    }
+  }
+
+  return {
+    needsRepair: betsRepaired || balRepaired,
+    record: {
+      uid,
+      email,
+      displayName,
+      balance,
+      rawBalanceWasInvalid: balRepaired,
+      createdAt: typeof raw?.createdAt === 'string' ? raw.createdAt : undefined,
+      lastSeen: typeof raw?.lastSeen === 'number' && Number.isFinite(raw.lastSeen) ? raw.lastSeen : 0,
+      placedBets: bets,
+      transactions: Array.isArray(raw?.transactions) ? raw.transactions : [],
+      pokemonCollection: Array.isArray(raw?.pokemonCollection) ? raw.pokemonCollection : [],
+      worldCupCollection: Array.isArray(raw?.worldCupCollection) ? raw.worldCupCollection : [],
+      kpopCollection: Array.isArray(raw?.kpopCollection) ? raw.kpopCollection : [],
+      cs2Collection: Array.isArray(raw?.cs2Collection) ? raw.cs2Collection : [],
+      animeCollection: Array.isArray(raw?.animeCollection) ? raw.animeCollection : [],
+      totalCards,
+      uniqueCards,
+      betsWon,
+      biggestWin,
+    },
+  };
+}
+
 export function subscribeToLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   onError?: (err: any) => void
@@ -207,34 +271,18 @@ export function subscribeToLeaderboard(
     collection(db, 'users'),
     (snap) => {
       const entries: LeaderboardEntry[] = snap.docs.map((d) => {
-        const raw = d.data() || {};
-        const fallbackName = raw.email ? String(raw.email).split('@')[0] : 'Agente';
-        const displayName = String(raw.displayName || fallbackName || 'Agente').trim() || 'Agente';
-        const { bets } = sanitizePlacedBets(raw.placedBets);
-        const { balance } = recoverValidBalance(raw, bets);
-        const { uniqueCards, totalCards } = sumCollectionStats(raw);
-
-        let betsWon = 0;
-        let biggestWin = 0;
-        for (const b of bets) {
-          if (b?.status === 'won') {
-            betsWon += 1;
-            const payout = typeof b.potentialPayout === 'number' && Number.isFinite(b.potentialPayout) ? b.potentialPayout : 0;
-            if (payout > biggestWin) biggestWin = payout;
-          }
-        }
-
+        const { record } = mapDocToAdminRecord(d.id, d.data() || {});
         return {
-          uid: d.id,
-          displayName,
-          balance,
-          totalCards,
-          uniqueCards,
-          betsWon,
-          totalBets: bets.length,
-          biggestWin,
-          lastSeen: typeof raw.lastSeen === 'number' && Number.isFinite(raw.lastSeen) ? raw.lastSeen : 0,
-          createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
+          uid: record.uid,
+          displayName: record.displayName,
+          balance: record.balance,
+          totalCards: record.totalCards,
+          uniqueCards: record.uniqueCards,
+          betsWon: record.betsWon,
+          totalBets: record.placedBets.length,
+          biggestWin: record.biggestWin,
+          lastSeen: record.lastSeen,
+          createdAt: record.createdAt,
         };
       });
       onUpdate(entries);
@@ -447,19 +495,74 @@ export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
 }
 
 // Admin
-export async function getAllUsers() {
+export async function getAllUsers(): Promise<AdminUserRecord[]> {
   const snap = await getDocs(collection(db, 'users'));
-  return snap.docs.map(d => {
-    const raw = d.data() || {};
-    const { bets } = sanitizePlacedBets(raw.placedBets);
-    const { balance } = recoverValidBalance(raw, bets);
-    return { uid: d.id, ...raw, balance, placedBets: bets } as any;
-  });
+  return snap.docs.map((d) => mapDocToAdminRecord(d.id, d.data() || {}).record);
+}
+
+export function subscribeToAllUsers(
+  onUpdate: (users: AdminUserRecord[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) => {
+      const records: AdminUserRecord[] = snap.docs.map((d) => {
+        const { record, needsRepair } = mapDocToAdminRecord(d.id, d.data() || {});
+        if (needsRepair) {
+          updateDoc(doc(db, 'users', d.id), {
+            balance: record.balance,
+            placedBets: record.placedBets,
+          }).catch(() => {});
+        }
+        return record;
+      });
+      onUpdate(records);
+    },
+    (err) => {
+      console.warn('[BenBets Admin] Erro ao escutar usuários no Firestore:', err?.code || err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 export async function adminSetBalance(uid: string, balance: number) {
   if (typeof balance !== 'number' || !Number.isFinite(balance) || balance < 0) return;
-  await updateDoc(doc(db, 'users', uid), { balance: Number(balance.toFixed(2)) });
+  await setDoc(doc(db, 'users', uid), { balance: Number(balance.toFixed(2)) }, { merge: true });
+}
+
+export async function adminUpdateUserProfile(
+  uid: string,
+  updates: { displayName?: string; email?: string; balance?: number }
+) {
+  const payload: Record<string, any> = {};
+  if (typeof updates.displayName === 'string' && updates.displayName.trim()) {
+    payload.displayName = updates.displayName.trim();
+  }
+  if (typeof updates.email === 'string' && updates.email.trim()) {
+    payload.email = updates.email.trim();
+  }
+  if (typeof updates.balance === 'number' && Number.isFinite(updates.balance) && updates.balance >= 0) {
+    payload.balance = Number(updates.balance.toFixed(2));
+  }
+  if (Object.keys(payload).length === 0) return;
+  await setDoc(doc(db, 'users', uid), payload, { merge: true });
+}
+
+export async function adminResetUser(uid: string, clearCollections = false) {
+  const payload: Record<string, any> = {
+    balance: 20.0,
+    placedBets: [],
+    transactions: [],
+  };
+  if (clearCollections) {
+    payload.pokemonCollection = [];
+    payload.worldCupCollection = [];
+    payload.kpopCollection = [];
+    payload.cs2Collection = [];
+    payload.animeCollection = [];
+  }
+  await setDoc(doc(db, 'users', uid), payload, { merge: true });
 }
 
 // Daily Missions
