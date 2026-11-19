@@ -156,7 +156,8 @@ export default function DoubleGame({ balance, onUpdateBalance, onAddBetHistory }
 
     let rafId = 0;
     const step = (now: number) => {
-      const p = Math.min((now - startTime) / duration, 1);
+      const elapsed = Math.max(0, now - startTime);
+      const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
       const curX = startX + (endX - startX) * eased;
       stripXRef.current = curX;

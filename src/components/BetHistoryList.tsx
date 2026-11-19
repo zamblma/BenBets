@@ -3,6 +3,16 @@ import { Ticket, Wallet, Play, CheckCircle2, XCircle, Clock, Percent, ShieldChec
 import { motion, AnimatePresence } from 'motion/react';
 import { BetSelection, PlacedBet } from '../types';
 
+function getSafeBetNumbers(bet: PlacedBet) {
+  const stake = typeof bet.stake === 'number' && Number.isFinite(bet.stake) && bet.stake >= 0 ? bet.stake : 0;
+  const odds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) && bet.odds >= 0 ? bet.odds : 1;
+  const payout =
+    typeof bet.potentialPayout === 'number' && Number.isFinite(bet.potentialPayout) && bet.potentialPayout >= 0
+      ? bet.potentialPayout
+      : 0;
+  return { stake, odds, payout };
+}
+
 interface BetHistoryListProps {
   selections: BetSelection[];
   onRemoveSelection: (matchId: string) => void;
@@ -73,13 +83,15 @@ export default function BetHistoryList({
   };
 
   const handleManualPayout = (bet: PlacedBet, outcome: 'won' | 'lost') => {
-    const payout = outcome === 'won' ? bet.potentialPayout : 0;
+    const { payout: safePayout } = getSafeBetNumbers(bet);
+    const payout = outcome === 'won' ? safePayout : 0;
     onSettleBet(bet.id, outcome, payout);
   };
 
   const handleEarlyCashout = (bet: PlacedBet) => {
     // Standard cashout takes stake * current odds * a minor discount factor
-    const cashoutValue = parseFloat((bet.stake * bet.odds * 0.85).toFixed(2));
+    const { stake: betStake, odds: betOdds } = getSafeBetNumbers(bet);
+    const cashoutValue = parseFloat((betStake * betOdds * 0.85).toFixed(2));
     onSettleBet(bet.id, 'won', cashoutValue);
   };
 
@@ -164,7 +176,7 @@ export default function BetHistoryList({
                   <div className="space-y-1.5 p-3.5 bg-[#08090e] rounded-xl border border-[#181a27]">
                     <div className="flex justify-between text-[11px] text-slate-400">
                       <span>Valor de Aposta (R$):</span>
-                      <span>Disponível: R$ {balance.toFixed(2)}</span>
+                      <span>Disponível: R$ {(Number.isFinite(balance) && balance >= 0 ? balance : 20).toFixed(2)}</span>
                     </div>
                     <div className="flex gap-2 items-center">
                       <span className="text-slate-500 font-bold font-mono">R$</span>
@@ -229,7 +241,9 @@ export default function BetHistoryList({
                   Nenhuma aposta registrada até o momento.
                 </div>
               ) : (
-                placedBets.map((bet) => (
+                placedBets.map((bet) => {
+                  const { stake: betStake, odds: betOdds, payout: betPayout } = getSafeBetNumbers(bet);
+                  return (
                   <div 
                     key={bet.id} 
                     className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
@@ -285,10 +299,10 @@ export default function BetHistoryList({
 
                     {/* Money & odds details */}
                     <div className="flex justify-between items-center mt-3 border-t border-slate-950/40 pt-2 text-[10px] text-slate-400 font-mono">
-                      <div>Value: <span className="text-slate-200">R$ {bet.stake.toFixed(2)}</span></div>
-                      <div>Cotação: <span className="text-slate-200 font-bold">@{bet.odds.toFixed(2)}</span></div>
+                      <div>Value: <span className="text-slate-200">R$ {betStake.toFixed(2)}</span></div>
+                      <div>Cotação: <span className="text-slate-200 font-bold">@{betOdds.toFixed(2)}</span></div>
                       <div>Retorno: <span className={bet.status === 'won' ? 'text-brand font-bold' : 'text-slate-300'}>
-                        R$ {bet.status === 'won' ? bet.potentialPayout.toFixed(2) : bet.status === 'lost' ? '0.00' : bet.potentialPayout.toFixed(2)}
+                        R$ {bet.status === 'won' ? betPayout.toFixed(2) : bet.status === 'lost' ? '0.00' : betPayout.toFixed(2)}
                       </span></div>
                     </div>
 
@@ -301,7 +315,7 @@ export default function BetHistoryList({
                           className="flex-1 py-1.5 bg-amber-500 hover:bg-amber-400 rounded-lg text-[10px] font-black text-slate-950 flex items-center justify-center gap-1 cursor-pointer"
                           title="Fazer cash out antecipado (com taxa de conveniência de 15%)"
                         >
-                          <Percent className="w-3 h-3 stroke-[2.5]" /> Cashout (R$ {(bet.stake * bet.odds * 0.85).toFixed(2)})
+                          <Percent className="w-3 h-3 stroke-[2.5]" /> Cashout (R$ {(betStake * betOdds * 0.85).toFixed(2)})
                         </button>
 
                         {/* Force result buttons to demo winning/losing sports settling */}
@@ -320,7 +334,8 @@ export default function BetHistoryList({
                       </div>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
             {/* Disclaimer policy */}

@@ -47,7 +47,9 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
       setUsers(data as UserData[]);
       const inputs: Record<string, string> = {};
       for (const u of data) {
-        inputs[u.uid] = (u as UserData).balance?.toString() || '0';
+        const rawBal = (u as UserData).balance;
+        const safeBal = typeof rawBal === 'number' && Number.isFinite(rawBal) && rawBal >= 0 ? rawBal : 20;
+        inputs[u.uid] = safeBal.toString();
       }
       setBalanceInputs(inputs);
     }).finally(() => setLoadingUsers(false));
@@ -64,9 +66,10 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleSetBalance = async (uid: string) => {
     const val = parseFloat(balanceInputs[uid]);
-    if (isNaN(val)) return;
-    await adminSetBalance(uid, val);
-    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, balance: val } : u));
+    if (!Number.isFinite(val) || val < 0) return;
+    const cleanVal = Number(val.toFixed(2));
+    await adminSetBalance(uid, cleanVal);
+    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, balance: cleanVal } : u));
   };
 
   const handleOddsChange = (sportId: string, field: 'home' | 'draw' | 'away', value: string) => {
@@ -206,7 +209,7 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
                       <div className="text-right">
                         <p className="text-[9px] text-slate-500 uppercase tracking-wider">Saldo</p>
                         <p className="text-sm font-bold text-brand">
-                          R$ {(user.balance ?? 0).toFixed(2)}
+                          R$ {(typeof user.balance === 'number' && Number.isFinite(user.balance) && user.balance >= 0 ? user.balance : 20).toFixed(2)}
                         </p>
                       </div>
                     </div>

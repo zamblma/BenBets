@@ -14,12 +14,12 @@ const sections = [
   {
     id: 'Cassino',
     title: 'Jogos de Cassino',
-    desc: 'Mines, Plinko, Double, Pênaltis, Aviator, Fortune Tiger e clássicos de mesa RNG.',
+    desc: 'Basquete Street, Mines, Plinko, Double, Pênaltis, Aviator, Fortune Tiger e clássicos RNG.',
     icon: Flame,
     accent: 'rgba(0,255,135,0.42)',
     glow: 'rgba(0,255,135,0.18)',
     iconBg: 'bg-brand/10 text-brand border border-brand/25',
-    games: ['💎 Mines', '🟣 Plinko', '⏳ Double', '⚽ Pênaltis', '📈 Aviator', '🐯 Tiger', '+3'],
+    games: ['🏀 Basquete', '💎 Mines', '🟣 Plinko', '⚽ Pênaltis', '📈 Aviator', '🐯 Tiger', '+4'],
     tag: 'Ativar Jogos',
     tagColor: 'text-brand',
     code: 'MOD-01',
@@ -40,12 +40,12 @@ const sections = [
   {
     id: 'Todos',
     title: 'Todos os Esportes',
-    desc: 'Apostas esportivas com odds dinâmicas ao vivo e bônus de acumulada.',
+    desc: 'Apostas esportivas em grandes campeonatos com lances ao vivo e bônus de acumulada.',
     icon: Dribbble,
     accent: 'rgba(59,130,246,0.42)',
     glow: 'rgba(59,130,246,0.16)',
     iconBg: 'bg-blue-500/10 text-blue-400 border border-blue-500/25',
-    games: ['⚽ Futebol', '🏀 Basquete', '🎾 Tênis', '🎮 E-Sports'],
+    games: ['⚽ Futebol', '🏀 Basquete', '🎮 E-Sports', '🎾 Tênis', '🥊 MMA', '🏐 Vôlei'],
     tag: 'Ver Confrontos',
     tagColor: 'text-blue-400',
     code: 'MOD-03',
@@ -229,9 +229,9 @@ export default function HomeMenu({ onSelect, leaderboard = [], currentUserId }: 
         className="grid grid-cols-3 gap-2 sm:gap-3"
       >
         {[
-          { icon: Gamepad2, label: '5 Jogos', sub: 'Cassino RNG', color: 'text-brand', border: 'border-brand/15' },
-          { icon: Zap, label: '6 Gachas', sub: 'APIs gratuitas', color: 'text-yellow-400', border: 'border-yellow-500/15' },
-          { icon: TrendingUp, label: '4 Esportes', sub: 'Odds ao vivo', color: 'text-blue-400', border: 'border-blue-500/15' },
+          { icon: Gamepad2, label: '10 Jogos', sub: 'Cassino RNG', color: 'text-brand', border: 'border-brand/15' },
+          { icon: Zap, label: '7 Gachas', sub: 'APIs gratuitas', color: 'text-yellow-400', border: 'border-yellow-500/15' },
+          { icon: TrendingUp, label: '6 Esportes', sub: 'Odds ao vivo', color: 'text-blue-400', border: 'border-blue-500/15' },
         ].map((stat, i) => (
           <div key={i} className={`omnitrix-card rounded-xl p-2.5 sm:p-3.5 text-center border ${stat.border}`}>
             <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color} mx-auto mb-1`} />

@@ -727,7 +727,7 @@ export default function CS2Cases({
 
     let frameId = 0;
     function animate(now: number) {
-      const elapsed = now - startTime;
+      const elapsed = Math.max(0, now - startTime);
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3.2);
       const curX = startX + (endX - startX) * eased;

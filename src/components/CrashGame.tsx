@@ -133,10 +133,13 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
+    const safeMult = Number.isFinite(mult) && mult >= 1 ? mult : 1.0;
+    const safeCrash = crashVal && Number.isFinite(crashVal) && crashVal >= 1 ? crashVal : undefined;
+
     // Theme color according to phase & altitude
     const isCrashed = phase === 'crashed';
-    const isHigh = mult >= 8.0;
-    const isMid = mult >= 2.0;
+    const isHigh = safeMult >= 8.0;
+    const isMid = safeMult >= 2.0;
     const lineColor = isCrashed ? '#f43f5e' : isHigh ? '#f59e0b' : isMid ? '#a855f7' : '#00ff87';
     const fillRgb = isCrashed
       ? '244, 63, 94'
@@ -147,7 +150,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
       : '0, 255, 135';
 
     // 1. Parallax starfield
-    const speedFactor = phase === 'running' ? Math.min(4.5, 0.5 + (mult - 1) * 0.45) : 0.08;
+    const speedFactor = phase === 'running' ? Math.min(4.5, 0.5 + (safeMult - 1) * 0.45) : 0.08;
     for (const s of starsRef.current) {
       if (phase === 'running' || phase === 'idle') {
         s.x -= s.speed * 0.0022 * speedFactor;
@@ -193,7 +196,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     const drawH = Math.max(40, h - padT - padB);
 
     const lastT = Math.max(3.2, pts[pts.length - 1].t);
-    const maxM = Math.max(1.85, (crashVal || mult) * 1.12);
+    const maxM = Math.max(1.85, (safeCrash || safeMult) * 1.12);
 
     // Y-axis altitude labels
     ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
@@ -205,14 +208,19 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
       ctx.fillText(`${val.toFixed(1)}x`, w - 8, y + 3);
     });
 
-    const toXY = (pt: { t: number; m: number }) => ({
-      x: padL + (pt.t / lastT) * drawW,
-      y: h - padB - ((pt.m - 1) / (maxM - 1)) * drawH,
-    });
+    const toXY = (pt: { t: number; m: number }) => {
+      const safePtM = Number.isFinite(pt.m) ? pt.m : 1.0;
+      const safePtT = Number.isFinite(pt.t) ? Math.max(0, pt.t) : 0;
+      return {
+        x: padL + (safePtT / lastT) * drawW,
+        y: h - padB - ((safePtM - 1) / (maxM - 1)) * drawH,
+      };
+    };
 
     const firstXY = toXY(pts[0]);
     const lastXY = toXY(pts[pts.length - 1]);
     const prevXY = toXY(pts[Math.max(0, pts.length - 2)]);
+    if (!Number.isFinite(lastXY.x) || !Number.isFinite(lastXY.y)) return;
 
     // 3. Area gradient under curve
     ctx.beginPath();
@@ -317,28 +325,31 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     engine.stop();
 
     const betVal = activeStakeRef.current;
-    const winAmt = Number((betVal * finalMult).toFixed(2));
-    onUpdateBalance(winAmt);
-    setMultiplier(finalMult);
-    setLastWinAmount(winAmt);
+    const safeMult = Number.isFinite(finalMult) && finalMult >= 1 ? finalMult : 1.0;
+    const winAmt = Number((betVal * safeMult).toFixed(2));
+    if (Number.isFinite(winAmt) && winAmt >= 0) {
+      onUpdateBalance(winAmt);
+    }
+    setMultiplier(safeMult);
+    setLastWinAmount(Number.isFinite(winAmt) ? winAmt : 0);
     setStatus('cashed_out');
     setActiveStake(0);
     activeStakeRef.current = 0;
     updateMissionProgress(userId, 'crash_cashout', 1).catch(() => {});
 
-    drawScene('cashed_out', finalMult);
+    drawScene('cashed_out', safeMult);
 
     onAddBetHistory({
       id: `bet-crash-${Date.now()}`,
       matchName: 'Aviator Crash',
-      selectionName: `${isAuto ? 'Auto Cashout' : 'Retirado'} em ${finalMult.toFixed(2)}x`,
-      odds: finalMult,
+      selectionName: `${isAuto ? 'Auto Cashout' : 'Retirado'} em ${safeMult.toFixed(2)}x`,
+      odds: safeMult,
       stake: betVal,
-      potentialPayout: winAmt,
+      potentialPayout: Number.isFinite(winAmt) ? winAmt : betVal,
       status: 'won',
       placedAt: new Date().toLocaleTimeString('pt-BR'),
       type: 'crash',
-      outcomeValue: `${finalMult.toFixed(2)}x`,
+      outcomeValue: `${safeMult.toFixed(2)}x`,
     });
 
     const cp = crashPointRef.current;
@@ -420,12 +431,18 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     const frameLoop = (now: number) => {
       if (statusRef.current !== 'running') return;
 
-      const elapsedSec = (now - startTimeRef.current) / 1000;
+      if (now < startTimeRef.current) {
+        startTimeRef.current = now;
+      }
+      const elapsedSec = Math.max(0, (now - startTimeRef.current) / 1000);
       let nextMult = 1 + Math.pow(elapsedSec * 0.25, 2.2);
 
       if (elapsedSec * 1000 < minDuration) {
         const linear = 1 + (crashTarget - 1) * ((elapsedSec * 1000) / minDuration);
         if (linear < nextMult) nextMult = linear;
+      }
+      if (!Number.isFinite(nextMult) || nextMult < 1) {
+        nextMult = 1.0;
       }
 
       // Check auto-cashout before crash check if crash >= autoTarget

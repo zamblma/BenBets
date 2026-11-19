@@ -368,7 +368,7 @@ export function useSound() {
         engineRunning.current = true;
       },
       setFreq: (freq: number) => {
-        if (!audioCtx || !oscRef.current || globalMuted) return;
+        if (!audioCtx || !oscRef.current || globalMuted || !Number.isFinite(freq)) return;
         const now = audioCtx.currentTime;
         oscRef.current.frequency.setTargetAtTime(Math.max(60, freq), now, 0.04);
         if (filterRef.current) {

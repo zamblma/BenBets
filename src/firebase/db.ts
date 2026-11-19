@@ -18,12 +18,119 @@ export interface LeaderboardEntry {
   createdAt?: string;
 }
 
+export function sanitizePlacedBets(rawBets: any): { bets: PlacedBet[]; repaired: boolean } {
+  if (!Array.isArray(rawBets)) return { bets: [], repaired: false };
+  let repaired = false;
+  const bets: PlacedBet[] = [];
+
+  for (const b of rawBets) {
+    if (!b || typeof b !== 'object') {
+      repaired = true;
+      continue;
+    }
+
+    const stakeValid = typeof b.stake === 'number' && Number.isFinite(b.stake) && b.stake >= 0;
+    const oddsValid = typeof b.odds === 'number' && Number.isFinite(b.odds) && b.odds >= 0;
+    const payoutValid =
+      typeof b.potentialPayout === 'number' && Number.isFinite(b.potentialPayout) && b.potentialPayout >= 0;
+
+    if (!stakeValid || !oddsValid || !payoutValid) repaired = true;
+
+    const stake = stakeValid ? b.stake : 0;
+    const odds = oddsValid ? b.odds : 1.0;
+    const potentialPayout = payoutValid ? b.potentialPayout : b.status === 'won' ? stake : 0;
+
+    let selectionName = typeof b.selectionName === 'string' ? b.selectionName : '';
+    if (/NaN/i.test(selectionName)) {
+      selectionName = selectionName.replace(/NaNx?/gi, '1.00x');
+      repaired = true;
+    }
+
+    const cleanBet: PlacedBet = {
+      id: String(b.id || `bet-${bets.length}`),
+      matchName: String(b.matchName || 'Aposta'),
+      selectionName,
+      odds,
+      stake,
+      potentialPayout,
+      status: b.status === 'won' || b.status === 'lost' || b.status === 'pending' ? b.status : 'lost',
+      placedAt: String(b.placedAt || ''),
+      type: b.type === 'sports' || b.type === 'crash' || b.type === 'casino' ? b.type : 'casino',
+    };
+
+    if (typeof b.outcomeValue === 'string') {
+      let cleanOutcome = b.outcomeValue;
+      if (/NaN/i.test(cleanOutcome)) {
+        cleanOutcome = /R\$/i.test(cleanOutcome) ? 'R$ 0.00' : '1.00x';
+        repaired = true;
+      }
+      cleanBet.outcomeValue = cleanOutcome;
+    }
+
+    bets.push(cleanBet);
+  }
+
+  return { bets, repaired };
+}
+
+export function recoverValidBalance(
+  raw: any,
+  sanitizedBets: PlacedBet[]
+): { balance: number; repaired: boolean } {
+  const rawBal = raw?.balance;
+  if (typeof rawBal === 'number' && Number.isFinite(rawBal) && rawBal >= 0) {
+    return { balance: rawBal, repaired: false };
+  }
+
+  // Saldo corrompido (ex.: NaN/null): recalcula a partir de bônus + transações + apostas válidas
+  let est = 20.0;
+  const txs: any[] = Array.isArray(raw?.transactions) ? raw.transactions : [];
+  for (const tx of txs) {
+    if (!tx || typeof tx.amount !== 'number' || !Number.isFinite(tx.amount)) continue;
+    if (tx.type === 'deposito') est += tx.amount;
+    else if (tx.type === 'saque') est -= tx.amount;
+  }
+  for (const b of sanitizedBets) {
+    if (b.status === 'won') {
+      est += b.potentialPayout - b.stake;
+    } else if (b.status === 'lost' || b.status === 'pending') {
+      est -= b.stake;
+    }
+  }
+  const cleanBalance = Math.max(20.0, Number(est.toFixed(2)));
+  return { balance: Number.isFinite(cleanBalance) ? cleanBalance : 20.0, repaired: true };
+}
+
 export async function getUserData(uid: string) {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  return snap.data() as {
+  const raw = snap.data() || {};
+  const { bets: cleanBets, repaired: betsRepaired } = sanitizePlacedBets(raw.placedBets);
+  const { balance: cleanBalance, repaired: balRepaired } = recoverValidBalance(raw, cleanBets);
+
+  // Auto-cura permanente no Firestore se a conta estava corrompida (ex.: NaN no Aviator)
+  if (betsRepaired || balRepaired) {
+    updateDoc(ref, {
+      balance: cleanBalance,
+      placedBets: cleanBets,
+    }).catch(() => {});
+  }
+
+  return {
+    ...raw,
+    balance: cleanBalance,
+    balanceRepaired: balRepaired,
+    placedBets: cleanBets,
+    transactions: Array.isArray(raw.transactions) ? raw.transactions : [],
+    pokemonCollection: Array.isArray(raw.pokemonCollection) ? raw.pokemonCollection : [],
+    worldCupCollection: Array.isArray(raw.worldCupCollection) ? raw.worldCupCollection : [],
+    kpopCollection: Array.isArray(raw.kpopCollection) ? raw.kpopCollection : [],
+    cs2Collection: Array.isArray(raw.cs2Collection) ? raw.cs2Collection : [],
+    animeCollection: Array.isArray(raw.animeCollection) ? raw.animeCollection : [],
+  } as {
     balance: number;
+    balanceRepaired?: boolean;
     displayName?: string;
     placedBets: PlacedBet[];
     transactions: Transaction[];
@@ -56,8 +163,9 @@ export async function createUserData(uid: string, email: string, displayName?: s
 }
 
 export async function updateBalance(uid: string, newBalance: number) {
+  if (typeof newBalance !== 'number' || !Number.isFinite(newBalance) || newBalance < 0) return;
   const ref = doc(db, 'users', uid);
-  await updateDoc(ref, { balance: newBalance, lastSeen: Date.now() });
+  await updateDoc(ref, { balance: Number(newBalance.toFixed(2)), lastSeen: Date.now() });
 }
 
 export async function updateUserPresence(uid: string) {
@@ -102,11 +210,10 @@ export function subscribeToLeaderboard(
         const raw = d.data() || {};
         const fallbackName = raw.email ? String(raw.email).split('@')[0] : 'Agente';
         const displayName = String(raw.displayName || fallbackName || 'Agente').trim() || 'Agente';
-        const balance =
-          typeof raw.balance === 'number' && Number.isFinite(raw.balance) ? raw.balance : 0;
+        const { bets } = sanitizePlacedBets(raw.placedBets);
+        const { balance } = recoverValidBalance(raw, bets);
         const { uniqueCards, totalCards } = sumCollectionStats(raw);
 
-        const bets: PlacedBet[] = Array.isArray(raw.placedBets) ? raw.placedBets : [];
         let betsWon = 0;
         let biggestWin = 0;
         for (const b of bets) {
@@ -140,8 +247,11 @@ export function subscribeToLeaderboard(
 }
 
 export async function addBet(uid: string, bet: PlacedBet) {
+  const { bets } = sanitizePlacedBets([bet]);
+  const cleanBet = bets[0];
+  if (!cleanBet) return;
   const ref = doc(db, 'users', uid);
-  await updateDoc(ref, { placedBets: arrayUnion(bet) });
+  await updateDoc(ref, { placedBets: arrayUnion(cleanBet) });
 }
 
 export async function updateBet(uid: string, betId: string, updates: Partial<PlacedBet>) {
@@ -339,11 +449,17 @@ export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
 // Admin
 export async function getAllUsers() {
   const snap = await getDocs(collection(db, 'users'));
-  return snap.docs.map(d => ({ uid: d.id, ...d.data() } as any));
+  return snap.docs.map(d => {
+    const raw = d.data() || {};
+    const { bets } = sanitizePlacedBets(raw.placedBets);
+    const { balance } = recoverValidBalance(raw, bets);
+    return { uid: d.id, ...raw, balance, placedBets: bets } as any;
+  });
 }
 
 export async function adminSetBalance(uid: string, balance: number) {
-  await updateDoc(doc(db, 'users', uid), { balance });
+  if (typeof balance !== 'number' || !Number.isFinite(balance) || balance < 0) return;
+  await updateDoc(doc(db, 'users', uid), { balance: Number(balance.toFixed(2)) });
 }
 
 // Daily Missions
@@ -421,5 +537,7 @@ export async function claimMissionReward(uid: string, missionId: string) {
   const missionDef = DAILY_MISSIONS.find(x => x.id === missionId);
   if (!missionDef) return;
   m.claimed = true;
-  await updateDoc(ref, { missions, balance: (data.balance || 0) + missionDef.reward, lastSeen: Date.now() });
+  const { bets } = sanitizePlacedBets(data.placedBets);
+  const { balance: baseBal } = recoverValidBalance(data, bets);
+  await updateDoc(ref, { missions, balance: Number((baseBal + missionDef.reward).toFixed(2)), lastSeen: Date.now() });
 }

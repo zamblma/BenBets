@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { 
   ShieldCheck, 
@@ -34,7 +34,7 @@ import { INITIAL_MATCHES } from './data/mockMatches';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline } from './firebase/db';
+import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance } from './firebase/db';
 import type { MissionProgress, LeaderboardEntry } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
@@ -48,6 +48,7 @@ import MinesGame from './components/MinesGame';
 import PlinkoGame from './components/PlinkoGame';
 import DoubleGame from './components/DoubleGame';
 import PenaltyGame from './components/PenaltyGame';
+import BasketballGame from './components/BasketballGame';
 import LoLChests from './components/LoLChests';
 import AnimeGacha from './components/AnimeGacha';
 import PokemonTCG from './components/PokemonTCG';
@@ -74,6 +75,8 @@ export default function App() {
   // Navigation & Category states
   const [selectedSport, setSelectedSport] = useState<string>('Home');
   const [sportFilter, setSportFilter] = useState<string>('todas');
+  const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'live' | 'upcoming'>('all');
+  const [leagueFilter, setLeagueFilter] = useState<string>('todas');
   const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
   const [casinoCategory, setCasinoCategory] = useState<'all' | 'originals' | 'slots' | 'table'>('all');
   const [selectedColecionavel, setSelectedColecionavel] = useState<string | null>(null);
@@ -124,16 +127,18 @@ export default function App() {
       }
 
       const applyData = (d: any) => {
-        setBalance(d.balance ?? 20);
-        setPlacedBets(d.placedBets || []);
-        const txs = Array.isArray(d.transactions) ? d.transactions : [];
+        const { bets: cleanBets } = sanitizePlacedBets(d?.placedBets);
+        const { balance: safeBalance } = recoverValidBalance(d, cleanBets);
+        setBalance(safeBalance);
+        setPlacedBets(cleanBets);
+        const txs = Array.isArray(d?.transactions) ? d.transactions : [];
         setTransactions(txs);
-        setPokemonCollection(d.pokemonCollection || []);
-        setWorldCupCollection(d.worldCupCollection || []);
-        setKpopCollection(d.kpopCollection || []);
-        setCs2Collection(d.cs2Collection || []);
-        setAnimeCollection(d.animeCollection || []);
-        setUserName(d.displayName || '');
+        setPokemonCollection(Array.isArray(d?.pokemonCollection) ? d.pokemonCollection : []);
+        setWorldCupCollection(Array.isArray(d?.worldCupCollection) ? d.worldCupCollection : []);
+        setKpopCollection(Array.isArray(d?.kpopCollection) ? d.kpopCollection : []);
+        setCs2Collection(Array.isArray(d?.cs2Collection) ? d.cs2Collection : []);
+        setAnimeCollection(Array.isArray(d?.animeCollection) ? d.animeCollection : []);
+        setUserName(d?.displayName || '');
       };
       const saveLocal = (d: any) => {
         try { localStorage.setItem(`benbets_user_${user.uid}`, JSON.stringify(d)); } catch { /* quota cheia */ }
@@ -149,11 +154,24 @@ export default function App() {
       try {
         const data = await getUserData(user.uid);
         if (data) {
-          applyData(data);
-          saveLocal(data);
+          let resolvedData = data;
+          if (data.balanceRepaired) {
+            const cached = loadLocal();
+            if (
+              cached &&
+              typeof cached.balance === 'number' &&
+              Number.isFinite(cached.balance) &&
+              cached.balance > data.balance
+            ) {
+              resolvedData = { ...data, balance: cached.balance };
+              updateBalance(user.uid, cached.balance).catch(() => {});
+            }
+          }
+          applyData(resolvedData);
+          saveLocal(resolvedData);
           gotData = true;
-          const txs = Array.isArray(data.transactions) ? data.transactions : [];
-          if (txs.length === 0 && (data.balance ?? 20) === 20) {
+          const txs = Array.isArray(resolvedData.transactions) ? resolvedData.transactions : [];
+          if (txs.length === 0 && resolvedData.balance === 20) {
             setShowBonus(true);
             setTimeout(() => setShowBonus(false), 4500);
           }
@@ -195,9 +213,18 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  const adjustBalanceSafe = useCallback((delta: number) => {
+    if (typeof delta !== 'number' || !Number.isFinite(delta)) return;
+    setBalance(prev => {
+      const base = typeof prev === 'number' && Number.isFinite(prev) && prev >= 0 ? prev : 20;
+      return Math.max(0, Number((base + delta).toFixed(2)));
+    });
+  }, []);
+
   // Debounced sync to Firestore when state changes
   useEffect(() => {
     if (!firebaseUser || !initialDataLoaded) return;
+    if (typeof balance !== 'number' || !Number.isFinite(balance) || balance < 0) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       try {
@@ -243,7 +270,7 @@ export default function App() {
     if (!firebaseUser) return;
     await claimMissionReward(firebaseUser.uid, missionId);
     const missionDef = DAILY_MISSIONS.find(m => m.id === missionId);
-    if (missionDef) setBalance(prev => prev + missionDef.reward);
+    if (missionDef) adjustBalanceSafe(missionDef.reward);
     setMissionsRecord(prev => ({
       ...prev,
       [missionId]: { ...prev[missionId], claimed: true, completed: true },
@@ -305,55 +332,120 @@ export default function App() {
   // Dynamic Live Matches State Feed
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
 
-  // Periodic score updates and minor odds drifting (Simulation of feed data)
+  // Periodic score updates, live event play-by-play, stats, and odds drifting
   useEffect(() => {
     const scoreInterval = setInterval(() => {
-      setMatches((prevMatches) => 
+      setMatches((prevMatches) =>
         prevMatches.map((match) => {
           if (!match.isLive) return match;
-          
+
           let hScore = match.scoreHome;
           let aScore = match.scoreAway;
           let elapsed = match.timeElapsed;
+          let liveEvent = match.liveEvent;
+          const prevStats = match.stats || { possessionHome: 50, shotsHome: 5, shotsAway: 5 };
+          let posHome = prevStats.possessionHome ?? 50;
+          let shotsH = prevStats.shotsHome ?? 5;
+          let shotsA = prevStats.shotsAway ?? 5;
           const probability = Math.random();
 
-          // Sport specific progress rules
+          // Slight possession oscillation
+          posHome = Math.max(30, Math.min(72, posHome + (Math.random() > 0.5 ? 1 : -1)));
+
           if (match.sport === 'Futebol') {
-            if (probability < 0.1) {
-              if (Math.random() > 0.5) {
+            if (probability < 0.08) {
+              if (Math.random() > 0.48) {
                 hScore = (hScore ?? 0) + 1;
+                shotsH += 1;
+                liveEvent = `⚽ GOOOL do ${match.teamHome}! Vibração na arquibancada!`;
               } else {
                 aScore = (aScore ?? 0) + 1;
+                shotsA += 1;
+                liveEvent = `⚽ GOOOL do ${match.teamAway}! Empurra a defesa para trás!`;
               }
+            } else if (probability < 0.35) {
+              const homeAtk = Math.random() > 0.45;
+              if (homeAtk) shotsH += 1;
+              else shotsA += 1;
+              const actor = homeAtk ? match.teamHome : match.teamAway;
+              const plays = [
+                `🎯 Finalização perigosa do ${actor} passa raspando a trave!`,
+                `🧤 Goleiro salva à queima-roupa o chute do ${actor}!`,
+                `🚩 Escanteio perigoso para o ${actor}`,
+                `🟨 Falta tática parada no meio-campo contra o ${actor}`,
+              ];
+              liveEvent = plays[Math.floor(Math.random() * plays.length)];
             }
             if (elapsed) {
-              const minutes = parseInt(elapsed.replace("'", ""));
+              const minutes = parseInt(elapsed.replace("'", ''), 10);
               if (!isNaN(minutes)) {
-                elapsed = minutes < 90 ? `${minutes + 1}'` : "90'";
+                elapsed = minutes < 90 ? `${minutes + 1}'` : "90+2'";
               }
             }
           } else if (match.sport === 'Basquete') {
-            if (probability < 0.5) {
-              hScore = (hScore ?? 100) + Math.floor(Math.random() * 3) + 1;
-              aScore = (aScore ?? 100) + Math.floor(Math.random() * 3) + 1;
+            const hDelta = probability < 0.7 ? (Math.random() < 0.32 ? 3 : 2) : 0;
+            const aDelta = probability > 0.28 ? (Math.random() < 0.3 ? 3 : 2) : 0;
+            hScore = (hScore ?? 80) + hDelta;
+            aScore = (aScore ?? 80) + aDelta;
+            if (hDelta > 0) shotsH += 1;
+            if (aDelta > 0) shotsA += 1;
+            if (hDelta === 3) liveEvent = `🔥 Bola de 3 pontos convertida pelo ${match.teamHome}!`;
+            else if (aDelta === 3) liveEvent = `🎯 Chuá de 3 pontos do ${match.teamAway}!`;
+            else if (hDelta === 2 || aDelta === 2) {
+              liveEvent = `🏀 Bandeja no garrafão de ${hDelta > aDelta ? match.teamHome : match.teamAway}!`;
             }
           } else if (match.sport === 'Tênis') {
-            if (probability < 0.15) {
-              // Drift games score within set
-              elapsed = `Set 4 - G: ${Math.floor(Math.random() * 6)}-${Math.floor(Math.random() * 6)}`;
+            if (probability < 0.45) {
+              const g1 = Math.floor(Math.random() * 6);
+              const g2 = Math.floor(Math.random() * 6);
+              elapsed = `Set 4 • G: ${g1}-${g2}`;
+              const server = Math.random() > 0.5 ? match.teamHome : match.teamAway;
+              if (Math.random() > 0.5) shotsH += 1;
+              else shotsA += 1;
+              liveEvent =
+                Math.random() > 0.5
+                  ? `🎾 Ace no saque de ${server}! Ponto direto!`
+                  : `🔥 Winner paralelo na linha de ${server}!`;
             }
           } else if (match.sport === 'E-Sports') {
-            if (probability < 0.25) {
-              if (Math.random() > 0.5) {
-                hScore = (hScore ?? 0) + 1;
-              } else {
-                aScore = (aScore ?? 0) + 1;
-              }
-              // Reset CS match cap
-              if ((hScore ?? 0) > 13 || (aScore ?? 0) > 13) {
+            if (probability < 0.32) {
+              const homeRound = Math.random() > 0.48;
+              if (homeRound) hScore = (hScore ?? 0) + 1;
+              else aScore = (aScore ?? 0) + 1;
+              shotsH = hScore ?? shotsH;
+              shotsA = aScore ?? shotsA;
+              const actor = homeRound ? match.teamHome : match.teamAway;
+              liveEvent = match.league.includes('LoL')
+                ? `🐉 ${actor} vence teamfight no Dragão e avança mapa!`
+                : `💣 ${actor} converte round armado com retake sólido!`;
+              if (match.league.includes('CS2') && ((hScore ?? 0) > 13 || (aScore ?? 0) > 13)) {
                 hScore = 0;
                 aScore = 0;
               }
+            }
+          } else if (match.sport === 'MMA') {
+            if (probability < 0.4) {
+              const homeHit = Math.random() > 0.45;
+              if (homeHit) shotsH += 3;
+              else shotsA += 3;
+              const fighter = homeHit ? match.teamHome : match.teamAway;
+              liveEvent =
+                Math.random() > 0.5
+                  ? `🥊 ${fighter} encaixa sequência forte de jabs e chute baixo!`
+                  : `🤼 ${fighter} defende queda na grade e pressiona no clinch!`;
+            }
+          } else if (match.sport === 'Vôlei') {
+            if (probability < 0.5) {
+              const p1 = 15 + Math.floor(Math.random() * 9);
+              const p2 = 15 + Math.floor(Math.random() * 9);
+              elapsed = `4º Set • ${p1}-${p2}`;
+              const hitter = p1 >= p2 ? match.teamHome : match.teamAway;
+              if (p1 >= p2) shotsH += 1;
+              else shotsA += 1;
+              liveEvent =
+                Math.random() > 0.5
+                  ? `🏐 Cortada rápida pelo meio de ${hitter}!`
+                  : `🧱 Bloqueio simples de ${hitter} levanta a arena!`;
             }
           }
 
@@ -362,7 +454,7 @@ export default function App() {
           const newOdds = {
             home: parseFloat(Math.max(1.01, match.odds.home * drift()).toFixed(2)),
             draw: match.odds.draw ? parseFloat(Math.max(1.01, match.odds.draw * drift()).toFixed(2)) : undefined,
-            away: parseFloat(Math.max(1.01, match.odds.away * drift()).toFixed(2))
+            away: parseFloat(Math.max(1.01, match.odds.away * drift()).toFixed(2)),
           };
 
           return {
@@ -370,11 +462,18 @@ export default function App() {
             scoreHome: hScore,
             scoreAway: aScore,
             timeElapsed: elapsed,
-            odds: newOdds
+            liveEvent,
+            stats: {
+              ...prevStats,
+              possessionHome: posHome,
+              shotsHome: shotsH,
+              shotsAway: shotsA,
+            },
+            odds: newOdds,
           };
         })
       );
-    }, 7500);
+    }, 6500);
 
     return () => clearInterval(scoreInterval);
   }, []);
@@ -395,7 +494,7 @@ export default function App() {
             ...bet,
             status: 'won',
           };
-          setBalance((b) => b + bet.potentialPayout);
+          adjustBalanceSafe(bet.potentialPayout);
           if (firebaseUser) updateBet(firebaseUser.uid, bet.id, { status: 'won' }).catch(() => {});
         } else {
           updated[pendingSportsIdx] = {
@@ -456,13 +555,15 @@ export default function App() {
     setSelections([]);
   };
 
-  const handleDepositSuccess = (amount: number) => {
-    setBalance(prev => prev + amount);
-  };
+  const handleDepositSuccess = useCallback((amount: number) => {
+    adjustBalanceSafe(amount);
+  }, [adjustBalanceSafe]);
 
   const handleWithdrawSuccess = (amount: number): boolean => {
-    if (balance >= amount) {
-      setBalance(prev => prev - amount);
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return false;
+    const safeBal = Number.isFinite(balance) && balance >= 0 ? balance : 20;
+    if (safeBal >= amount) {
+      adjustBalanceSafe(-amount);
       return true;
     }
     return false;
@@ -474,16 +575,19 @@ export default function App() {
   };
 
   const handleAddPlacedBet = (newBet: PlacedBet) => {
-    setPlacedBets(prev => [newBet, ...prev]);
-    if (firebaseUser) addBet(firebaseUser.uid, newBet).catch(() => {});
+    const { bets } = sanitizePlacedBets([newBet]);
+    const cleanBet = bets[0] || newBet;
+    setPlacedBets(prev => [cleanBet, ...prev]);
+    if (firebaseUser) addBet(firebaseUser.uid, cleanBet).catch(() => {});
   };
 
   const handleSettleAction = (betId: string, status: 'won' | 'lost', payOut: number) => {
-    setPlacedBets(prev => prev.map(b => b.id === betId ? { ...b, status, potentialPayout: payOut } : b));
-    if (status === 'won' && payOut > 0) {
-      setBalance(prev => prev + payOut);
+    const safePayout = typeof payOut === 'number' && Number.isFinite(payOut) && payOut >= 0 ? payOut : 0;
+    setPlacedBets(prev => prev.map(b => b.id === betId ? { ...b, status, potentialPayout: safePayout } : b));
+    if (status === 'won' && safePayout > 0) {
+      adjustBalanceSafe(safePayout);
     }
-    if (firebaseUser) updateBet(firebaseUser.uid, betId, { status, potentialPayout: payOut }).catch(() => {});
+    if (firebaseUser) updateBet(firebaseUser.uid, betId, { status, potentialPayout: safePayout }).catch(() => {});
   };
 
   const handlePokemonCollectionUpdate = (cards: PokemonCard[]) => {
@@ -501,14 +605,14 @@ export default function App() {
 
   const handleSellPokemonCard = (cardId: string, price: number) => {
     setPokemonCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
-    setBalance(prev => prev + price);
+    adjustBalanceSafe(price);
     if (firebaseUser) removePokemonCard(firebaseUser.uid, cardId).catch(() => {});
   };
 
   const handleSellAllDuplicates = (prices: Record<string, number>) => {
     setPokemonCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = pokemonCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
-    setBalance(prev => prev + total);
+    adjustBalanceSafe(total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
       getDoc(ref).then(snap => {
@@ -536,14 +640,14 @@ export default function App() {
 
   const handleSellWorldCupSticker = (cardId: string, price: number) => {
     setWorldCupCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
-    setBalance(prev => prev + price);
+    adjustBalanceSafe(price);
     if (firebaseUser) removeWorldCupSticker(firebaseUser.uid, cardId).catch(() => {});
   };
 
   const handleSellAllWorldCupDuplicates = (prices: Record<string, number>) => {
     setWorldCupCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = worldCupCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
-    setBalance(prev => prev + total);
+    adjustBalanceSafe(total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
       getDoc(ref).then(snap => {
@@ -571,7 +675,7 @@ export default function App() {
 
   const handleSellKpopCard = (cardId: string, price: number) => {
     setKpopCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
-    setBalance(prev => prev + price);
+    adjustBalanceSafe(price);
     if (firebaseUser) removeKpopCard(firebaseUser.uid, cardId).catch(() => {});
   };
 
@@ -590,14 +694,14 @@ export default function App() {
 
   const handleSellCS2Card = (cardId: string, price: number) => {
     setCs2Collection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
-    setBalance(prev => prev + price);
+    adjustBalanceSafe(price);
     if (firebaseUser) removeCS2Card(firebaseUser.uid, cardId).catch(() => {});
   };
 
   const handleSellAllCS2Duplicates = (prices: Record<string, number>) => {
     setCs2Collection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = cs2Collection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
-    setBalance(prev => prev + total);
+    adjustBalanceSafe(total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
       getDoc(ref).then(snap => {
@@ -625,14 +729,14 @@ export default function App() {
 
   const handleSellAnimeCard = (cardId: string, price: number) => {
     setAnimeCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
-    setBalance(prev => prev + price);
+    adjustBalanceSafe(price);
     if (firebaseUser) removeAnimeCard(firebaseUser.uid, cardId).catch(() => {});
   };
 
   const handleSellAllAnimeDuplicates = (prices: Record<string, number>) => {
     setAnimeCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = animeCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
-    setBalance(prev => prev + total);
+    adjustBalanceSafe(total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
       getDoc(ref).then(snap => {
@@ -648,7 +752,7 @@ export default function App() {
   const handleSellAllKpopDuplicates = (prices: Record<string, number>) => {
     setKpopCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
     const total = kpopCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
-    setBalance(prev => prev + total);
+    adjustBalanceSafe(total);
     if (firebaseUser) {
       const ref = doc(db, 'users', firebaseUser.uid);
       getDoc(ref).then(snap => {
@@ -661,19 +765,67 @@ export default function App() {
     }
   };
 
-  // Filtered Matches selector
-  const filteredMatches = matches.filter(match => {
-    const matchesSearch = 
-      match.teamHome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      match.teamAway.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      match.league.toLowerCase().includes(searchQuery.toLowerCase());
+  // Sportsbook leagues, status counters, and filtered/grouped matches
+  const sportScopedMatches = useMemo(() => {
+    if (selectedSport !== 'Todos') return matches.filter((m) => m.sport === selectedSport);
+    if (sportFilter !== 'todas') return matches.filter((m) => m.sport === sportFilter);
+    return matches;
+  }, [matches, selectedSport, sportFilter]);
 
-    if (selectedSport === 'Todos') {
-      if (sportFilter !== 'todas') return match.sport === sportFilter && matchesSearch;
-      return matchesSearch;
+  const liveMatchesCount = useMemo(
+    () => sportScopedMatches.filter((m) => m.isLive).length,
+    [sportScopedMatches]
+  );
+  const upcomingMatchesCount = useMemo(
+    () => sportScopedMatches.filter((m) => !m.isLive).length,
+    [sportScopedMatches]
+  );
+
+  const availableLeagues = useMemo(() => {
+    const map = new Map<string, { league: string; flag: string; count: number }>();
+    for (const m of sportScopedMatches) {
+      const existing = map.get(m.league);
+      if (existing) existing.count += 1;
+      else map.set(m.league, { league: m.league, flag: m.countryFlag || '🏆', count: 1 });
     }
-    return match.sport === selectedSport && matchesSearch;
-  });
+    return Array.from(map.values());
+  }, [sportScopedMatches]);
+
+  const filteredMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return sportScopedMatches.filter((match) => {
+      if (matchStatusFilter === 'live' && !match.isLive) return false;
+      if (matchStatusFilter === 'upcoming' && match.isLive) return false;
+      if (leagueFilter !== 'todas' && match.league !== leagueFilter) return false;
+      if (!q) return true;
+      return (
+        match.teamHome.toLowerCase().includes(q) ||
+        match.teamAway.toLowerCase().includes(q) ||
+        match.league.toLowerCase().includes(q) ||
+        (match.venue || '').toLowerCase().includes(q) ||
+        (match.phase || '').toLowerCase().includes(q)
+      );
+    });
+  }, [sportScopedMatches, matchStatusFilter, leagueFilter, searchQuery]);
+
+  const groupedMatches = useMemo(() => {
+    const groups = new Map<string, { league: string; flag: string; phase?: string; sport: string; items: Match[] }>();
+    for (const m of filteredMatches) {
+      const existing = groups.get(m.league);
+      if (existing) {
+        existing.items.push(m);
+      } else {
+        groups.set(m.league, {
+          league: m.league,
+          flag: m.countryFlag || '🏆',
+          phase: m.phase,
+          sport: m.sport,
+          items: [m],
+        });
+      }
+    }
+    return Array.from(groups.values());
+  }, [filteredMatches]);
 
   const liveLeaderboard = useMemo<LeaderboardEntry[]>(() => {
     if (!firebaseUser) return leaderboardRaw;
@@ -699,10 +851,11 @@ export default function App() {
       }
     }
     const selfName = (userName || firebaseUser.email?.split('@')[0] || 'Você').trim();
+    const safeSelfBalance = typeof balance === 'number' && Number.isFinite(balance) && balance >= 0 ? balance : 20;
     const selfEntry: LeaderboardEntry = {
       uid: firebaseUser.uid,
       displayName: selfName,
-      balance,
+      balance: safeSelfBalance,
       totalCards,
       uniqueCards,
       betsWon,
@@ -815,7 +968,7 @@ export default function App() {
                   Saldo
                 </span>
                 <span className="font-mono text-brand font-extrabold text-sm md:text-base tracking-tight select-none drop-shadow-[0_0_10px_rgba(0,255,135,0.25)]">
-                  R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  R$ {(Number.isFinite(balance) && balance >= 0 ? balance : 20).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <button 
@@ -1015,6 +1168,7 @@ export default function App() {
               { id: 'mines', name: 'Mines Omnitrix', icon: '💎', desc: 'Campo minado 5×5 — encontre os cristais e saque quando quiser', accent: 'rgba(0,255,135,0.45)', glow: 'rgba(0,255,135,0.22)', chip: '💣', badge: '⚡ NOVO • RTP 98%', meta: '5×5 Grade', category: 'originals' as const },
               { id: 'fortunetiger', name: 'Fortune Tiger', icon: '🐯', desc: 'Slot 3×3 com modo Turbo e multiplicador do tigre', accent: 'rgba(234,179,8,0.42)', glow: 'rgba(234,179,8,0.2)', chip: '🧧', badge: '🔥 Top #1', meta: 'Max 80×', category: 'slots' as const },
               { id: 'aviator', name: 'Aviator Crash', icon: '📈', desc: 'Multiplicador crescente com Auto Cashout em tempo real', accent: 'rgba(6,182,212,0.42)', glow: 'rgba(6,182,212,0.2)', chip: '✈️', badge: '🔥 Crash ao Vivo', meta: 'Auto Saque', category: 'originals' as const },
+              { id: 'basketball', name: 'Basquete Street 3×', icon: '🏀', desc: 'Acerte a cesta com RNG por distância, Chuá e Money Ball +25%', accent: 'rgba(249,115,22,0.45)', glow: 'rgba(249,115,22,0.24)', chip: '🏀', badge: '🏀 NOVO • Chuá & Money Ball', meta: '5 Arremessos', category: 'slots' as const },
               { id: 'plinko', name: 'Pirâmide Plinko', icon: '🟣', desc: 'Solte bolas em rajada pelos pinos até 130×', accent: 'rgba(217,70,239,0.42)', glow: 'rgba(217,70,239,0.22)', chip: '🔺', badge: '⚡ NOVO • Max 130×', meta: '8–16 Linhas', category: 'originals' as const },
               { id: 'double', name: 'Double 14×', icon: '⏳', desc: 'Roleta de cores rápida: Vermelho/Preto 2× ou Branco 14×', accent: 'rgba(244,63,94,0.42)', glow: 'rgba(244,63,94,0.22)', chip: '⚫', badge: '⚡ NOVO • 14× Branco', meta: '15 Casas', category: 'originals' as const },
               { id: 'penalty', name: 'Pênalti Campeão', icon: '⚽', desc: 'Escolha o canto, drible o goleiro e multiplique até 79×', accent: 'rgba(16,185,129,0.42)', glow: 'rgba(16,185,129,0.22)', chip: '🥅', badge: '⚽ NOVO • 79× Max', meta: '5 Chutes', category: 'slots' as const },
@@ -1039,11 +1193,11 @@ export default function App() {
                             <h3 className="font-extrabold font-display text-white text-sm sm:text-base flex items-center gap-2">
                               🎰 Cassino BenBets
                               <span className="text-[9px] font-mono bg-brand/15 text-brand border border-brand/30 px-2 py-0.5 rounded-full">
-                                9 Jogos Originais & Clássicos
+                                10 Jogos Originais & Clássicos
                               </span>
                             </h3>
                             <p className="text-slate-400 text-[10px] sm:text-xs">
-                              Mines, Plinko, Double, Pênaltis, Aviator, Fortune Tiger e clássicos com RNG demonstrativo.
+                              Basquete Street, Mines, Plinko, Double, Pênaltis, Aviator, Fortune Tiger e clássicos com RNG demonstrativo.
                             </p>
                           </div>
                         </div>
@@ -1053,7 +1207,7 @@ export default function App() {
                     {/* Filtros por categoria */}
                     <div className="flex gap-1.5 flex-wrap">
                       {[
-                        { id: 'all' as const, label: 'Todos (9)', icon: '✨' },
+                        { id: 'all' as const, label: 'Todos (10)', icon: '✨' },
                         { id: 'originals' as const, label: 'Crash & Originais', icon: '⚡' },
                         { id: 'slots' as const, label: 'Slots & Arcade', icon: '🐯' },
                         { id: 'table' as const, label: 'Clássicos de Mesa', icon: '♠️' },
@@ -1143,6 +1297,9 @@ export default function App() {
                     )}
                     {selectedCasinoGame === 'penalty' && (
                       <PenaltyGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
+                    )}
+                    {selectedCasinoGame === 'basketball' && (
+                      <BasketballGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
                     )}
                     {selectedCasinoGame === 'aviator' && (
                       <CrashGame balance={balance} onUpdateBalance={handleDepositSuccess} onAddBetHistory={handleAddPlacedBet} userId={firebaseUser?.uid || ''} />
@@ -1294,21 +1451,103 @@ export default function App() {
             // SPORTS BOOK LIST DISPLAY
             <div className="space-y-4">
 
+              {/* Live Sportsbook Overview Bar + Status Filter */}
+              <div className="omnitrix-panel rounded-2xl p-3 sm:p-4 border-brand/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400">
+                    <Activity className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs sm:text-sm font-extrabold font-display text-white flex items-center gap-2 flex-wrap">
+                      Sportsbook ao Vivo & Campeonatos
+                      <span className="text-[9px] font-mono bg-rose-500/15 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full">
+                        {liveMatchesCount} Ao Vivo
+                      </span>
+                      <span className="text-[9px] font-mono bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full">
+                        {availableLeagues.length} Campeonatos
+                      </span>
+                    </h2>
+                    <p className="text-[10px] text-slate-400">
+                      Lances em tempo real, placares dinâmicos e bônus +15% em múltiplas.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-1.5 flex-wrap">
+                  {[
+                    { id: 'all' as const, label: `🌐 Todos (${sportScopedMatches.length})` },
+                    { id: 'live' as const, label: `🔴 Ao Vivo (${liveMatchesCount})` },
+                    { id: 'upcoming' as const, label: `📅 Pré-Jogo (${upcomingMatchesCount})` },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => setMatchStatusFilter(st.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                        matchStatusFilter === st.id
+                          ? 'bg-brand text-slate-950 border-brand font-extrabold'
+                          : 'bg-[#080a12] border-[#1a1d2e] text-slate-300 hover:border-brand/35'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Sport sub-tabs for Todos os Esportes */}
               {selectedSport === 'Todos' && (
                 <div className="flex gap-1.5 flex-wrap">
                   {[
-                    { id: 'todas', label: 'Todas as Modalidades', icon: '📋' },
+                    { id: 'todas', label: 'Todas', icon: '📋' },
                     { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                     { id: 'Basquete', label: 'Basquete', icon: '🏀' },
-                    { id: 'Tênis', label: 'Tênis', icon: '🎾' },
                     { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
+                    { id: 'Tênis', label: 'Tênis', icon: '🎾' },
+                    { id: 'MMA', label: 'MMA', icon: '🥊' },
+                    { id: 'Vôlei', label: 'Vôlei', icon: '🏐' },
                   ].map(s => (
-                    <button key={s.id} onClick={() => setSportFilter(s.id)}
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setSportFilter(s.id);
+                        setLeagueFilter('todas');
+                      }}
                       className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
-                        sportFilter === s.id ? 'bg-brand text-slate-950 border-brand' : 'bg-[#0d0e16]/60 border-[#1a1c2a] text-slate-400 hover:border-brand/30'
-                      }`}>
+                        sportFilter === s.id
+                          ? 'bg-brand text-slate-950 border-brand font-extrabold shadow-[0_0_12px_rgba(0,255,135,0.2)]'
+                          : 'bg-[#0d0e16]/75 border-[#1a1c2a] text-slate-300 hover:border-brand/30'
+                      }`}
+                    >
                       {s.icon} {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Championship Filter Chips */}
+              {availableLeagues.length > 1 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  <button
+                    onClick={() => setLeagueFilter('todas')}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                      leagueFilter === 'todas'
+                        ? 'bg-brand/15 border-brand/50 text-brand'
+                        : 'bg-[#080a12] border-[#1a1d2d] text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🏆 Todos Campeonatos ({sportScopedMatches.length})
+                  </button>
+                  {availableLeagues.map((lg) => (
+                    <button
+                      key={lg.league}
+                      onClick={() => setLeagueFilter(lg.league)}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                        leagueFilter === lg.league
+                          ? 'bg-brand/15 border-brand/50 text-brand'
+                          : 'bg-[#080a12] border-[#1a1d2d] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {lg.flag} {lg.league} ({lg.count})
                     </button>
                   ))}
                 </div>
@@ -1319,15 +1558,15 @@ export default function App() {
                 <Search className="w-4 h-4 text-slate-500 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Buscar partida, time ou campeonato..."
+                  placeholder="Buscar partida, time, estádio ou campeonato..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     onClick={() => setSearchQuery('')}
-                    className="text-xs text-slate-500 hover:text-white"
+                    className="text-xs text-slate-500 hover:text-white cursor-pointer"
                   >
                     ✕
                   </button>
@@ -1336,137 +1575,201 @@ export default function App() {
 
               {/* Header Titles */}
               <div className="flex justify-between items-center px-1">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-brand shrink-0 animate-pulse" />
-                  Próximos Confrontos ({filteredMatches.length})
+                  Confrontos ({filteredMatches.length})
                 </h2>
-                <span className="text-[10px] text-slate-500 uppercase font-mono">FEED AO VIVO EM TEMPO REAL</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-mono">ODDS DINÂMICAS • TEMPO REAL</span>
               </div>
 
-              {/* Match Cards Feed Grid */}
-              <div className="space-y-3.5">
-                {filteredMatches.length === 0 ? (
-                  <div className="bg-[#0d0e16] p-12 rounded-2xl border border-[#1a1c2a] text-center text-slate-500 text-xs">
-                     Nenhuma partida encontrada para os critérios selecionados.
+              {/* Matches Grouped by Championship */}
+              <div className="space-y-4">
+                {groupedMatches.length === 0 ? (
+                  <div className="bg-[#0d0e16] p-12 rounded-2xl border border-[#1a1c2a] text-center space-y-2">
+                    <p className="text-slate-400 text-xs">Nenhuma partida encontrada para os filtros selecionados.</p>
+                    <button
+                      onClick={() => {
+                        setMatchStatusFilter('all');
+                        setLeagueFilter('todas');
+                        setSearchQuery('');
+                      }}
+                      className="text-xs font-bold text-brand hover:underline cursor-pointer"
+                    >
+                      Limpar filtros
+                    </button>
                   </div>
                 ) : (
-                  filteredMatches.map((match) => (
-                    <div 
-                      key={match.id}
-                      className="omnitrix-card rounded-2xl p-3.5 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 overflow-hidden"
-                    >
-                      <div
-                        className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${
-                          match.isLive
-                            ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
-                            : 'bg-brand/70 shadow-[0_0_10px_rgba(0,255,135,0.35)]'
-                        }`}
-                      />
-                      {/* Left: League & Teams labels */}
-                      <div className="flex-1 space-y-2 pl-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="bg-[#111524] text-[9px] font-bold text-brand/90 px-2 py-0.5 rounded border border-brand/20 font-mono uppercase">
-                            {match.sport}
+                  groupedMatches.map((group) => (
+                    <div key={group.league} className="space-y-2.5">
+                      {/* Championship Group Header */}
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#090b13] border border-[#1c2033]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm">{group.flag}</span>
+                          <span className="text-xs font-extrabold font-display text-white truncate">
+                            {group.league}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {match.league}
+                          <span className="text-[9px] font-mono bg-[#121626] text-brand/90 px-1.5 py-0.5 rounded border border-brand/20 shrink-0">
+                            {group.sport}
                           </span>
-                          {match.isLive && (
-                            <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1 uppercase shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                              Ao vivo
-                            </span>
-                          )}
                         </div>
-
-                        {/* Teams Name and Live Score */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between md:justify-start gap-3">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-6 h-6 rounded-lg bg-[#070910] border border-[#1e2438] text-[9px] font-mono font-bold text-brand flex items-center justify-center shrink-0">
-                                {match.teamHome.slice(0, 2).toUpperCase()}
-                              </span>
-                              <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
-                            </div>
-                            {match.isLive && (
-                              <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[28px] text-center">
-                                {match.scoreHome}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between md:justify-start gap-3">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-6 h-6 rounded-lg bg-[#070910] border border-[#1e2438] text-[9px] font-mono font-bold text-slate-300 flex items-center justify-center shrink-0">
-                                {match.teamAway.slice(0, 2).toUpperCase()}
-                              </span>
-                              <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
-                            </div>
-                            {match.isLive && (
-                              <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[28px] text-center">
-                                {match.scoreAway}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                          <span>{match.time}</span>
-                          {match.isLive && (
-                            <>
-                              <span className="text-slate-600">•</span>
-                              <span className="text-rose-400 font-mono text-xs">{match.timeElapsed}</span>
-                            </>
-                          )}
-                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                          {group.items.length} {group.items.length === 1 ? 'jogo' : 'jogos'}
+                        </span>
                       </div>
 
-                      {/* Right: Interactive Odds Buttons */}
-                      <div className="flex gap-2 md:self-center pl-2 md:pl-0">
-                        {/* 1 (Vence Home) */}
-                        <button
-                          onClick={() => handleOddsClick(match, 'home', match.odds.home)}
-                          className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                            selections.some(s => s.matchId === match.id && s.type === 'home')
-                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                              : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
-                          }`}
-                        >
-                          <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'home') ? 'text-slate-900' : 'text-slate-500'}`}>1</span>
-                          <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.home.toFixed(2)}</span>
-                          <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Casa</span>
-                        </button>
+                      {group.items.map((match) => {
+                        const homeBadge = match.badgeHome || match.teamHome.slice(0, 3).toUpperCase();
+                        const awayBadge = match.badgeAway || match.teamAway.slice(0, 3).toUpperCase();
+                        const homeColor = match.colorHome || '#00ff87';
+                        const awayColor = match.colorAway || '#94a3b8';
+                        const posHome = match.stats?.possessionHome;
 
-                        {/* X (Draw Selection - Only if Draw Odds exist) */}
-                        {match.odds.draw !== undefined && (
-                          <button
-                            onClick={() => handleOddsClick(match, 'draw', match.odds.draw!)}
-                            className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                              selections.some(s => s.matchId === match.id && s.type === 'draw')
-                                ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                                : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
-                            }`}
+                        return (
+                          <div
+                            key={match.id}
+                            className="omnitrix-card rounded-2xl p-3.5 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 overflow-hidden"
                           >
-                            <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'draw') ? 'text-slate-900' : 'text-slate-500'}`}>X</span>
-                            <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.draw.toFixed(2)}</span>
-                            <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Empate</span>
-                          </button>
-                        )}
+                            <div
+                              className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${
+                                match.isLive
+                                  ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
+                                  : 'bg-brand/70 shadow-[0_0_10px_rgba(0,255,135,0.35)]'
+                              }`}
+                            />
+                            {/* Left: Meta, Teams, Live Play-by-Play & Stats */}
+                            <div className="flex-1 space-y-2 pl-2 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {match.phase && (
+                                  <span className="text-[9px] font-mono font-bold text-slate-300 bg-[#111524] px-2 py-0.5 rounded border border-white/10">
+                                    {match.phase}
+                                  </span>
+                                )}
+                                {match.venue && (
+                                  <span className="text-[10px] text-slate-400">
+                                    🏟️ {match.venue}
+                                  </span>
+                                )}
+                                {match.isLive && (
+                                  <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1 uppercase shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                                    Ao vivo
+                                  </span>
+                                )}
+                              </div>
 
-                        {/* 2 (Vence Away) */}
-                        <button
-                          onClick={() => handleOddsClick(match, 'away', match.odds.away)}
-                          className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                            selections.some(s => s.matchId === match.id && s.type === 'away')
-                              ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                              : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
-                          }`}
-                        >
-                          <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'away') ? 'text-slate-900' : 'text-slate-500'}`}>2</span>
-                          <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.away.toFixed(2)}</span>
-                          <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Fora</span>
-                        </button>
-                      </div>
+                              {/* Teams & Live Score */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between md:justify-start gap-3">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className="w-7 h-6 rounded-lg bg-[#070910] text-[9px] font-mono font-black flex items-center justify-center shrink-0 border"
+                                      style={{ borderColor: `${homeColor}66`, color: homeColor }}
+                                    >
+                                      {homeBadge}
+                                    </span>
+                                    <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
+                                  </div>
+                                  {match.isLive && (
+                                    <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[30px] text-center">
+                                      {match.scoreHome}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-between md:justify-start gap-3">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className="w-7 h-6 rounded-lg bg-[#070910] text-[9px] font-mono font-black flex items-center justify-center shrink-0 border"
+                                      style={{ borderColor: `${awayColor}66`, color: awayColor }}
+                                    >
+                                      {awayBadge}
+                                    </span>
+                                    <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
+                                  </div>
+                                  {match.isLive && (
+                                    <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[30px] text-center">
+                                      {match.scoreAway}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
 
+                              {/* Live Time, Play-by-Play Ticker & Stats Bar */}
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                                <span>{match.time}</span>
+                                {match.isLive && match.timeElapsed && (
+                                  <>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="text-rose-400 font-mono text-xs font-bold">{match.timeElapsed}</span>
+                                  </>
+                                )}
+                              </div>
+
+                              {match.isLive && match.liveEvent && (
+                                <div className="bg-[#070911] border border-brand/20 rounded-lg px-2.5 py-1 text-[10px] text-slate-200 truncate">
+                                  {match.liveEvent}
+                                </div>
+                              )}
+
+                              {match.isLive && posHome !== undefined && (
+                                <div className="space-y-1 pt-0.5 max-w-sm">
+                                  <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                                    <span>{posHome}%</span>
+                                    <span className="text-slate-500">{match.stats?.detailLabel || 'Domínio'} ({match.stats?.shotsHome ?? 0} × {match.stats?.shotsAway ?? 0})</span>
+                                    <span>{100 - posHome}%</span>
+                                  </div>
+                                  <div className="h-1 rounded-full bg-[#131726] overflow-hidden flex">
+                                    <div className="bg-brand/80 h-full transition-all duration-500" style={{ width: `${posHome}%` }} />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right: Interactive Odds Buttons */}
+                            <div className="flex gap-2 md:self-center pl-2 md:pl-0 shrink-0">
+                              <button
+                                onClick={() => handleOddsClick(match, 'home', match.odds.home)}
+                                className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                                  selections.some(s => s.matchId === match.id && s.type === 'home')
+                                    ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                                    : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
+                                }`}
+                              >
+                                <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'home') ? 'text-slate-900' : 'text-slate-500'}`}>1</span>
+                                <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.home.toFixed(2)}</span>
+                                <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">{homeBadge}</span>
+                              </button>
+
+                              {match.odds.draw !== undefined && (
+                                <button
+                                  onClick={() => handleOddsClick(match, 'draw', match.odds.draw!)}
+                                  className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                                    selections.some(s => s.matchId === match.id && s.type === 'draw')
+                                      ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                                      : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
+                                  }`}
+                                >
+                                  <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'draw') ? 'text-slate-900' : 'text-slate-500'}`}>X</span>
+                                  <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.draw.toFixed(2)}</span>
+                                  <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Empate</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => handleOddsClick(match, 'away', match.odds.away)}
+                                className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
+                                  selections.some(s => s.matchId === match.id && s.type === 'away')
+                                    ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
+                                    : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
+                                }`}
+                              >
+                                <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'away') ? 'text-slate-900' : 'text-slate-500'}`}>2</span>
+                                <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.away.toFixed(2)}</span>
+                                <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">{awayBadge}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ))
                 )}

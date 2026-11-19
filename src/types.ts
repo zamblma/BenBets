@@ -1,9 +1,16 @@
 export interface Match {
   id: string;
-  sport: 'Futebol' | 'Basquete' | 'Tênis' | 'E-Sports';
+  sport: 'Futebol' | 'Basquete' | 'Tênis' | 'E-Sports' | 'MMA' | 'Vôlei';
   league: string;
+  countryFlag?: string;
+  phase?: string;
+  venue?: string;
   teamHome: string;
   teamAway: string;
+  badgeHome?: string;
+  badgeAway?: string;
+  colorHome?: string;
+  colorAway?: string;
   logoHome?: string;
   logoAway?: string;
   time: string;
@@ -11,9 +18,16 @@ export interface Match {
   scoreHome?: number;
   scoreAway?: number;
   timeElapsed?: string;
+  liveEvent?: string;
+  stats?: {
+    possessionHome?: number;
+    shotsHome?: number;
+    shotsAway?: number;
+    detailLabel?: string;
+  };
   odds: {
     home: number;
-    draw?: number; // Basquete/Tênis don't have draw
+    draw?: number; // Basquete/Tênis/MMA/Vôlei/E-Sports don't have draw
     away: number;
   };
 }
