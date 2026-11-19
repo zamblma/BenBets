@@ -122,36 +122,63 @@ export function recoverValidBalance(
   return { balance: Number.isFinite(cleanBalance) ? cleanBalance : 20.0, repaired: true };
 }
 
+export const MUDAE_SEASON_VERSION = 2;
+
+let lastUserDataLoadedAt = Date.now();
+export function getLastUserDataLoadedAt(): number {
+  return lastUserDataLoadedAt;
+}
+
 export async function getUserData(uid: string) {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
+  lastUserDataLoadedAt = Date.now();
   if (!snap.exists()) return null;
   const raw = snap.data() || {};
   const { bets: cleanBets, repaired: betsRepaired } = sanitizePlacedBets(raw.placedBets);
   const { balance: cleanBalance, repaired: balRepaired } = recoverValidBalance(raw, cleanBets);
+  const needsSeasonReset = raw.mudaeSeasonVersion !== MUDAE_SEASON_VERSION;
 
-  // Auto-cura permanente no Firestore se a conta estava corrompida (ex.: NaN no Aviator)
+  const updates: Record<string, any> = {};
   if (betsRepaired || balRepaired) {
-    updateDoc(ref, {
-      balance: cleanBalance,
-      placedBets: cleanBets,
-    }).catch(() => {});
+    updates.balance = cleanBalance;
+    updates.placedBets = cleanBets;
+  }
+  if (needsSeasonReset) {
+    updates.animeCollection = [];
+    updates.mudaeSeasonVersion = MUDAE_SEASON_VERSION;
+    if (raw.mudaeData && typeof raw.mudaeData === 'object') {
+      updates.mudaeData = {
+        ...raw.mudaeData,
+        marketListings: [],
+      };
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    updateDoc(ref, updates).catch(() => {});
   }
 
   return {
     ...raw,
     balance: cleanBalance,
     balanceRepaired: balRepaired,
+    mudaeSeasonVersion: MUDAE_SEASON_VERSION,
     placedBets: cleanBets,
     transactions: Array.isArray(raw.transactions) ? raw.transactions : [],
     pokemonCollection: Array.isArray(raw.pokemonCollection) ? raw.pokemonCollection : [],
     worldCupCollection: Array.isArray(raw.worldCupCollection) ? raw.worldCupCollection : [],
     kpopCollection: Array.isArray(raw.kpopCollection) ? raw.kpopCollection : [],
     cs2Collection: Array.isArray(raw.cs2Collection) ? raw.cs2Collection : [],
-    animeCollection: Array.isArray(raw.animeCollection) ? raw.animeCollection : [],
+    animeCollection: needsSeasonReset
+      ? []
+      : Array.isArray(raw.animeCollection)
+        ? raw.animeCollection
+        : [],
   } as {
     balance: number;
     balanceRepaired?: boolean;
+    mudaeSeasonVersion?: number;
     displayName?: string;
     placedBets: PlacedBet[];
     transactions: Transaction[];
@@ -165,6 +192,7 @@ export async function getUserData(uid: string) {
 
 export async function createUserData(uid: string, email: string, displayName?: string) {
   const ref = doc(db, 'users', uid);
+  lastUserDataLoadedAt = Date.now();
   const data = {
     email,
     displayName: displayName || email.split('@')[0],
@@ -176,6 +204,7 @@ export async function createUserData(uid: string, email: string, displayName?: s
     kpopCollection: [],
     cs2Collection: [],
     animeCollection: [],
+    mudaeSeasonVersion: MUDAE_SEASON_VERSION,
     lastSeen: Date.now(),
     createdAt: new Date().toISOString(),
   };
@@ -200,12 +229,13 @@ export async function markUserOffline(uid: string) {
 }
 
 function sumCollectionStats(raw: any): { uniqueCards: number; totalCards: number } {
+  const isAnimeCurrent = raw?.mudaeSeasonVersion === MUDAE_SEASON_VERSION;
   const keys = [
     'pokemonCollection',
     'worldCupCollection',
     'kpopCollection',
     'cs2Collection',
-    'animeCollection',
+    ...(isAnimeCurrent ? ['animeCollection'] : []),
   ];
   let uniqueCards = 0;
   let totalCards = 0;
@@ -227,6 +257,7 @@ function mapDocToAdminRecord(uid: string, raw: any): { record: AdminUserRecord; 
   const { bets, repaired: betsRepaired } = sanitizePlacedBets(raw?.placedBets);
   const { balance, repaired: balRepaired } = recoverValidBalance(raw, bets);
   const { uniqueCards, totalCards } = sumCollectionStats(raw);
+  const isAnimeCurrent = raw?.mudaeSeasonVersion === MUDAE_SEASON_VERSION;
 
   let betsWon = 0;
   let biggestWin = 0;
@@ -254,7 +285,7 @@ function mapDocToAdminRecord(uid: string, raw: any): { record: AdminUserRecord; 
       worldCupCollection: Array.isArray(raw?.worldCupCollection) ? raw.worldCupCollection : [],
       kpopCollection: Array.isArray(raw?.kpopCollection) ? raw.kpopCollection : [],
       cs2Collection: Array.isArray(raw?.cs2Collection) ? raw.cs2Collection : [],
-      animeCollection: Array.isArray(raw?.animeCollection) ? raw.animeCollection : [],
+      animeCollection: isAnimeCurrent && Array.isArray(raw?.animeCollection) ? raw.animeCollection : [],
       totalCards,
       uniqueCards,
       betsWon,
@@ -496,7 +527,7 @@ export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
   await updateDoc(ref, { animeCollection: cards });
 }
 
-// Mudae Server-Wide Sync & User Progression
+// Mudae Server-Wide Sync, P2P Marketplace & User Progression
 export interface MudaeTowerLevels {
   floor1Rolls: number;
   floor2Reaction: number;
@@ -506,18 +537,81 @@ export interface MudaeTowerLevels {
   floor6Rainbow: number;
 }
 
+export interface MudaeMarketListing {
+  id: string;
+  cardId: string;
+  sellerUid: string;
+  sellerName: string;
+  price: number;
+  listedAt: number;
+  card: PokemonCard;
+  rank: number;
+  series: string;
+  baseValue: number;
+}
+
+export interface MudaeSaleReceipt {
+  id: string;
+  cardId: string;
+  cardName: string;
+  buyerUid: string;
+  buyerName: string;
+  price: number;
+  soldAt: number;
+  seenBySeller: boolean;
+}
+
+export interface MudaeLiveOrb {
+  id: string;
+  label: string;
+  emoji: string;
+  baseValue: number;
+  colorClass: string;
+  glowStyle: string;
+  collectedByUid?: string;
+  collectedByName?: string;
+}
+
+export interface MudaeLiveRoll {
+  instanceId: string;
+  rollerUid: string;
+  rollerName: string;
+  mode: 'wa' | 'ha' | 'ma';
+  rolledAt: number;
+  expiresAt: number;
+  char: {
+    id: string;
+    name: string;
+    series: string;
+    image: string;
+    gender: 'Female' | 'Male' | 'Other';
+    favourites: number;
+    claimRank: number;
+    baseValue: number;
+    tierIndex: number;
+    tierLabel: string;
+  };
+  claimedByUid?: string;
+  claimedByName?: string;
+  grantedKeyToRoller?: number;
+  orb: MudaeLiveOrb | null;
+}
+
 export interface MudaeUserData {
   wishlist: string[];
   disablelist: string[];
   tower: MudaeTowerLevels;
   totalInvestedTower: number;
   rollsUsed: number;
+  extraRollsUsed: number;
   rollsWindowStart: number;
   claimsUsed: number;
   claimsWindowStart: number;
   lastRtUsed: number;
   totalReactionsCollected: number;
   totalKakeraEarned: number;
+  marketListings: MudaeMarketListing[];
+  salesReceipts: MudaeSaleReceipt[];
 }
 
 export interface ServerAnimeClaim {
@@ -547,12 +641,15 @@ export function getDefaultMudaeUserData(): MudaeUserData {
     },
     totalInvestedTower: 0,
     rollsUsed: 0,
+    extraRollsUsed: 0,
     rollsWindowStart: 0,
     claimsUsed: 0,
     claimsWindowStart: 0,
     lastRtUsed: 0,
     totalReactionsCollected: 0,
     totalKakeraEarned: 0,
+    marketListings: [],
+    salesReceipts: [],
   };
 }
 
@@ -563,6 +660,48 @@ function clampMudaeLevel(v: any): number {
 
 function safeMudaeNum(v: any): number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+function sanitizeMarketListings(raw: any): MudaeMarketListing[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MudaeMarketListing[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || !item.cardId || !item.card) continue;
+    const price = safeMudaeNum(item.price);
+    if (price <= 0) continue;
+    out.push({
+      id: String(item.id || `mkt-${item.cardId}`),
+      cardId: String(item.cardId),
+      sellerUid: String(item.sellerUid || ''),
+      sellerName: String(item.sellerName || 'Jogador'),
+      price: Number(price.toFixed(2)),
+      listedAt: safeMudaeNum(item.listedAt),
+      card: item.card,
+      rank: typeof item.rank === 'number' && Number.isFinite(item.rank) ? item.rank : 180,
+      series: String(item.series || item.card?.setName || 'Anime'),
+      baseValue: safeMudaeNum(item.baseValue),
+    });
+  }
+  return out;
+}
+
+function sanitizeSalesReceipts(raw: any): MudaeSaleReceipt[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MudaeSaleReceipt[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== 'object' || !r.id || !r.cardId) continue;
+    out.push({
+      id: String(r.id),
+      cardId: String(r.cardId),
+      cardName: String(r.cardName || 'Personagem'),
+      buyerUid: String(r.buyerUid || ''),
+      buyerName: String(r.buyerName || 'Jogador'),
+      price: Number(safeMudaeNum(r.price).toFixed(2)),
+      soldAt: safeMudaeNum(r.soldAt),
+      seenBySeller: Boolean(r.seenBySeller),
+    });
+  }
+  return out.slice(-30);
 }
 
 export function sanitizeMudaeUserData(raw: any): MudaeUserData {
@@ -582,12 +721,15 @@ export function sanitizeMudaeUserData(raw: any): MudaeUserData {
     },
     totalInvestedTower: Number(safeMudaeNum(raw.totalInvestedTower).toFixed(2)),
     rollsUsed: Math.floor(safeMudaeNum(raw.rollsUsed)),
+    extraRollsUsed: Math.floor(safeMudaeNum(raw.extraRollsUsed)),
     rollsWindowStart: safeMudaeNum(raw.rollsWindowStart),
     claimsUsed: Math.floor(safeMudaeNum(raw.claimsUsed)),
     claimsWindowStart: safeMudaeNum(raw.claimsWindowStart),
     lastRtUsed: safeMudaeNum(raw.lastRtUsed),
     totalReactionsCollected: Math.floor(safeMudaeNum(raw.totalReactionsCollected)),
     totalKakeraEarned: Number(safeMudaeNum(raw.totalKakeraEarned).toFixed(2)),
+    marketListings: sanitizeMarketListings(raw.marketListings),
+    salesReceipts: sanitizeSalesReceipts(raw.salesReceipts),
   };
 }
 
@@ -598,7 +740,11 @@ export async function getMudaeUserData(uid: string): Promise<MudaeUserData> {
     if (snap.exists()) {
       const data = snap.data();
       if (data?.mudaeData) {
-        return sanitizeMudaeUserData(data.mudaeData);
+        const clean = sanitizeMudaeUserData(data.mudaeData);
+        if (data.mudaeSeasonVersion !== MUDAE_SEASON_VERSION) {
+          clean.marketListings = [];
+        }
+        return clean;
       }
     }
   } catch {
@@ -618,15 +764,86 @@ export async function saveMudaeUserData(uid: string, mudaeData: MudaeUserData): 
     localStorage.setItem(`${MUDAE_LOCAL_PREFIX}${uid}`, JSON.stringify(clean));
   } catch { /* quota */ }
   try {
-    await setDoc(doc(db, 'users', uid), { mudaeData: clean }, { merge: true });
+    await setDoc(
+      doc(db, 'users', uid),
+      { mudaeData: clean, mudaeSeasonVersion: MUDAE_SEASON_VERSION },
+      { merge: true }
+    );
   } catch { /* ignore */ }
 }
 
+const migratedDocIds = new Set<string>();
+const LIVE_ROLL_TTL_MS = 10 * 60 * 1000;
+
+function cleanLiveRollForFirestore(roll: MudaeLiveRoll): MudaeLiveRoll {
+  const cleanOrb: MudaeLiveOrb | null = roll.orb
+    ? {
+        id: String(roll.orb.id),
+        label: String(roll.orb.label),
+        emoji: String(roll.orb.emoji),
+        baseValue: safeMudaeNum(roll.orb.baseValue),
+        colorClass: String(roll.orb.colorClass),
+        glowStyle: String(roll.orb.glowStyle),
+        ...(roll.orb.collectedByUid ? { collectedByUid: String(roll.orb.collectedByUid) } : {}),
+        ...(roll.orb.collectedByName ? { collectedByName: String(roll.orb.collectedByName) } : {}),
+      }
+    : null;
+
+  return {
+    instanceId: String(roll.instanceId),
+    rollerUid: String(roll.rollerUid),
+    rollerName: String(roll.rollerName),
+    mode: roll.mode === 'ha' || roll.mode === 'ma' ? roll.mode : 'wa',
+    rolledAt: safeMudaeNum(roll.rolledAt),
+    expiresAt: safeMudaeNum(roll.expiresAt),
+    char: {
+      id: String(roll.char.id),
+      name: String(roll.char.name),
+      series: String(roll.char.series),
+      image: String(roll.char.image || ''),
+      gender: roll.char.gender === 'Female' || roll.char.gender === 'Male' ? roll.char.gender : 'Other',
+      favourites: safeMudaeNum(roll.char.favourites),
+      claimRank: Math.max(1, Math.floor(safeMudaeNum(roll.char.claimRank) || 1)),
+      baseValue: safeMudaeNum(roll.char.baseValue),
+      tierIndex: Math.max(0, Math.min(4, Math.floor(safeMudaeNum(roll.char.tierIndex)))),
+      tierLabel: String(roll.char.tierLabel || 'Rank C'),
+    },
+    ...(roll.claimedByUid ? { claimedByUid: String(roll.claimedByUid) } : {}),
+    ...(roll.claimedByName ? { claimedByName: String(roll.claimedByName) } : {}),
+    ...(typeof roll.grantedKeyToRoller === 'number' && roll.grantedKeyToRoller > 0
+      ? { grantedKeyToRoller: Math.floor(roll.grantedKeyToRoller) }
+      : {}),
+    orb: cleanOrb,
+  };
+}
+
+function sanitizeLiveRolls(raw: any): MudaeLiveRoll[] {
+  if (!Array.isArray(raw)) return [];
+  const cutoff = Date.now() - LIVE_ROLL_TTL_MS;
+  const out: MudaeLiveRoll[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || !item.instanceId || !item.char?.id) continue;
+    if (safeMudaeNum(item.rolledAt) < cutoff) continue;
+    out.push(cleanLiveRollForFirestore(item as MudaeLiveRoll));
+  }
+  return out;
+}
+
 function buildClaimsFromDocs(
-  docs: Array<{ id: string; data: Record<string, any> }>
-): { claims: Record<string, ServerAnimeClaim>; wishCounts: Record<string, number> } {
+  docs: Array<{ id: string; data: Record<string, any> }>,
+  currentUid?: string
+): {
+  claims: Record<string, ServerAnimeClaim>;
+  wishCounts: Record<string, number>;
+  listings: MudaeMarketListing[];
+  unseenReceipts: MudaeSaleReceipt[];
+  serverLiveRolls: MudaeLiveRoll[];
+} {
   const claims: Record<string, ServerAnimeClaim> = {};
   const wishCounts: Record<string, number> = {};
+  const listings: MudaeMarketListing[] = [];
+  const serverLiveRolls: MudaeLiveRoll[] = [];
+  let unseenReceipts: MudaeSaleReceipt[] = [];
 
   for (const d of docs) {
     const raw = d.data || {};
@@ -638,9 +855,24 @@ function buildClaimsFromDocs(
           ? raw.email.split('@')[0]
           : `Jogador ${ownerUid.slice(0, 6)}`;
 
-    const col: PokemonCard[] = Array.isArray(raw.animeCollection) ? raw.animeCollection : [];
+    const isSeasonCurrent = raw.mudaeSeasonVersion === MUDAE_SEASON_VERSION;
+    if (!isSeasonCurrent && !migratedDocIds.has(ownerUid)) {
+      migratedDocIds.add(ownerUid);
+      const resetPayload: Record<string, any> = {
+        animeCollection: [],
+        mudaeSeasonVersion: MUDAE_SEASON_VERSION,
+      };
+      if (raw.mudaeData && typeof raw.mudaeData === 'object') {
+        resetPayload.mudaeData = { ...raw.mudaeData, marketListings: [] };
+      }
+      updateDoc(doc(db, 'users', ownerUid), resetPayload).catch(() => {});
+    }
+
+    const col: PokemonCard[] = isSeasonCurrent && Array.isArray(raw.animeCollection) ? raw.animeCollection : [];
+    const ownedIds = new Set<string>();
     for (const c of col) {
       if (!c || !c.id) continue;
+      ownedIds.add(String(c.id));
       const keys = typeof c.quantity === 'number' && c.quantity > 0 ? Math.floor(c.quantity) : 1;
       const prev = claims[c.id];
       if (!prev || keys > prev.keys || (keys === prev.keys && ownerUid < prev.ownerUid)) {
@@ -666,27 +898,150 @@ function buildClaimsFromDocs(
         wishCounts[charId] = (wishCounts[charId] || 0) + 1;
       }
     }
+
+    if (isSeasonCurrent) {
+      const userListings = sanitizeMarketListings(mudaeRaw?.marketListings);
+      for (const l of userListings) {
+        if (!ownedIds.has(l.cardId)) continue;
+        listings.push({
+          ...l,
+          sellerUid: ownerUid,
+          sellerName: ownerName,
+        });
+      }
+    }
+
+    if (currentUid && ownerUid === currentUid) {
+      const receipts = sanitizeSalesReceipts(mudaeRaw?.salesReceipts);
+      unseenReceipts = receipts.filter((r) => !r.seenBySeller);
+    }
+
+    const userLiveRolls = sanitizeLiveRolls(raw.mudaeLiveRolls);
+    for (const lr of userLiveRolls) {
+      serverLiveRolls.push({
+        ...lr,
+        rollerUid: ownerUid,
+        rollerName: ownerName,
+      });
+    }
   }
 
-  return { claims, wishCounts };
+  listings.sort((a, b) => b.listedAt - a.listedAt);
+  serverLiveRolls.sort((a, b) => b.rolledAt - a.rolledAt);
+  return {
+    claims,
+    wishCounts,
+    listings,
+    unseenReceipts,
+    serverLiveRolls: serverLiveRolls.slice(0, 16),
+  };
 }
 
 export function subscribeToServerAnimeClaims(
-  onUpdate: (claims: Record<string, ServerAnimeClaim>, wishCounts: Record<string, number>) => void,
+  onUpdate: (
+    claims: Record<string, ServerAnimeClaim>,
+    wishCounts: Record<string, number>,
+    listings: MudaeMarketListing[],
+    unseenReceipts: MudaeSaleReceipt[],
+    serverLiveRolls: MudaeLiveRoll[]
+  ) => void,
+  currentUid?: string,
   onError?: (err: any) => void
 ): () => void {
   return onSnapshot(
     collection(db, 'users'),
     (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() || {} }));
-      const { claims, wishCounts } = buildClaimsFromDocs(docs);
-      onUpdate(claims, wishCounts);
+      const { claims, wishCounts, listings, unseenReceipts, serverLiveRolls } = buildClaimsFromDocs(docs, currentUid);
+      onUpdate(claims, wishCounts, listings, unseenReceipts, serverLiveRolls);
     },
     (err) => {
       console.warn('[BenBets Mudae] Erro ao sincronizar claims do servidor:', err?.code || err);
       if (onError) onError(err);
     }
   );
+}
+
+export async function publishLiveMudaeRoll(
+  uid: string,
+  roll: MudaeLiveRoll,
+  mudaeUpdates?: Partial<MudaeUserData>
+): Promise<void> {
+  if (!uid) return;
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  const raw = snap.exists() ? snap.data() || {} : {};
+  const existingRolls = sanitizeLiveRolls(raw.mudaeLiveRolls);
+  const nextRolls = [cleanLiveRollForFirestore(roll), ...existingRolls.filter((r) => r.instanceId !== roll.instanceId)].slice(0, 5);
+  const payload: Record<string, any> = {
+    mudaeLiveRolls: nextRolls,
+    mudaeSeasonVersion: MUDAE_SEASON_VERSION,
+  };
+  if (mudaeUpdates) {
+    const currentMudae = sanitizeMudaeUserData(raw.mudaeData);
+    payload.mudaeData = sanitizeMudaeUserData({ ...currentMudae, ...mudaeUpdates });
+  }
+  await setDoc(ref, payload, { merge: true });
+}
+
+export async function collectLiveMudaeOrb(
+  collectorUid: string,
+  collectorName: string,
+  roll: MudaeLiveRoll
+): Promise<{ ok: boolean; alreadyTakenBy?: string }> {
+  if (!collectorUid || !roll.rollerUid || !roll.orb) return { ok: false };
+  const ref = doc(db, 'users', roll.rollerUid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { ok: false };
+  const raw = snap.data() || {};
+  const rolls = sanitizeLiveRolls(raw.mudaeLiveRolls);
+  const idx = rolls.findIndex((r) => r.instanceId === roll.instanceId);
+  if (idx < 0 || !rolls[idx].orb) return { ok: false };
+  if (rolls[idx].orb?.collectedByUid) {
+    return { ok: false, alreadyTakenBy: rolls[idx].orb?.collectedByName || 'Outro jogador' };
+  }
+  const updatedRoll: MudaeLiveRoll = {
+    ...rolls[idx],
+    orb: {
+      ...rolls[idx].orb!,
+      collectedByUid: collectorUid,
+      collectedByName: collectorName || 'Jogador',
+    },
+  };
+  rolls[idx] = cleanLiveRollForFirestore(updatedRoll);
+  await updateDoc(ref, { mudaeLiveRolls: rolls });
+  return { ok: true };
+}
+
+export async function markLiveMudaeRollClaimed(
+  claimerUid: string,
+  claimerName: string,
+  roll: MudaeLiveRoll
+): Promise<{ ok: boolean; alreadyTakenBy?: string }> {
+  if (!claimerUid) return { ok: false };
+  const existingClaim = await checkServerAnimeClaim(roll.char.id);
+  if (existingClaim) {
+    return { ok: false, alreadyTakenBy: existingClaim.ownerName };
+  }
+  if (!roll.rollerUid) return { ok: true };
+  const ref = doc(db, 'users', roll.rollerUid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { ok: true };
+  const raw = snap.data() || {};
+  const rolls = sanitizeLiveRolls(raw.mudaeLiveRolls);
+  const idx = rolls.findIndex((r) => r.instanceId === roll.instanceId);
+  if (idx >= 0) {
+    if (rolls[idx].claimedByUid) {
+      return { ok: false, alreadyTakenBy: rolls[idx].claimedByName || 'Outro jogador' };
+    }
+    rolls[idx] = cleanLiveRollForFirestore({
+      ...rolls[idx],
+      claimedByUid: claimerUid,
+      claimedByName: claimerName || 'Jogador',
+    });
+    await updateDoc(ref, { mudaeLiveRolls: rolls });
+  }
+  return { ok: true };
 }
 
 export async function checkServerAnimeClaim(cardId: string): Promise<ServerAnimeClaim | null> {
@@ -698,6 +1053,140 @@ export async function checkServerAnimeClaim(cardId: string): Promise<ServerAnime
   } catch {
     return null;
   }
+}
+
+export async function resetAllUsersMudaeCollections(): Promise<number> {
+  const snap = await getDocs(collection(db, 'users'));
+  let count = 0;
+  for (const d of snap.docs) {
+    const raw = d.data() || {};
+    const payload: Record<string, any> = {
+      animeCollection: [],
+      mudaeLiveRolls: [],
+      mudaeSeasonVersion: MUDAE_SEASON_VERSION,
+    };
+    if (raw.mudaeData && typeof raw.mudaeData === 'object') {
+      payload.mudaeData = {
+        ...raw.mudaeData,
+        marketListings: [],
+      };
+    }
+    await updateDoc(doc(db, 'users', d.id), payload);
+    count += 1;
+  }
+  return count;
+}
+
+export async function listMudaeCharacterForSale(
+  uid: string,
+  sellerName: string,
+  input: { card: PokemonCard; price: number; rank: number; series: string; baseValue: number }
+): Promise<MudaeMarketListing> {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  const raw = snap.exists() ? snap.data() || {} : {};
+  const resolvedSellerName =
+    typeof raw.displayName === 'string' && raw.displayName.trim()
+      ? raw.displayName.trim()
+      : sellerName || 'Jogador';
+  const mudae = sanitizeMudaeUserData(raw.mudaeData);
+  const entry: MudaeMarketListing = {
+    id: `mkt-${uid.slice(0, 6)}-${input.card.id}`,
+    cardId: input.card.id,
+    sellerUid: uid,
+    sellerName: resolvedSellerName,
+    price: Number(Math.max(1, input.price).toFixed(2)),
+    listedAt: Date.now(),
+    card: input.card,
+    rank: input.rank,
+    series: input.series,
+    baseValue: input.baseValue,
+  };
+  const nextListings = [
+    entry,
+    ...mudae.marketListings.filter((l) => l.cardId !== input.card.id),
+  ];
+  const nextMudae: MudaeUserData = { ...mudae, marketListings: nextListings };
+  await setDoc(ref, { mudaeData: nextMudae, mudaeSeasonVersion: MUDAE_SEASON_VERSION }, { merge: true });
+  return entry;
+}
+
+export async function cancelMudaeMarketListing(uid: string, cardId: string): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const raw = snap.data() || {};
+  const mudae = sanitizeMudaeUserData(raw.mudaeData);
+  const nextMudae: MudaeUserData = {
+    ...mudae,
+    marketListings: mudae.marketListings.filter((l) => l.cardId !== cardId),
+  };
+  await setDoc(ref, { mudaeData: nextMudae }, { merge: true });
+}
+
+export async function buyMudaeMarketListing(
+  buyerUid: string,
+  buyerName: string,
+  listing: MudaeMarketListing
+): Promise<{ ok: boolean; error?: string; card?: PokemonCard }> {
+  if (!buyerUid || !listing.sellerUid) return { ok: false, error: 'Dados inválidos para compra.' };
+  if (listing.sellerUid === buyerUid) return { ok: false, error: 'Você não pode comprar seu próprio anúncio.' };
+
+  const sellerRef = doc(db, 'users', listing.sellerUid);
+  const sellerSnap = await getDoc(sellerRef);
+  if (!sellerSnap.exists()) return { ok: false, error: 'Vendedor não encontrado.' };
+
+  const sellerRaw = sellerSnap.data() || {};
+  const sellerCol: PokemonCard[] = Array.isArray(sellerRaw.animeCollection) ? sellerRaw.animeCollection : [];
+  const ownedCard = sellerCol.find((c) => c.id === listing.cardId);
+  if (!ownedCard) return { ok: false, error: 'Este personagem não pertence mais ao vendedor.' };
+
+  const sellerMudae = sanitizeMudaeUserData(sellerRaw.mudaeData);
+  const liveListing = sellerMudae.marketListings.find((l) => l.cardId === listing.cardId);
+  if (!liveListing) return { ok: false, error: 'Este anúncio foi cancelado ou acabou de ser vendido.' };
+
+  const finalPrice = liveListing.price;
+  const { bets } = sanitizePlacedBets(sellerRaw.placedBets);
+  const { balance: sellerBaseBal } = recoverValidBalance(sellerRaw, bets);
+  const nextSellerBal = Number((sellerBaseBal + finalPrice).toFixed(2));
+  const nextSellerCol = sellerCol.filter((c) => c.id !== listing.cardId);
+  const nextSellerListings = sellerMudae.marketListings.filter((l) => l.cardId !== listing.cardId);
+
+  const receipt: MudaeSaleReceipt = {
+    id: `sale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    cardId: listing.cardId,
+    cardName: ownedCard.name,
+    buyerUid,
+    buyerName: buyerName || 'Jogador',
+    price: finalPrice,
+    soldAt: Date.now(),
+    seenBySeller: false,
+  };
+
+  await updateDoc(sellerRef, {
+    animeCollection: nextSellerCol,
+    balance: nextSellerBal,
+    mudaeSeasonVersion: MUDAE_SEASON_VERSION,
+    mudaeData: {
+      ...sellerMudae,
+      marketListings: nextSellerListings,
+      salesReceipts: [...sellerMudae.salesReceipts, receipt].slice(-30),
+    },
+  });
+
+  return { ok: true, card: ownedCard };
+}
+
+export async function acknowledgeMudaeSalesReceipts(uid: string, receiptIds: string[]): Promise<void> {
+  if (!uid || receiptIds.length === 0) return;
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const raw = snap.data() || {};
+  const mudae = sanitizeMudaeUserData(raw.mudaeData);
+  const ackSet = new Set(receiptIds);
+  const updated = mudae.salesReceipts.map((r) => (ackSet.has(r.id) ? { ...r, seenBySeller: true } : r));
+  await setDoc(ref, { mudaeData: { ...mudae, salesReceipts: updated } }, { merge: true });
 }
 
 // Admin

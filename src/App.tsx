@@ -36,7 +36,7 @@ import { fetchBrazilianFootballMatches } from './utils/brazilianFootballApi';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance } from './firebase/db';
+import { MUDAE_SEASON_VERSION, getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance } from './firebase/db';
 import type { MissionProgress, LeaderboardEntry } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
@@ -171,7 +171,13 @@ export default function App() {
       const loadLocal = (): any | null => {
         try {
           const raw = localStorage.getItem(`benbets_user_${user.uid}`);
-          return raw ? JSON.parse(raw) : null;
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.mudaeSeasonVersion !== MUDAE_SEASON_VERSION) {
+            parsed.animeCollection = [];
+            parsed.mudaeSeasonVersion = MUDAE_SEASON_VERSION;
+          }
+          return parsed;
         } catch { return null; }
       };
 
@@ -1515,10 +1521,12 @@ export default function App() {
                       onUpdateBalance={handleDepositSuccess}
                       onAddBetHistory={handleAddPlacedBet}
                       userId={firebaseUser?.uid || ''}
+                      userName={userName || firebaseUser?.displayName || firebaseUser?.email?.split('@')[0] || 'Jogador'}
                       collection={animeCollection}
                       onCollectionUpdate={handleAnimeCollectionUpdate}
                       onSellCard={handleSellAnimeCard}
                       onSellAllDuplicates={handleSellAllAnimeDuplicates}
+                      onClearLocalCollection={() => setAnimeCollection([])}
                     />
                   )}
                   {(selectedColecionavel === 'LoL' || selectedColecionavel === 'AkaliSanctum') && (
