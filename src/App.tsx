@@ -23,7 +23,8 @@ import {
   Star,
   Trophy,
   Volume2,
-  VolumeX
+  VolumeX,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -31,6 +32,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Match, BetSelection, PlacedBet, Transaction, PokemonCard } from './types';
 // Source data
 import { INITIAL_MATCHES } from './data/mockMatches';
+import { fetchBrazilianFootballMatches } from './utils/brazilianFootballApi';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -63,6 +65,29 @@ import DailyMissions from './components/DailyMissions';
 import OmnitrixLogo from './components/OmnitrixLogo';
 import Leaderboard from './components/Leaderboard';
 import { useSound } from './hooks/useSound';
+
+function TeamCrest({ name, badge, color, logo }: { name: string; badge: string; color: string; logo?: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  if (logo && !imgFailed) {
+    return (
+      <img
+        src={logo}
+        alt={name}
+        onError={() => setImgFailed(true)}
+        className="w-6 h-6 object-contain rounded-md bg-white/5 p-0.5 border border-white/10 shrink-0"
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <span
+      className="w-7 h-6 rounded-lg bg-[#070910] text-[9px] font-mono font-black flex items-center justify-center shrink-0 border"
+      style={{ borderColor: `${color}66`, color }}
+    >
+      {badge}
+    </span>
+  );
+}
 
 export default function App() {
   const { muted, toggleMute } = useSound();
@@ -329,8 +354,39 @@ export default function App() {
     };
   }, [firebaseUser, initialDataLoaded]);
 
-  // Dynamic Live Matches State Feed
+  // Dynamic Live Matches State Feed (Mock + Real Brazilian Football API)
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
+  const [loadingRealMatches, setLoadingRealMatches] = useState(false);
+  const [realMatchesCount, setRealMatchesCount] = useState(0);
+
+  const syncRealMatches = useCallback(async (force = false) => {
+    setLoadingRealMatches(true);
+    try {
+      const realList = await fetchBrazilianFootballMatches(force);
+      if (realList.length > 0) {
+        setRealMatchesCount(realList.length);
+        const coveredLeagues = new Set(realList.map((m) => m.league));
+        setMatches((prev) => {
+          const nonCoveredMocks = prev.filter(
+            (m) => !m.id.startsWith('espn-') && !coveredLeagues.has(m.league)
+          );
+          return [...realList, ...nonCoveredMocks];
+        });
+      }
+    } catch {
+      /* Fallback matches remain active */
+    } finally {
+      setLoadingRealMatches(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncRealMatches(false);
+    const refreshId = setInterval(() => {
+      syncRealMatches(true);
+    }, 60_000);
+    return () => clearInterval(refreshId);
+  }, [syncRealMatches]);
 
   // Periodic score updates, live event play-by-play, stats, and odds drifting
   useEffect(() => {
@@ -338,6 +394,19 @@ export default function App() {
       setMatches((prevMatches) =>
         prevMatches.map((match) => {
           if (!match.isLive) return match;
+
+          // Real ESPN API matches keep official real score/clock/events
+          if (match.id.startsWith('espn-')) {
+            const drift = () => 0.99 + Math.random() * 0.02;
+            return {
+              ...match,
+              odds: {
+                home: parseFloat(Math.max(1.01, match.odds.home * drift()).toFixed(2)),
+                draw: match.odds.draw ? parseFloat(Math.max(1.01, match.odds.draw * drift()).toFixed(2)) : undefined,
+                away: parseFloat(Math.max(1.01, match.odds.away * drift()).toFixed(2)),
+              },
+            };
+          }
 
           let hScore = match.scoreHome;
           let aScore = match.scoreAway;
@@ -1479,14 +1548,29 @@ export default function App() {
                       <span className="text-[9px] font-mono bg-brand/10 text-brand border border-brand/25 px-2 py-0.5 rounded-full">
                         {availableLeagues.length} Campeonatos
                       </span>
+                      {realMatchesCount > 0 && (
+                        <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-2 py-0.5 rounded-full">
+                          🟢 API ESPN • {realMatchesCount} Jogos BR Reais
+                        </span>
+                      )}
                     </h2>
                     <p className="text-[10px] text-slate-400">
-                      Lances em tempo real, placares dinâmicos e bônus +15% em múltiplas.
+                      Jogos reais do futebol brasileiro com escudos e odds da ESPN + cobertura multi-esportes.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-1.5 flex-wrap">
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  <button
+                    type="button"
+                    onClick={() => syncRealMatches(true)}
+                    disabled={loadingRealMatches}
+                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 cursor-pointer transition-all flex items-center gap-1 disabled:opacity-60"
+                    title="Atualizar jogos reais do futebol brasileiro"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${loadingRealMatches ? 'animate-spin' : ''}`} />
+                    <span>Atualizar API</span>
+                  </button>
                   {[
                     { id: 'all' as const, label: `🌐 Todos (${sportScopedMatches.length})` },
                     { id: 'live' as const, label: `🔴 Ao Vivo (${liveMatchesCount})` },
@@ -1652,6 +1736,11 @@ export default function App() {
                             {/* Left: Meta, Teams, Live Play-by-Play & Stats */}
                             <div className="flex-1 space-y-2 pl-2 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
+                                {match.id.startsWith('espn-') && (
+                                  <span className="text-[8px] font-mono font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/35 px-1.5 py-0.5 rounded uppercase">
+                                    🟢 API REAL
+                                  </span>
+                                )}
                                 {match.phase && (
                                   <span className="text-[9px] font-mono font-bold text-slate-300 bg-[#111524] px-2 py-0.5 rounded border border-white/10">
                                     {match.phase}
@@ -1674,12 +1763,7 @@ export default function App() {
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between md:justify-start gap-3">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span
-                                      className="w-7 h-6 rounded-lg bg-[#070910] text-[9px] font-mono font-black flex items-center justify-center shrink-0 border"
-                                      style={{ borderColor: `${homeColor}66`, color: homeColor }}
-                                    >
-                                      {homeBadge}
-                                    </span>
+                                    <TeamCrest name={match.teamHome} badge={homeBadge} color={homeColor} logo={match.logoHome} />
                                     <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
                                   </div>
                                   {match.isLive && (
@@ -1690,12 +1774,7 @@ export default function App() {
                                 </div>
                                 <div className="flex items-center justify-between md:justify-start gap-3">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span
-                                      className="w-7 h-6 rounded-lg bg-[#070910] text-[9px] font-mono font-black flex items-center justify-center shrink-0 border"
-                                      style={{ borderColor: `${awayColor}66`, color: awayColor }}
-                                    >
-                                      {awayBadge}
-                                    </span>
+                                    <TeamCrest name={match.teamAway} badge={awayBadge} color={awayColor} logo={match.logoAway} />
                                     <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
                                   </div>
                                   {match.isLive && (
@@ -1717,8 +1796,12 @@ export default function App() {
                                 )}
                               </div>
 
-                              {match.isLive && match.liveEvent && (
-                                <div className="bg-[#070911] border border-brand/20 rounded-lg px-2.5 py-1 text-[10px] text-slate-200 truncate">
+                              {match.liveEvent && (
+                                <div
+                                  className={`bg-[#070911] rounded-lg px-2.5 py-1 text-[10px] truncate border ${
+                                    match.isLive ? 'border-brand/20 text-slate-200' : 'border-[#1a1f30] text-slate-400'
+                                  }`}
+                                >
                                   {match.liveEvent}
                                 </div>
                               )}
@@ -1801,7 +1884,9 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSearchQuery('Flamengo');
+                    setSearchQuery('');
+                    setLeagueFilter('todas');
+                    setSportFilter('Futebol');
                     setSelectedSport('Todos');
                   }}
                   className="bg-brand hover:bg-[#00e074] text-slate-950 font-black text-[10px] uppercase tracking-wider py-2.5 px-3.5 rounded-lg shrink-0 cursor-pointer shadow-md transition-all hover:scale-[1.02]"
