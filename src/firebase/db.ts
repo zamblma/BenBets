@@ -479,19 +479,225 @@ export async function addAnimeCards(uid: string, newCards: PokemonCard[]) {
   await updateDoc(ref, { animeCollection: merged });
 }
 
-export async function removeAnimeCard(uid: string, cardId: string) {
+export async function removeAnimeCard(uid: string, cardId: string, removeAll = false) {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const data = snap.data();
   const existing: PokemonCard[] = data.animeCollection || [];
-  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  const updated = existing
+    .map(c => c.id === cardId ? { ...c, quantity: removeAll ? 0 : c.quantity - 1 } : c)
+    .filter(c => c.quantity > 0);
   await updateDoc(ref, { animeCollection: updated });
 }
 
 export async function setAnimeCollection(uid: string, cards: PokemonCard[]) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, { animeCollection: cards });
+}
+
+// Mudae Server-Wide Sync & User Progression
+export interface MudaeTowerLevels {
+  floor1Rolls: number;
+  floor2Reaction: number;
+  floor3WishSpawn: number;
+  floor4Slots: number;
+  floor5Claims: number;
+  floor6Rainbow: number;
+}
+
+export interface MudaeUserData {
+  wishlist: string[];
+  disablelist: string[];
+  tower: MudaeTowerLevels;
+  totalInvestedTower: number;
+  rollsUsed: number;
+  rollsWindowStart: number;
+  claimsUsed: number;
+  claimsWindowStart: number;
+  lastRtUsed: number;
+  totalReactionsCollected: number;
+  totalKakeraEarned: number;
+}
+
+export interface ServerAnimeClaim {
+  cardId: string;
+  ownerUid: string;
+  ownerName: string;
+  keys: number;
+  name: string;
+  image: string;
+  series: string;
+  rarity: PokemonCard['rarity'];
+}
+
+const MUDAE_LOCAL_PREFIX = 'benbets_mudae_v1_';
+
+export function getDefaultMudaeUserData(): MudaeUserData {
+  return {
+    wishlist: [],
+    disablelist: [],
+    tower: {
+      floor1Rolls: 0,
+      floor2Reaction: 0,
+      floor3WishSpawn: 0,
+      floor4Slots: 0,
+      floor5Claims: 0,
+      floor6Rainbow: 0,
+    },
+    totalInvestedTower: 0,
+    rollsUsed: 0,
+    rollsWindowStart: 0,
+    claimsUsed: 0,
+    claimsWindowStart: 0,
+    lastRtUsed: 0,
+    totalReactionsCollected: 0,
+    totalKakeraEarned: 0,
+  };
+}
+
+function clampMudaeLevel(v: any): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0;
+  return Math.max(0, Math.min(5, n));
+}
+
+function safeMudaeNum(v: any): number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+export function sanitizeMudaeUserData(raw: any): MudaeUserData {
+  const def = getDefaultMudaeUserData();
+  if (!raw || typeof raw !== 'object') return def;
+  const rawTower = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
+  return {
+    wishlist: Array.isArray(raw.wishlist) ? raw.wishlist.map(String).filter(Boolean) : [],
+    disablelist: Array.isArray(raw.disablelist) ? raw.disablelist.map(String).filter(Boolean) : [],
+    tower: {
+      floor1Rolls: clampMudaeLevel(rawTower.floor1Rolls),
+      floor2Reaction: clampMudaeLevel(rawTower.floor2Reaction),
+      floor3WishSpawn: clampMudaeLevel(rawTower.floor3WishSpawn),
+      floor4Slots: clampMudaeLevel(rawTower.floor4Slots),
+      floor5Claims: clampMudaeLevel(rawTower.floor5Claims),
+      floor6Rainbow: clampMudaeLevel(rawTower.floor6Rainbow),
+    },
+    totalInvestedTower: Number(safeMudaeNum(raw.totalInvestedTower).toFixed(2)),
+    rollsUsed: Math.floor(safeMudaeNum(raw.rollsUsed)),
+    rollsWindowStart: safeMudaeNum(raw.rollsWindowStart),
+    claimsUsed: Math.floor(safeMudaeNum(raw.claimsUsed)),
+    claimsWindowStart: safeMudaeNum(raw.claimsWindowStart),
+    lastRtUsed: safeMudaeNum(raw.lastRtUsed),
+    totalReactionsCollected: Math.floor(safeMudaeNum(raw.totalReactionsCollected)),
+    totalKakeraEarned: Number(safeMudaeNum(raw.totalKakeraEarned).toFixed(2)),
+  };
+}
+
+export async function getMudaeUserData(uid: string): Promise<MudaeUserData> {
+  if (!uid) return getDefaultMudaeUserData();
+  try {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data?.mudaeData) {
+        return sanitizeMudaeUserData(data.mudaeData);
+      }
+    }
+  } catch {
+    // Fallback to localStorage below
+  }
+  try {
+    const localRaw = localStorage.getItem(`${MUDAE_LOCAL_PREFIX}${uid}`);
+    if (localRaw) return sanitizeMudaeUserData(JSON.parse(localRaw));
+  } catch { /* ignore */ }
+  return getDefaultMudaeUserData();
+}
+
+export async function saveMudaeUserData(uid: string, mudaeData: MudaeUserData): Promise<void> {
+  const clean = sanitizeMudaeUserData(mudaeData);
+  if (!uid) return;
+  try {
+    localStorage.setItem(`${MUDAE_LOCAL_PREFIX}${uid}`, JSON.stringify(clean));
+  } catch { /* quota */ }
+  try {
+    await setDoc(doc(db, 'users', uid), { mudaeData: clean }, { merge: true });
+  } catch { /* ignore */ }
+}
+
+function buildClaimsFromDocs(
+  docs: Array<{ id: string; data: Record<string, any> }>
+): { claims: Record<string, ServerAnimeClaim>; wishCounts: Record<string, number> } {
+  const claims: Record<string, ServerAnimeClaim> = {};
+  const wishCounts: Record<string, number> = {};
+
+  for (const d of docs) {
+    const raw = d.data || {};
+    const ownerUid = d.id;
+    const ownerName =
+      typeof raw.displayName === 'string' && raw.displayName.trim()
+        ? raw.displayName.trim()
+        : typeof raw.email === 'string' && raw.email.includes('@')
+          ? raw.email.split('@')[0]
+          : `Jogador ${ownerUid.slice(0, 6)}`;
+
+    const col: PokemonCard[] = Array.isArray(raw.animeCollection) ? raw.animeCollection : [];
+    for (const c of col) {
+      if (!c || !c.id) continue;
+      const keys = typeof c.quantity === 'number' && c.quantity > 0 ? Math.floor(c.quantity) : 1;
+      const prev = claims[c.id];
+      if (!prev || keys > prev.keys || (keys === prev.keys && ownerUid < prev.ownerUid)) {
+        claims[c.id] = {
+          cardId: String(c.id),
+          ownerUid,
+          ownerName,
+          keys,
+          name: String(c.name || 'Personagem'),
+          image: String(c.imageUrl || ''),
+          series: String(c.setName || 'Anime'),
+          rarity: String(c.rarity || 'Rank C'),
+        };
+      }
+    }
+
+    const mudaeRaw = raw.mudaeData;
+    const wishlist: string[] = Array.isArray(mudaeRaw?.wishlist) ? mudaeRaw.wishlist : [];
+    const seenWish = new Set<string>();
+    for (const charId of wishlist) {
+      if (typeof charId === 'string' && charId && !seenWish.has(charId)) {
+        seenWish.add(charId);
+        wishCounts[charId] = (wishCounts[charId] || 0) + 1;
+      }
+    }
+  }
+
+  return { claims, wishCounts };
+}
+
+export function subscribeToServerAnimeClaims(
+  onUpdate: (claims: Record<string, ServerAnimeClaim>, wishCounts: Record<string, number>) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) => {
+      const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() || {} }));
+      const { claims, wishCounts } = buildClaimsFromDocs(docs);
+      onUpdate(claims, wishCounts);
+    },
+    (err) => {
+      console.warn('[BenBets Mudae] Erro ao sincronizar claims do servidor:', err?.code || err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export async function checkServerAnimeClaim(cardId: string): Promise<ServerAnimeClaim | null> {
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() || {} }));
+    const { claims } = buildClaimsFromDocs(docs);
+    return claims[cardId] || null;
+  } catch {
+    return null;
+  }
 }
 
 // Admin

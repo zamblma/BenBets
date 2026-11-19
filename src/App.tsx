@@ -796,10 +796,14 @@ export default function App() {
     });
   };
 
-  const handleSellAnimeCard = (cardId: string, price: number) => {
-    setAnimeCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+  const handleSellAnimeCard = (cardId: string, price: number, removeAll = false) => {
+    setAnimeCollection(prev =>
+      prev
+        .map(c => c.id === cardId ? { ...c, quantity: removeAll ? 0 : c.quantity - 1 } : c)
+        .filter(c => c.quantity > 0)
+    );
     adjustBalanceSafe(price);
-    if (firebaseUser) removeAnimeCard(firebaseUser.uid, cardId).catch(() => {});
+    if (firebaseUser) removeAnimeCard(firebaseUser.uid, cardId, removeAll).catch(() => {});
   };
 
   const handleSellAllAnimeDuplicates = (prices: Record<string, number>) => {
@@ -1422,7 +1426,7 @@ export default function App() {
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
-                      { id: 'Anime', name: 'Anime Gacha', icon: '⭐', desc: 'Personagens de animes em pacotes colecionáveis', accent: 'rgba(234,179,8,0.4)', glow: 'rgba(234,179,8,0.2)', chip: '🎴', badge: 'AniList API' },
+                      { id: 'Anime', name: 'Mudae Anime Bot', icon: '🤖', desc: 'Roletas $wa / $ha, casamento exclusivo no servidor, Torre R$ e Wishlist', accent: 'rgba(168,85,247,0.45)', glow: 'rgba(168,85,247,0.22)', chip: '💖', badge: 'Mudae + AniList API' },
                       { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: 'TCGdex CDN' },
                       { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: '25 caixas Panorama com Float real (0.00–1.00) e StatTrak™', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: 'CSGO-API CDN' },
                       { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Álbuns, Máquina Lucky Draw e Polaroids Assinadas 1/1 (0,5%) de 23 grupos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Commons + Wiki API' },
