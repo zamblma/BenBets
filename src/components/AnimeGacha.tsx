@@ -85,7 +85,7 @@ const MAX_FREE_ROLLS_PER_HOUR = 5;
 const MAX_EXTRA_ROLLS_PER_HOUR = 2;
 const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v6';
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v7';
 
 // Faixas de páginas na AniList API (~50 personagens por página, cobrindo 10.000+ bonecos)
 const TIER_PAGE_RANGES: Array<[number, number]> = [
@@ -98,11 +98,11 @@ const TIER_PAGE_RANGES: Array<[number, number]> = [
 
 function getTierWeights(luckMultiplier: number): number[] {
   return [
-    1.0, // C
-    0.65, // B
-    0.30 * luckMultiplier, // A
-    0.11 * luckMultiplier, // S
-    0.04 * luckMultiplier, // S+
+    62.0, // C (~62,0% base - R$ 3–5)
+    30.5, // B (~30,5% base - R$ 5–7)
+    5.8 * luckMultiplier, // A (~5,8% base)
+    1.4 * luckMultiplier, // S (~1,4% base)
+    0.30 * luckMultiplier, // S+ Ícone (~0,30% base)
   ];
 }
 
@@ -184,7 +184,7 @@ const TOWER_FLOORS: TowerFloorDef[] = [
     floorNum: 1,
     title: 'Sorte de Raridades ($luck)',
     subtitle: 'Aumenta a chance de aparecer Rank A, S e S+ (mantém 5+2 rolls)',
-    effectText: (lvl) => `+${lvl * 15}% chance de Tiers Raros (Peso ×${(1 + lvl * 0.15).toFixed(2)})`,
+    effectText: (lvl) => `+${lvl * 10}% chance de Tiers Raros (Peso ×${(1 + lvl * 0.10).toFixed(2)})`,
     baseCost: 65,
     multiplier: 1.75,
     accent: 'text-emerald-300 border-emerald-500/35 bg-emerald-500/10',
@@ -308,27 +308,6 @@ const MUDAE_CANONICAL_TOP: Record<string, { rank: number; ka: number }> = {
   'kurumi tokisaki': { rank: 50, ka: 1210 },
 };
 
-const CANONICAL_TOP_FETCH_NAMES = [
-  'Zero Two',
-  'Rem',
-  'Megumin',
-  'Nico Robin',
-  'Miku Nakano',
-  'Emilia',
-  'Kirby',
-  'Marin Kitagawa',
-  'Nezuko Kamado',
-  'Frieren',
-  'Violet Evergarden',
-  'Aqua',
-  'Hange Zoë',
-  'Ram',
-  'Shinobu Kochou',
-  'Monkey D. Luffy',
-  'Reze',
-  'Rin Tohsaka',
-];
-
 function getCanonicalMatch(name?: string): { rank: number; ka: number } | null {
   if (!name) return null;
   const norm = normalizeMudaeName(name);
@@ -397,30 +376,74 @@ function getFloorUpgradeCost(def: TowerFloorDef, currentLevel: number): number {
 }
 
 const FALLBACK_SEED: Array<{ id: number; name: string; series: string; gender: CharGender; favourites: number; image: string }> = [
+  // Rank S+ Ícones
   { id: 45627, name: 'Levi Ackerman', series: 'Attack on Titan', gender: 'Male', favourites: 138000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b45627-CR68RyZmddGG.png' },
   { id: 127691, name: 'Satoru Gojo', series: 'Jujutsu Kaisen', gender: 'Male', favourites: 129500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127691-Um2kqT0uS6aL.png' },
   { id: 40, name: 'Monkey D. Luffy', series: 'One Piece', gender: 'Male', favourites: 118000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40-chJF5P2dF99H.png' },
-  { id: 62, name: 'Roronoa Zoro', series: 'One Piece', gender: 'Male', favourites: 112000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b62-W8kU27aF8267.png' },
-  { id: 27, name: 'Killua Zoldyck', series: 'Hunter x Hunter', gender: 'Male', favourites: 109000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b27-Z9v2sR91P92G.png' },
-  { id: 40881, name: 'Mikasa Ackerman', series: 'Attack on Titan', gender: 'Female', favourites: 96000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40881-F3gr1P23nN4N.png' },
   { id: 124381, name: 'Zero Two', series: 'DARLING in the FRANXX', gender: 'Female', favourites: 92000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b124381-21T6r09P91v7.png' },
   { id: 89362, name: 'Rem', series: 'Re:ZERO', gender: 'Female', favourites: 88000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b89362-56W1dS0f1v58.png' },
   { id: 137079, name: 'Makima', series: 'Chainsaw Man', gender: 'Female', favourites: 84500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b137079-B3wX2sM9209s.png' },
   { id: 176754, name: 'Frieren', series: "Frieren: Beyond Journey's End", gender: 'Female', favourites: 81000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b176754-Ya2vX20K03i7.png' },
   { id: 127518, name: 'Nezuko Kamado', series: 'Demon Slayer', gender: 'Female', favourites: 76000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127518-K9K11r90r21Z.png' },
-  { id: 14, name: 'Itachi Uchiha', series: 'Naruto', gender: 'Male', favourites: 74500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b14-9v1P507cW169.png' },
   { id: 89028, name: 'Megumin', series: 'KonoSuba', gender: 'Female', favourites: 72000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b89028-k4N8zR3h1c90.png' },
-  { id: 71, name: 'L Lawliet', series: 'Death Note', gender: 'Male', favourites: 70500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b71-9S9P7W4496xX.png' },
-  { id: 11, name: 'Edward Elric', series: 'Fullmetal Alchemist: Brotherhood', gender: 'Male', favourites: 69000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b11-0D590s5c38yT.png' },
   { id: 129927, name: 'Marin Kitagawa', series: 'My Dress-Up Darling', gender: 'Female', favourites: 67500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b129927-46c01k6qT367.png' },
-  { id: 138101, name: 'Power', series: 'Chainsaw Man', gender: 'Female', favourites: 65000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b138101-kY6V0W8B57V5.png' },
-  { id: 246, name: 'Son Goku', series: 'Dragon Ball Z', gender: 'Male', favourites: 63500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b246-P009X9N6419X.png' },
-  { id: 497, name: 'Saber', series: 'Fate/stay night', gender: 'Female', favourites: 61000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b497-w201r5942u2W.png' },
-  { id: 206, name: 'Spike Spiegel', series: 'Cowboy Bebop', gender: 'Male', favourites: 59000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b206-N5t0M4X0d11n.png' },
-  { id: 1555, name: 'Hinata Hyuga', series: 'Naruto', gender: 'Female', favourites: 56000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1555-510N625p03W1.png' },
-  { id: 121102, name: 'Mai Sakurajima', series: 'Rascal Does Not Dream', gender: 'Female', favourites: 55000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b121102-32t5Y542R76J.png' },
-  { id: 132645, name: 'Yor Forger', series: 'SPY x FAMILY', gender: 'Female', favourites: 53000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b132645-41G5P7Y2j24H.png' },
-  { id: 131582, name: 'Anya Forger', series: 'SPY x FAMILY', gender: 'Female', favourites: 51000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b131582-9p52r97L228L.png' },
+  // Rank S
+  { id: 62, name: 'Roronoa Zoro', series: 'One Piece', gender: 'Male', favourites: 46000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b62-W8kU27aF8267.png' },
+  { id: 27, name: 'Killua Zoldyck', series: 'Hunter x Hunter', gender: 'Male', favourites: 44000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b27-Z9v2sR91P92G.png' },
+  { id: 14, name: 'Itachi Uchiha', series: 'Naruto', gender: 'Male', favourites: 39000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b14-9v1P507cW169.png' },
+  { id: 40881, name: 'Mikasa Ackerman', series: 'Attack on Titan', gender: 'Female', favourites: 36000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40881-F3gr1P23nN4N.png' },
+  { id: 497, name: 'Saber', series: 'Fate/stay night', gender: 'Female', favourites: 31000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b497-w201r5942u2W.png' },
+  // Rank A
+  { id: 11, name: 'Edward Elric', series: 'Fullmetal Alchemist: Brotherhood', gender: 'Male', favourites: 21500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b11-0D590s5c38yT.png' },
+  { id: 71, name: 'L Lawliet', series: 'Death Note', gender: 'Male', favourites: 20500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b71-9S9P7W4496xX.png' },
+  { id: 246, name: 'Son Goku', series: 'Dragon Ball Z', gender: 'Male', favourites: 19500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b246-P009X9N6419X.png' },
+  { id: 1555, name: 'Hinata Hyuga', series: 'Naruto', gender: 'Female', favourites: 18500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1555-510N625p03W1.png' },
+  { id: 121102, name: 'Mai Sakurajima', series: 'Rascal Does Not Dream', gender: 'Female', favourites: 17500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b121102-32t5Y542R76J.png' },
+  { id: 132645, name: 'Yor Forger', series: 'SPY x FAMILY', gender: 'Female', favourites: 16500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b132645-41G5P7Y2j24H.png' },
+  { id: 138101, name: 'Power', series: 'Chainsaw Man', gender: 'Female', favourites: 15500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b138101-kY6V0W8B57V5.png' },
+  { id: 206, name: 'Spike Spiegel', series: 'Cowboy Bebop', gender: 'Male', favourites: 14500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b206-N5t0M4X0d11n.png' },
+  // Rank B (R$ 5–7) — Femininos e Masculinos
+  { id: 145, name: 'Sakura Haruno', series: 'Naruto', gender: 'Female', favourites: 8900, image: '' },
+  { id: 249, name: 'Inoue Orihime', series: 'Bleach', gender: 'Female', favourites: 8400, image: '' },
+  { id: 1690, name: 'Temari', series: 'Naruto', gender: 'Female', favourites: 7800, image: '' },
+  { id: 139814, name: 'Nobara Kugisaki', series: 'Jujutsu Kaisen', gender: 'Female', favourites: 9400, image: '' },
+  { id: 130041, name: 'Mitsuri Kanroji', series: 'Demon Slayer', gender: 'Female', favourites: 8800, image: '' },
+  { id: 92954, name: 'Tsuyu Asui', series: 'My Hero Academia', gender: 'Female', favourites: 7600, image: '' },
+  { id: 5186, name: 'Lucy Heartfilia', series: 'Fairy Tail', gender: 'Female', favourites: 7200, image: '' },
+  { id: 2457, name: 'Perona', series: 'One Piece', gender: 'Female', favourites: 6400, image: '' },
+  { id: 45887, name: 'Sasha Braus', series: 'Attack on Titan', gender: 'Female', favourites: 8200, image: '' },
+  { id: 129132, name: 'Kanao Tsuyuri', series: 'Demon Slayer', gender: 'Female', favourites: 5800, image: '' },
+  { id: 259, name: 'Renji Abarai', series: 'Bleach', gender: 'Male', favourites: 8600, image: '' },
+  { id: 263, name: 'Yasutora Sado', series: 'Bleach', gender: 'Male', favourites: 4900, image: '' },
+  { id: 4839, name: 'Gray Fullbuster', series: 'Fairy Tail', gender: 'Male', favourites: 9100, image: '' },
+  { id: 46494, name: 'Jean Kirstein', series: 'Attack on Titan', gender: 'Male', favourites: 7400, image: '' },
+  { id: 46484, name: 'Reiner Braun', series: 'Attack on Titan', gender: 'Male', favourites: 8500, image: '' },
+  { id: 92953, name: 'Tenya Iida', series: 'My Hero Academia', gender: 'Male', favourites: 6100, image: '' },
+  { id: 92956, name: 'Eijiro Kirishima', series: 'My Hero Academia', gender: 'Male', favourites: 8900, image: '' },
+  { id: 129131, name: 'Inosuke Hashibira', series: 'Demon Slayer', gender: 'Male', favourites: 9600, image: '' },
+  { id: 19662, name: 'Buggy the Clown', series: 'One Piece', gender: 'Male', favourites: 7500, image: '' },
+  { id: 9684, name: 'Kankuro', series: 'Naruto', gender: 'Male', favourites: 4200, image: '' },
+  // Rank C (R$ 3–5) — Femininos e Masculinos comuns
+  { id: 1694, name: 'Tenten', series: 'Naruto', gender: 'Female', favourites: 2900, image: '' },
+  { id: 1689, name: 'Ino Yamanaka', series: 'Naruto', gender: 'Female', favourites: 3100, image: '' },
+  { id: 2514, name: 'Tashigi', series: 'One Piece', gender: 'Female', favourites: 2400, image: '' },
+  { id: 3001, name: 'Momo Hinamori', series: 'Bleach', gender: 'Female', favourites: 1900, image: '' },
+  { id: 2962, name: 'Soi Fon', series: 'Bleach', gender: 'Female', favourites: 2700, image: '' },
+  { id: 92964, name: 'Mina Ashido', series: 'My Hero Academia', gender: 'Female', favourites: 3200, image: '' },
+  { id: 121942, name: 'Charmy Pappitson', series: 'Black Clover', gender: 'Female', favourites: 1600, image: '' },
+  { id: 36829, name: 'Koala', series: 'One Piece', gender: 'Female', favourites: 1450, image: '' },
+  { id: 15810, name: 'Karin Uzumaki', series: 'Naruto', gender: 'Female', favourites: 1350, image: '' },
+  { id: 1875, name: 'Alvida', series: 'One Piece', gender: 'Female', favourites: 950, image: '' },
+  { id: 9382, name: 'Kiba Inuzuka', series: 'Naruto', gender: 'Male', favourites: 2800, image: '' },
+  { id: 2423, name: 'Shino Aburame', series: 'Naruto', gender: 'Male', favourites: 2500, image: '' },
+  { id: 2425, name: 'Choji Akimichi', series: 'Naruto', gender: 'Male', favourites: 1800, image: '' },
+  { id: 2431, name: 'Konohamaru Sarutobi', series: 'Naruto', gender: 'Male', favourites: 1500, image: '' },
+  { id: 5255, name: 'Koby', series: 'One Piece', gender: 'Male', favourites: 2600, image: '' },
+  { id: 73995, name: 'Bartolomeo', series: 'One Piece', gender: 'Male', favourites: 2300, image: '' },
+  { id: 46496, name: 'Connie Springer', series: 'Attack on Titan', gender: 'Male', favourites: 2100, image: '' },
+  { id: 92955, name: 'Denki Kaminari', series: 'My Hero Academia', gender: 'Male', favourites: 3300, image: '' },
+  { id: 121941, name: 'Magna Swing', series: 'Black Clover', gender: 'Male', favourites: 1700, image: '' },
+  { id: 9811, name: 'Iruka Umino', series: 'Naruto', gender: 'Male', favourites: 2700, image: '' },
 ];
 
 type RawCharSeed = Omit<MudaeChar, 'claimRank' | 'baseValue' | 'tierIndex' | 'tierLabel'>;
@@ -430,8 +453,10 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
   for (const s of seeds) {
     if (!s.id) continue;
     const prev = dedup.get(s.id);
-    if (!prev || s.favourites > prev.favourites) {
+    if (!prev) {
       dedup.set(s.id, s);
+    } else if ((!prev.image && s.image) || s.favourites > prev.favourites) {
+      dedup.set(s.id, { ...s, image: s.image || prev.image || '' });
     }
   }
 
@@ -539,12 +564,29 @@ function pickRandomPageForTier(tierIndex: number): number {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function normalizeGender(raw: any): CharGender {
-  if (typeof raw !== 'string') return 'Other';
-  const g = raw.trim().toLowerCase();
-  if (g === 'female') return 'Female';
-  if (g === 'male') return 'Male';
+type ApiSourceStatus = 'loading' | 'anilist' | 'jikan' | 'fallback';
+
+function hashGenderFallback(seedKey: string): CharGender {
+  let h = 2166136261;
+  for (let i = 0; i < seedKey.length; i++) {
+    h ^= seedKey.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const mod = (h >>> 0) % 100;
+  if (mod < 48) return 'Female';
+  if (mod < 96) return 'Male';
   return 'Other';
+}
+
+function normalizeGender(raw: any, idHint?: string | number, nameHint?: string): CharGender {
+  if (typeof raw === 'string') {
+    const g = raw.trim().toLowerCase();
+    if (g === 'female') return 'Female';
+    if (g === 'male') return 'Male';
+    if (g === 'non-binary' || g === 'other') return 'Other';
+  }
+  // Páginas profundas da AniList muitas vezes vêm com gender: null — distribuímos deterministicamente p/ $wa/$ha
+  return hashGenderFallback(`${idHint ?? ''}:${nameHint ?? ''}`);
 }
 
 function mapAniListNode(ch: any, fallbackSeries?: string): RawCharSeed | null {
@@ -566,57 +608,53 @@ function mapAniListNode(ch: any, fallbackSeries?: string): RawCharSeed | null {
     name: ch.name?.full || 'Personagem',
     series,
     image: ch.image?.large || '',
-    gender: normalizeGender(ch.gender),
+    gender: normalizeGender(ch.gender, ch.id, ch.name?.full),
     favourites: typeof ch.favourites === 'number' && Number.isFinite(ch.favourites) ? ch.favourites : 400,
     role,
   };
 }
 
-// Fetch real AniList portraits/IDs for canonical Mudae Top 30 characters in 1 batched GraphQL call
-async function fetchCanonicalTopCharsFromAniList(): Promise<RawCharSeed[]> {
-  const fields = CANONICAL_TOP_FETCH_NAMES.map(
-    (charName, i) => `
-      c${i}: Page(page: 1, perPage: 1) {
-        characters(search: ${JSON.stringify(charName)}, sort: [FAVOURITES_DESC]) {
-          id
-          name { full }
-          gender
-          favourites
-          image { large }
-          media(sort: [POPULARITY_DESC], perPage: 1) {
-            edges {
-              characterRole
-              node { title { romaji english } }
-            }
-          }
-        }
+// Fallback automático para a API Jikan (MyAnimeList) quando a AniList limitar (HTTP 429) ou falhar
+async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> {
+  const seeds: RawCharSeed[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    const p = Math.max(1, pages[i]);
+    try {
+      const res = await fetch(`https://api.jikan.moe/v4/characters?page=${p}&limit=25&order_by=favorites&sort=desc`);
+      if (!res.ok) continue;
+      const json = await res.json();
+      const list = Array.isArray(json?.data) ? json.data : [];
+      for (const ch of list) {
+        if (!ch?.mal_id) continue;
+        const rawFav = typeof ch.favorites === 'number' && Number.isFinite(ch.favorites) ? ch.favorites : 500;
+        const scaledFav = Math.round(rawFav * 0.65);
+        seeds.push({
+          id: `mal_${ch.mal_id}`,
+          name: ch.name || 'Personagem',
+          series: Array.isArray(ch.nicknames) && ch.nicknames[0] ? String(ch.nicknames[0]) : 'Anime Catalog (MAL)',
+          image: ch.images?.jpg?.image_url || '',
+          gender: normalizeGender(undefined, ch.mal_id, ch.name),
+          favourites: scaledFav,
+          role: 'Main',
+        });
       }
-    `
-  );
-  try {
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ query: `query { ${fields.join('\n')} }` }),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    const data = json?.data || {};
-    const seeds: RawCharSeed[] = [];
-    for (let i = 0; i < CANONICAL_TOP_FETCH_NAMES.length; i++) {
-      const ch = data[`c${i}`]?.characters?.[0];
-      const mapped = mapAniListNode(ch);
-      if (mapped) seeds.push(mapped);
+      if (i < pages.length - 1) {
+        await new Promise((r) => setTimeout(r, 420));
+      }
+    } catch {
+      /* ignore individual page failure */
     }
-    return seeds;
-  } catch {
-    return [];
   }
+  return seeds;
 }
 
-// Fetch arbitrary explicit list of AniList pages (up to 4 per aliased request)
-async function fetchAniListPagesList(pages: number[]): Promise<RawCharSeed[]> {
-  const fields = pages.map(
+// Fetch arbitrary explicit list of AniList pages (máx 3 páginas por request p/ evitar 429, c/ fallback Jikan)
+async function fetchAniListPagesList(
+  pages: number[],
+  onSourceUsed?: (src: 'anilist' | 'jikan') => void
+): Promise<RawCharSeed[]> {
+  const cappedPages = pages.slice(0, 3);
+  const fields = cappedPages.map(
     (p, i) => `
       p${i}: Page(page: ${p}, perPage: 50) {
         characters(sort: [FAVOURITES_DESC]) {
@@ -637,26 +675,39 @@ async function fetchAniListPagesList(pages: number[]): Promise<RawCharSeed[]> {
   );
 
   const query = `query { ${fields.join('\n')} }`;
-  const res = await fetch('https://graphql.anilist.co', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  if (!res.ok) throw new Error(`AniList HTTP ${res.status}`);
-  const json = await res.json();
-  const data = json?.data || {};
-  const seeds: RawCharSeed[] = [];
+  try {
+    const res = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!res.ok) throw new Error(`AniList HTTP ${res.status}`);
+    const json = await res.json();
+    const data = json?.data || {};
+    const seeds: RawCharSeed[] = [];
 
-  for (let i = 0; i < pages.length; i++) {
-    loadedPagesMemory.add(pages[i]);
-    const list = data[`p${i}`]?.characters;
-    if (!Array.isArray(list)) continue;
-    for (const ch of list) {
-      const mapped = mapAniListNode(ch);
-      if (mapped) seeds.push(mapped);
+    for (let i = 0; i < cappedPages.length; i++) {
+      loadedPagesMemory.add(cappedPages[i]);
+      const list = data[`p${i}`]?.characters;
+      if (!Array.isArray(list)) continue;
+      for (const ch of list) {
+        const mapped = mapAniListNode(ch);
+        if (mapped) seeds.push(mapped);
+      }
     }
+    if (seeds.length > 0) {
+      onSourceUsed?.('anilist');
+      return seeds;
+    }
+    throw new Error('AniList empty payload');
+  } catch {
+    const jikanSeeds = await fetchJikanPagesFallback(cappedPages);
+    if (jikanSeeds.length > 0) {
+      for (const p of cappedPages) loadedPagesMemory.add(p);
+      onSourceUsed?.('jikan');
+    }
+    return jikanSeeds;
   }
-  return seeds;
 }
 
 async function fetchRandomUnloadedPageForTier(
@@ -744,7 +795,7 @@ async function searchAndImportFromGlobalApi(searchTerm: string): Promise<RawChar
               name: edge.node.name?.full || 'Personagem',
               series: animeTitle,
               image: edge.node.image?.large || '',
-              gender: normalizeGender(edge.node.gender),
+              gender: normalizeGender(edge.node.gender, edge.node.id, edge.node.name?.full),
               favourites:
                 typeof edge.node.favourites === 'number' && Number.isFinite(edge.node.favourites)
                   ? edge.node.favourites
@@ -888,6 +939,7 @@ export default function AnimeGacha({
   const [tab, setTab] = useState<MudaeTab>('roll');
   const [catalog, setCatalog] = useState<MudaeChar[]>(() => cachedMudaeMemory || buildFallbackCatalog());
   const [loadingStatus, setLoadingStatus] = useState<string>('');
+  const [apiSourceStatus, setApiSourceStatus] = useState<ApiSourceStatus>('loading');
   const [expandingApi, setExpandingApi] = useState(false);
   const [searchingGlobal, setSearchingGlobal] = useState(false);
   const [rollingMode, setRollingMode] = useState<RollMode | null>(null);
@@ -1019,109 +1071,140 @@ export default function AnimeGacha({
     return () => unsub();
   }, [userId, onSellCard, play, showToast]);
 
-  // Multi-wave AniList catalog hydration mixing Top famous + Deep tiers right from Wave 1
-  useEffect(() => {
-    if (cachedMudaeMemory && cachedMudaeMemory.length >= 1000) {
+  const syncTokenRef = useRef(0);
+
+  const syncCatalogFromApi = useCallback(async (forceRefresh = false) => {
+    const token = ++syncTokenRef.current;
+    const isStale = () => syncTokenRef.current !== token;
+
+    if (forceRefresh) {
+      cachedMudaeMemory = null;
+      loadedWavePageMemory = 0;
+      loadedPagesMemory.clear();
+      try {
+        localStorage.removeItem(CATALOG_CACHE_KEY);
+      } catch {}
+    }
+
+    if (!forceRefresh && cachedMudaeMemory && cachedMudaeMemory.length >= 400) {
       setCatalog(cachedMudaeMemory);
+      setApiSourceStatus('anilist');
       return;
     }
 
-    try {
-      const rawCache = localStorage.getItem(CATALOG_CACHE_KEY);
-      if (rawCache) {
-        const parsed = JSON.parse(rawCache);
-        if (Array.isArray(parsed) && parsed.length >= 800) {
-          cachedMudaeMemory = parsed;
-          loadedWavePageMemory = 32;
-          for (let p = 1; p <= 32; p++) loadedPagesMemory.add(p);
-          setCatalog(parsed);
-          return;
-        }
-      }
-    } catch { /* ignore */ }
-
-    let cancelled = false;
-    (async () => {
+    if (!forceRefresh) {
       try {
-        setLoadingStatus('Carregando TOP Mudae (ka = R$) + catálogo variado da AniList API...');
-        // Wave 1 mixes Top pages (1,2) + Mid/Low pages (12,26) + Canonical TOP 30 portraits!
-        const [wave1, canonicalTop] = await Promise.all([
-          fetchAniListPagesList([1, 2, 12, 26]),
-          fetchCanonicalTopCharsFromAniList(),
-        ]);
-        if (cancelled) return;
-        let currentCatalog = mergeCatalogChars(catalogRef.current.length > 30 ? catalogRef.current : [], [...wave1, ...canonicalTop]);
-        cachedMudaeMemory = currentCatalog;
-        loadedWavePageMemory = 4;
-        setCatalog(currentCatalog);
-        saveCatalogToStorage(currentCatalog);
-
-        const batches: number[][] = [
-          [3, 4, 5, 6],
-          [7, 8, 9, 10],
-          [11, 13, 14, 15],
-          [16, 17, 18, 19],
-          [20, 21, 22, 23],
-          [24, 25, 27, 28],
-          [29, 30, 31, 32],
-        ];
-        for (const pageBatch of batches) {
-          if (cancelled) return;
-          setLoadingStatus(`Expandindo catálogo AniList (${currentCatalog.length} bonecos carregados)...`);
-          await new Promise((r) => setTimeout(r, 650));
-          if (cancelled) return;
-          try {
-            const batch = await fetchAniListPagesList(pageBatch);
-            if (batch.length > 0 && !cancelled) {
-              currentCatalog = mergeCatalogChars(catalogRef.current, batch);
-              cachedMudaeMemory = currentCatalog;
-              loadedWavePageMemory = Math.max(loadedWavePageMemory, Math.max(...pageBatch));
-              setCatalog(currentCatalog);
+        const rawCache = localStorage.getItem(CATALOG_CACHE_KEY);
+        if (rawCache) {
+          const parsed = JSON.parse(rawCache);
+          if (Array.isArray(parsed) && parsed.length >= 400) {
+            cachedMudaeMemory = parsed;
+            loadedWavePageMemory = 32;
+            for (const p of [1, 2, 5, 8, 11, 14, 16, 18, 22, 24, 28, 32, 35, 40, 42, 50, 55, 60, 65, 70, 85, 90, 105, 110, 125, 130, 150, 155, 170, 175, 190]) {
+              loadedPagesMemory.add(p);
             }
-          } catch {
-            // Skip failed wave gracefully
+            setCatalog(parsed);
+            setApiSourceStatus('anilist');
+            return;
           }
         }
+      } catch { /* ignore */ }
+    }
 
-        if (!cancelled && currentCatalog.length > 0) {
-          saveCatalogToStorage(currentCatalog);
-        }
-      } catch {
-        if (!cancelled) setCatalog(buildFallbackCatalog());
-      } finally {
-        if (!cancelled) setLoadingStatus('');
-      }
-    })();
-
-    return () => {
-      cancelled = true;
+    setApiSourceStatus('loading');
+    let detectedSource: 'anilist' | 'jikan' | null = null;
+    const recordSource = (src: 'anilist' | 'jikan') => {
+      if (!detectedSource) detectedSource = src;
+      else if (detectedSource !== src && src === 'anilist') detectedSource = 'anilist';
     };
+
+    try {
+      setLoadingStatus('Conectando à AniList/Jikan (priorizando Rank C/B + Top ícones)...');
+      // 1ª onda enxuta (3 páginas = 150 chars sem causar HTTP 429), priorizando Rank C/B
+      const wave1 = await fetchAniListPagesList([1, 35, 90], recordSource);
+      if (isStale()) return;
+
+      let currentCatalog = mergeCatalogChars(buildFallbackCatalog(), wave1);
+      cachedMudaeMemory = currentCatalog;
+      loadedWavePageMemory = 90;
+      setCatalog(currentCatalog);
+      saveCatalogToStorage(currentCatalog);
+      if (detectedSource) setApiSourceStatus(detectedSource);
+
+      // Lotes sequenciais de 3 páginas com pausa segura (950ms) para evitar HTTP 429 e encher Rank C/B
+      const batches: number[][] = [
+        [14, 50, 125],
+        [24, 70, 150],
+        [5, 42, 170],
+        [2, 16, 105],
+        [8, 60, 190],
+      ];
+
+      for (const pageBatch of batches) {
+        if (isStale()) return;
+        setLoadingStatus(`Sincronizando catálogo AniList (${currentCatalog.length} bonecos carregados)...`);
+        await new Promise((r) => setTimeout(r, 950));
+        if (isStale()) return;
+        try {
+          const batch = await fetchAniListPagesList(pageBatch, recordSource);
+          if (batch.length > 0 && !isStale()) {
+            currentCatalog = mergeCatalogChars(catalogRef.current, batch);
+            cachedMudaeMemory = currentCatalog;
+            loadedWavePageMemory = Math.max(loadedWavePageMemory, Math.max(...pageBatch));
+            setCatalog(currentCatalog);
+            if (detectedSource) setApiSourceStatus(detectedSource);
+          }
+        } catch {
+          // Pula lote silenciosamente sem quebrar a fila
+        }
+      }
+
+      if (!isStale() && currentCatalog.length > 0) {
+        saveCatalogToStorage(currentCatalog);
+        if (!detectedSource) setApiSourceStatus('fallback');
+      }
+    } catch {
+      if (!isStale()) {
+        setCatalog(buildFallbackCatalog());
+        setApiSourceStatus('fallback');
+      }
+    } finally {
+      if (!isStale()) setLoadingStatus('');
+    }
   }, []);
 
-  // On-demand catalog expansion (+800 characters per click)
+  // Multi-wave AniList + Jikan hydration with Rank C/B majority
+  useEffect(() => {
+    syncCatalogFromApi(false);
+    return () => {
+      syncTokenRef.current += 1;
+    };
+  }, [syncCatalogFromApi]);
+
+  // On-demand catalog expansion (+450 characters per click em lotes seguros de 3 páginas)
   const handleExpandCatalog = useCallback(async () => {
     if (expandingApi) return;
     setExpandingApi(true);
     try {
-      const basePage = Math.max(33, loadedWavePageMemory + 1);
+      const basePage = Math.max(20, loadedWavePageMemory + 1);
       let working = catalogRef.current;
-      for (let w = 0; w < 4; w++) {
-        const s = basePage + w * 4;
-        setLoadingStatus(`Importando mais animes (páginas ${s}–${s + 3})...`);
-        const batch = await fetchAniListPagesList([s, s + 1, s + 2, s + 3]);
+      for (let w = 0; w < 3; w++) {
+        const s = basePage + w * 3;
+        setLoadingStatus(`Importando mais animes (páginas ${s}–${s + 2})...`);
+        const batch = await fetchAniListPagesList([s, s + 1, s + 2], (src) => setApiSourceStatus(src));
         if (batch.length > 0) {
           working = mergeCatalogChars(working, batch);
           cachedMudaeMemory = working;
-          loadedWavePageMemory = s + 3;
+          loadedWavePageMemory = s + 2;
           setCatalog(working);
           saveCatalogToStorage(working);
         }
-        await new Promise((r) => setTimeout(r, 550));
+        await new Promise((r) => setTimeout(r, 900));
       }
       play('levelup');
       showToast(`🌌 Catálogo expandido! Agora há ${working.length} personagens na roleta!`, 'success');
     } catch {
-      showToast('AniList API ocupada no momento. Tente novamente em instantes.', 'warn');
+      showToast('API ocupada no momento. Tente novamente em instantes.', 'warn');
     } finally {
       setLoadingStatus('');
       setExpandingApi(false);
@@ -1245,8 +1328,21 @@ export default function AnimeGacha({
     return Array.from(counts.values()).sort((a, b) => b.count - a.count || a.topRank - b.topRank);
   }, [catalog]);
 
+  const tierCounts = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0];
+    for (const c of catalog) {
+      if (c.tierIndex >= 0 && c.tierIndex <= 4) counts[c.tierIndex] += 1;
+    }
+    return counts;
+  }, [catalog]);
+
   // Strict 5 Free Rolls + 2 Extra Rolls (R$ 100 each) per hour!
-  const luckMultiplier = 1 + mudaeData.tower.floor1Rolls * 0.15;
+  const luckMultiplier = 1 + mudaeData.tower.floor1Rolls * 0.10;
+  const tierProbabilities = useMemo(() => {
+    const weights = getTierWeights(luckMultiplier);
+    const total = weights.reduce((a, b) => a + b, 0);
+    return weights.map((w) => (w / total) * 100);
+  }, [luckMultiplier]);
   const maxClaimsPerHour =
     1 + (mudaeData.tower.floor5Claims >= 1 ? 1 : 0) + (mudaeData.tower.floor5Claims >= 4 ? 1 : 0);
   const maxWishSlots = 5 + mudaeData.tower.floor4Slots * 2;
@@ -1302,17 +1398,39 @@ export default function AnimeGacha({
       }
       if (pool.length === 0) pool = source;
 
-      const wishMatches = pool.filter((c) => wishSet.has(c.id));
-      const wishBonusChance = Math.min(0.35, wishMatches.length * 0.015 * wishSpawnWeight);
-      if (wishMatches.length > 0 && Math.random() < wishBonusChance) {
-        return wishMatches[Math.floor(Math.random() * wishMatches.length)];
-      }
-
       if (targetTier !== undefined) {
-        const tierPool = pool.filter((c) => c.tierIndex === targetTier);
-        if (tierPool.length > 0) {
-          return tierPool[Math.floor(Math.random() * tierPool.length)];
+        const wishMatches = pool.filter((c) => wishSet.has(c.id));
+        const upgradeChance = Math.min(0.015, wishMatches.length * 0.0035);
+        if (wishMatches.length > 0 && Math.random() < upgradeChance) {
+          return wishMatches[Math.floor(Math.random() * wishMatches.length)];
         }
+
+        let candidatePool = pool.filter((c) => c.tierIndex === targetTier);
+        if (candidatePool.length === 0) {
+          for (let t = targetTier - 1; t >= 0; t--) {
+            candidatePool = pool.filter((c) => c.tierIndex === t);
+            if (candidatePool.length > 0) break;
+          }
+        }
+        if (candidatePool.length === 0) {
+          for (let t = targetTier + 1; t <= 4; t++) {
+            candidatePool = pool.filter((c) => c.tierIndex === t);
+            if (candidatePool.length > 0) break;
+          }
+        }
+        if (candidatePool.length === 0) candidatePool = pool;
+
+        const weightedTier = candidatePool.map((c) => ({
+          char: c,
+          weight: wishSet.has(c.id) ? wishSpawnWeight : 1,
+        }));
+        const totalTierW = weightedTier.reduce((sum, x) => sum + x.weight, 0);
+        let tr = Math.random() * totalTierW;
+        for (const item of weightedTier) {
+          tr -= item.weight;
+          if (tr <= 0) return item.char;
+        }
+        return candidatePool[Math.floor(Math.random() * candidatePool.length)];
       }
 
       const tierWeights = getTierWeights(luckMultiplier);
@@ -1372,14 +1490,15 @@ export default function AnimeGacha({
           return !disabledSet.has(c.series);
         }).length;
 
-        // Fetches an unloaded page directly from AniList when cache is cold/small or 45% of rolls to reach 10k+ chars
+        // Fetches an unloaded page directly from AniList/Jikan when cache is cold/small or 45% of rolls to reach 10k+ chars
         const shouldFetchLivePage =
-          workingCatalog.length <= 30 || matchingTierCount < 12 || Math.random() < 0.45;
+          workingCatalog.length <= 75 || matchingTierCount < 12 || Math.random() < 0.45;
 
         if (shouldFetchLivePage) {
-          const backupTier = workingCatalog.length <= 30 ? (targetTier === 0 ? 1 : 0) : undefined;
+          const backupTier = workingCatalog.length <= 75 ? (targetTier === 0 ? 1 : 0) : undefined;
           const liveSeeds = await fetchRandomUnloadedPageForTier(targetTier, 1400, backupTier);
           if (liveSeeds.length > 0) {
+            setApiSourceStatus((prev) => (prev === 'loading' ? 'anilist' : prev));
             const merged = mergeCatalogChars(catalogRef.current, liveSeeds);
             workingCatalog = merged;
             cachedMudaeMemory = merged;
@@ -2259,6 +2378,35 @@ export default function AnimeGacha({
               <span className="text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-2 py-0.5 rounded-full">
                 {catalog.length} Bonecos • {availableSeries.length} Animes
               </span>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                  apiSourceStatus === 'anilist'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                    : apiSourceStatus === 'jikan'
+                      ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35'
+                      : apiSourceStatus === 'loading'
+                        ? 'bg-purple-500/15 text-purple-200 border-purple-400/40'
+                        : 'bg-amber-500/15 text-amber-300 border-amber-500/35'
+                }`}
+              >
+                {apiSourceStatus === 'anilist'
+                  ? '🟢 API AniList Conectada'
+                  : apiSourceStatus === 'jikan'
+                    ? '🟢 API Jikan (MAL) Ativa'
+                    : apiSourceStatus === 'loading'
+                      ? '🔄 Sincronizando API...'
+                      : '🟠 Catálogo Base'}
+              </span>
+              <button
+                type="button"
+                disabled={apiSourceStatus === 'loading'}
+                onClick={() => syncCatalogFromApi(true)}
+                className="text-[10px] font-mono font-bold bg-[#0d1222] hover:bg-[#17203a] text-slate-200 border border-white/15 px-2.5 py-0.5 rounded-full cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1"
+                title="Forçar recarregamento do catálogo da API (AniList + Jikan)"
+              >
+                <RefreshCw className={`w-3 h-3 ${apiSourceStatus === 'loading' ? 'animate-spin' : ''}`} />
+                <span>Recarregar API</span>
+              </button>
               <button
                 type="button"
                 disabled={expandingApi}
@@ -2266,8 +2414,16 @@ export default function AnimeGacha({
                 className="text-[10px] font-mono font-bold bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/45 px-2.5 py-0.5 rounded-full cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1"
               >
                 <Sparkles className="w-3 h-3" />
-                <span>{expandingApi ? 'Importando...' : '+800 Bonecos API'}</span>
+                <span>{expandingApi ? 'Importando...' : '+450 Bonecos API'}</span>
               </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[9px] font-mono">
+              <span className="text-slate-400">Tiers no catálogo:</span>
+              <span className="bg-slate-500/15 border border-slate-500/30 text-slate-200 px-1.5 py-0.5 rounded">C: {tierCounts[0]}</span>
+              <span className="bg-sky-500/15 border border-sky-400/35 text-sky-300 px-1.5 py-0.5 rounded">B: {tierCounts[1]}</span>
+              <span className="bg-purple-500/15 border border-purple-400/35 text-purple-300 px-1.5 py-0.5 rounded">A: {tierCounts[2]}</span>
+              <span className="bg-amber-500/15 border border-amber-400/40 text-amber-300 px-1.5 py-0.5 rounded">S: {tierCounts[3]}</span>
+              <span className="bg-rose-500/20 border border-rose-400/45 text-rose-200 px-1.5 py-0.5 rounded">S+: {tierCounts[4]}</span>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-400 mt-1">
               Tabela oficial Mudae (<span className="text-slate-300">Rank B/C R$ 3–7</span> • <span className="text-brand font-bold">TOP Mudae até R$ 3.450</span>). Rolls ao vivo no servidor para disputar Orbes ou dar Snipe!
@@ -2402,6 +2558,28 @@ export default function AnimeGacha({
                 {rollingMode ? 'Rolando...' : 'Enviar'}
               </button>
             </form>
+
+            {/* Chances Reais de Drop por Tier */}
+            <div className="bg-[#070912] border border-[#1c2136] rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono">
+              <span className="text-slate-400 font-bold">🎲 Chances Reais por Roll:</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-200 border border-slate-500/30">
+                  Rank C (R$ 3–5): <strong>{tierProbabilities[0].toFixed(1)}%</strong>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-400/30">
+                  Rank B (R$ 5–7): <strong>{tierProbabilities[1].toFixed(1)}%</strong>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-400/35">
+                  Rank A: <strong>{tierProbabilities[2].toFixed(1)}%</strong>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-400/40">
+                  Rank S: <strong>{tierProbabilities[3].toFixed(1)}%</strong>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-200 border border-rose-400/45">
+                  Rank S+ Ícone: <strong>{tierProbabilities[4].toFixed(2)}%</strong>
+                </span>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {([
