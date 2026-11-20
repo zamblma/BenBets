@@ -101,15 +101,15 @@ const sections = [
   {
     id: 'Colecionaveis',
     title: 'Colecionáveis & Gacha',
-    desc: 'Mudae Multiplayer, Pokémon TCG, CS2 Cases, K-pop Photocards, Copa 2026 e Baús/Santuário LoL.',
+    desc: 'Genshin Impact, VALORANT Skins, Mudae Multiplayer, Pokémon TCG, CS2 Cases, K-pop, Copa 2026 e LoL.',
     icon: Star,
     accent: 'rgba(168,85,247,0.45)',
     glow: 'rgba(168,85,247,0.2)',
     iconBg: 'bg-purple-500/15 text-purple-300 border border-purple-400/30',
-    games: ['🤖 Mudae', '🃏 Pokémon', '🔫 CS2', '🎤 K-pop', '⚔️ LoL', '+2'],
+    games: ['✦ Genshin', '🎯 Valorant', '🤖 Mudae', '🃏 Pokémon', '🔫 CS2', '+4'],
     tag: 'Abrir Coleções',
     tagColor: 'text-purple-300',
-    pill: '7 Gachas',
+    pill: '9 Gachas',
   },
   {
     id: 'Todos',

@@ -41,7 +41,7 @@ import { fetchRealHockeyMatches, computeLiveOddsFromScore, parseMatchProgress } 
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { MUDAE_SEASON_VERSION, getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance, subscribeToLiveChat, sendLiveChatMessage, deleteLiveChatMessage } from './firebase/db';
+import { MUDAE_SEASON_VERSION, getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, addGenshinCards, removeGenshinCard, addValorantCards, removeValorantCard, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance, subscribeToLiveChat, sendLiveChatMessage, deleteLiveChatMessage } from './firebase/db';
 import type { MissionProgress, LeaderboardEntry, LiveChatMessage } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
@@ -62,6 +62,8 @@ import PokemonTCG from './components/PokemonTCG';
 import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
 import CS2Cases from './components/CS2Cases';
+import GenshinGacha from './components/GenshinGacha';
+import ValorantGacha from './components/ValorantGacha';
 import BetHistoryList from './components/BetHistoryList';
 import LiveChat from './components/LiveChat';
 import AuthScreen from './components/AuthScreen';
@@ -132,6 +134,8 @@ export default function App() {
   const [kpopCollection, setKpopCollection] = useState<PokemonCard[]>([]);
   const [cs2Collection, setCs2Collection] = useState<PokemonCard[]>([]);
   const [animeCollection, setAnimeCollection] = useState<PokemonCard[]>([]);
+  const [genshinCollection, setGenshinCollection] = useState<PokemonCard[]>([]);
+  const [valorantCollection, setValorantCollection] = useState<PokemonCard[]>([]);
   const [showBonus, setShowBonus] = useState(false);
   const [userName, setUserName] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
@@ -183,6 +187,8 @@ export default function App() {
         setKpopCollection(Array.isArray(d?.kpopCollection) ? d.kpopCollection : []);
         setCs2Collection(Array.isArray(d?.cs2Collection) ? d.cs2Collection : []);
         setAnimeCollection(Array.isArray(d?.animeCollection) ? d.animeCollection : []);
+        setGenshinCollection(Array.isArray(d?.genshinCollection) ? d.genshinCollection : []);
+        setValorantCollection(Array.isArray(d?.valorantCollection) ? d.valorantCollection : []);
         setUserName(d?.displayName || '');
       };
       const saveLocal = (d: any) => {
@@ -1260,6 +1266,76 @@ export default function App() {
     }
   };
 
+  const handleGenshinCollectionUpdate = (cards: PokemonCard[]) => {
+    setGenshinCollection(prev => {
+      const merged = [...prev];
+      for (const c of cards) {
+        const idx = merged.findIndex(x => x.id === c.id);
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
+        else merged.push(c);
+      }
+      if (firebaseUser) addGenshinCards(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
+  const handleSellGenshinCard = (cardId: string, price: number) => {
+    setGenshinCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    adjustBalanceSafe(price);
+    if (firebaseUser) removeGenshinCard(firebaseUser.uid, cardId).catch(() => {});
+  };
+
+  const handleSellAllGenshinDuplicates = (prices: Record<string, number>) => {
+    setGenshinCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = genshinCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    adjustBalanceSafe(total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.genshinCollection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { genshinCollection: updated });
+      }).catch(() => {});
+    }
+  };
+
+  const handleValorantCollectionUpdate = (cards: PokemonCard[]) => {
+    setValorantCollection(prev => {
+      const merged = [...prev];
+      for (const c of cards) {
+        const idx = merged.findIndex(x => x.id === c.id);
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + 1 };
+        else merged.push(c);
+      }
+      if (firebaseUser) addValorantCards(firebaseUser.uid, cards).catch(() => {});
+      return merged;
+    });
+  };
+
+  const handleSellValorantCard = (cardId: string, price: number) => {
+    setValorantCollection(prev => prev.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0));
+    adjustBalanceSafe(price);
+    if (firebaseUser) removeValorantCard(firebaseUser.uid, cardId).catch(() => {});
+  };
+
+  const handleSellAllValorantDuplicates = (prices: Record<string, number>) => {
+    setValorantCollection(prev => prev.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c));
+    const total = valorantCollection.filter(c => c.quantity > 1).reduce((sum, c) => sum + (prices[c.id] ?? 0) * (c.quantity - 1), 0);
+    adjustBalanceSafe(total);
+    if (firebaseUser) {
+      const ref = doc(db, 'users', firebaseUser.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const existing: PokemonCard[] = data.valorantCollection || [];
+        const updated = existing.map(c => c.quantity > 1 ? { ...c, quantity: 1 } : c);
+        updateDoc(ref, { valorantCollection: updated });
+      }).catch(() => {});
+    }
+  };
+
   // Sportsbook leagues, status counters, and filtered/grouped matches
   const sportScopedMatches = useMemo(() => {
     if (selectedSport !== 'Todos') return matches.filter((m) => m.sport === selectedSport);
@@ -1335,6 +1411,8 @@ export default function App() {
       kpopCollection,
       cs2Collection,
       animeCollection,
+      genshinCollection,
+      valorantCollection,
     ];
     let uniqueCards = 0;
     let totalCards = 0;
@@ -1377,6 +1455,8 @@ export default function App() {
     kpopCollection,
     cs2Collection,
     animeCollection,
+    genshinCollection,
+    valorantCollection,
   ]);
 
   const myBalanceRank = useMemo(() => {
@@ -1914,6 +1994,8 @@ export default function App() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { id: 'Anime', name: 'Mudae Anime Bot', icon: '🤖', desc: 'Roletas $wa / $ha, casamento exclusivo no servidor, Torre R$ e Wishlist', accent: 'rgba(168,85,247,0.45)', glow: 'rgba(168,85,247,0.22)', chip: '💖', badge: 'Mudae + AniList API' },
+                      { id: 'Genshin', name: 'Genshin Impact', icon: '✦', desc: 'Orações 1× e 10× com Pity 90, 50/50, Arcontes 5★ e Constelações (10× valor real)', accent: 'rgba(251,191,36,0.45)', glow: 'rgba(251,191,36,0.24)', chip: '🌟', badge: 'NOVO • API Yatta (10×)' },
+                      { id: 'Valorant', name: 'VALORANT Skins', icon: '🎯', desc: 'Cápsulas & Mercado Noturno 5× com Select até Ultra + Facas 2× (10× valor real)', accent: 'rgba(255,70,85,0.45)', glow: 'rgba(255,70,85,0.24)', chip: '🗡️', badge: 'NOVO • Valorant-API (10×)' },
                       { id: 'Pokemon', name: 'Pokémon TCG', icon: '🃏', desc: 'Cartas com raridades, mercado e coleção', accent: 'rgba(245,158,11,0.4)', glow: 'rgba(245,158,11,0.2)', chip: '💥', badge: 'TCGdex CDN' },
                       { id: 'CS2', name: 'CS2 Cases', icon: '🔫', desc: '25 caixas Panorama com Float real (0.00–1.00) e StatTrak™', accent: 'rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.2)', chip: '🎯', badge: 'CSGO-API CDN' },
                       { id: 'Kpop', name: 'K-pop Photocards', icon: '🎤', desc: 'Álbuns, Máquina Lucky Draw e Polaroids Assinadas 1/1 (0,5%) de 23 grupos', accent: 'rgba(236,72,153,0.4)', glow: 'rgba(236,72,153,0.2)', chip: '🎵', badge: 'Commons + Wiki API' },
@@ -1971,6 +2053,30 @@ export default function App() {
                       onCollectionUpdate={handleCS2CollectionUpdate}
                       onSellCard={handleSellCS2Card}
                       onSellAllDuplicates={handleSellAllCS2Duplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'Genshin' && (
+                    <GenshinGacha
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
+                      userId={firebaseUser?.uid || ''}
+                      collection={genshinCollection}
+                      onCollectionUpdate={handleGenshinCollectionUpdate}
+                      onSellCard={handleSellGenshinCard}
+                      onSellAllDuplicates={handleSellAllGenshinDuplicates}
+                    />
+                  )}
+                  {selectedColecionavel === 'Valorant' && (
+                    <ValorantGacha
+                      balance={balance}
+                      onUpdateBalance={handleDepositSuccess}
+                      onAddBetHistory={handleAddPlacedBet}
+                      userId={firebaseUser?.uid || ''}
+                      collection={valorantCollection}
+                      onCollectionUpdate={handleValorantCollectionUpdate}
+                      onSellCard={handleSellValorantCard}
+                      onSellAllDuplicates={handleSellAllValorantDuplicates}
                     />
                   )}
                   {selectedColecionavel === 'Copa' && (

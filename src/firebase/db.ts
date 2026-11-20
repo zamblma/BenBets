@@ -33,6 +33,8 @@ export interface AdminUserRecord {
   kpopCollection: PokemonCard[];
   cs2Collection: PokemonCard[];
   animeCollection: PokemonCard[];
+  genshinCollection: PokemonCard[];
+  valorantCollection: PokemonCard[];
   totalCards: number;
   uniqueCards: number;
   betsWon: number;
@@ -200,6 +202,8 @@ export async function getUserData(uid: string) {
       : Array.isArray(raw.animeCollection)
         ? raw.animeCollection
         : [],
+    genshinCollection: Array.isArray(raw.genshinCollection) ? raw.genshinCollection : [],
+    valorantCollection: Array.isArray(raw.valorantCollection) ? raw.valorantCollection : [],
   } as {
     balance: number;
     balanceRepaired?: boolean;
@@ -212,6 +216,8 @@ export async function getUserData(uid: string) {
     kpopCollection: PokemonCard[];
     cs2Collection: PokemonCard[];
     animeCollection: PokemonCard[];
+    genshinCollection: PokemonCard[];
+    valorantCollection: PokemonCard[];
   };
 }
 
@@ -229,6 +235,8 @@ export async function createUserData(uid: string, email: string, displayName?: s
     kpopCollection: [],
     cs2Collection: [],
     animeCollection: [],
+    genshinCollection: [],
+    valorantCollection: [],
     mudaeSeasonVersion: MUDAE_SEASON_VERSION,
     lastSeen: Date.now(),
     createdAt: new Date().toISOString(),
@@ -260,6 +268,8 @@ function sumCollectionStats(raw: any): { uniqueCards: number; totalCards: number
     'worldCupCollection',
     'kpopCollection',
     'cs2Collection',
+    'genshinCollection',
+    'valorantCollection',
     ...(isAnimeCurrent ? ['animeCollection'] : []),
   ];
   let uniqueCards = 0;
@@ -311,6 +321,8 @@ function mapDocToAdminRecord(uid: string, raw: any): { record: AdminUserRecord; 
       kpopCollection: Array.isArray(raw?.kpopCollection) ? raw.kpopCollection : [],
       cs2Collection: Array.isArray(raw?.cs2Collection) ? raw.cs2Collection : [],
       animeCollection: isAnimeCurrent && Array.isArray(raw?.animeCollection) ? raw.animeCollection : [],
+      genshinCollection: Array.isArray(raw?.genshinCollection) ? raw.genshinCollection : [],
+      valorantCollection: Array.isArray(raw?.valorantCollection) ? raw.valorantCollection : [],
       totalCards,
       uniqueCards,
       betsWon,
@@ -490,6 +502,56 @@ export async function removeCS2Card(uid: string, cardId: string) {
   const existing: PokemonCard[] = data.cs2Collection || [];
   const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
   await updateDoc(ref, { cs2Collection: updated });
+}
+
+export async function addGenshinCards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.genshinCollection || [];
+  const merged: PokemonCard[] = [...existing];
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) { merged[idx].quantity += 1; }
+    else { merged.push(newCard); }
+  }
+  await updateDoc(ref, { genshinCollection: merged });
+}
+
+export async function removeGenshinCard(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.genshinCollection || [];
+  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  await updateDoc(ref, { genshinCollection: updated });
+}
+
+export async function addValorantCards(uid: string, newCards: PokemonCard[]) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.valorantCollection || [];
+  const merged: PokemonCard[] = [...existing];
+  for (const newCard of newCards) {
+    const idx = merged.findIndex(c => c.id === newCard.id);
+    if (idx >= 0) { merged[idx].quantity += 1; }
+    else { merged.push(newCard); }
+  }
+  await updateDoc(ref, { valorantCollection: merged });
+}
+
+export async function removeValorantCard(uid: string, cardId: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const existing: PokemonCard[] = data.valorantCollection || [];
+  const updated = existing.map(c => c.id === cardId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0);
+  await updateDoc(ref, { valorantCollection: updated });
 }
 
 export async function getAnimeGachaPackData(uid: string): Promise<{ count: number; firstPackTime: number }> {
@@ -1415,6 +1477,8 @@ export async function adminResetUser(uid: string, clearCollections = false) {
     payload.kpopCollection = [];
     payload.cs2Collection = [];
     payload.animeCollection = [];
+    payload.genshinCollection = [];
+    payload.valorantCollection = [];
   }
   await setDoc(doc(db, 'users', uid), payload, { merge: true });
 }
