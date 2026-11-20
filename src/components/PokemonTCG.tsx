@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
-import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2 } from 'lucide-react';
+import { Gift, Package, Search, Loader2, Sparkles, BookOpen, ArrowLeft, Star, TrendingUp, DollarSign, Trash2, Lock, Check } from 'lucide-react';
 import type { PokemonCard } from '../types';
 import { useSound } from '../hooks/useSound';
 import { updateMissionProgress } from '../firebase/db';
@@ -12,6 +12,88 @@ const TCGDEX_GRAPHQL_URL = 'https://api.tcgdex.net/v2/graphql';
 
 let cachedPokemonSetsMemory: TCGSets[] | null = null;
 const cachedPokemonCardsMemory: Record<string, TCGCard[]> = {};
+
+async function loadSetCardsFromSources(setId: string): Promise<TCGCard[]> {
+  if (cachedPokemonCardsMemory[setId]?.length > 0) {
+    return cachedPokemonCardsMemory[setId];
+  }
+
+  const cacheKey = `pokemonCards_${setId}`;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached) as TCGCard[];
+      if (parsed.length > 0) {
+        cachedPokemonCardsMemory[setId] = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+
+  let cards: TCGCard[] = [];
+
+  try {
+    const cdnRes = await fetch(`${CDN_DATA_BASE}/cards/en/${encodeURIComponent(setId)}.json`);
+    if (cdnRes.ok) {
+      const cdnData = await cdnRes.json();
+      if (Array.isArray(cdnData) && cdnData.length > 0) {
+        cards = cdnData;
+      }
+    }
+  } catch {}
+
+  if (cards.length === 0) {
+    try {
+      const gqlRes = await fetch(TCGDEX_GRAPHQL_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          query: `{ set(id: "${setId.replace(/"/g, '')}") { id name serie { name } cards { id name rarity image } } }`,
+        }),
+      });
+      if (gqlRes.ok) {
+        const gqlJson = await gqlRes.json();
+        const dexSet = gqlJson?.data?.set;
+        if (Array.isArray(dexSet?.cards) && dexSet.cards.length > 0) {
+          cards = dexSet.cards
+            .filter((c: any) => c?.image)
+            .map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              rarity: c.rarity || 'Common',
+              images: {
+                small: `${c.image}/low.webp`,
+                large: `${c.image}/high.webp`,
+              },
+              set: {
+                name: dexSet.name || setId,
+                series: dexSet.serie?.name || 'Scarlet & Violet',
+              },
+            }));
+        }
+      }
+    } catch {}
+  }
+
+  if (cards.length === 0) {
+    try {
+      const r = await fetch(`${API_BASE}/cards?q=set.id:${setId}&pageSize=250`);
+      if (r.ok) {
+        const d = await r.json();
+        cards = d.data || [];
+      }
+    } catch {}
+  }
+
+  if (cards.length > 0) {
+    cachedPokemonCardsMemory[setId] = cards;
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify(cards));
+    } catch {}
+  }
+
+  return cards;
+}
 const PACK_BASE_PRICE = 14.90;
 const PACK_OPTIONS = [
   { qty: 1, price: 14.90, label: '1 pacote' },
@@ -166,6 +248,10 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const [opening, setOpening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [seriesFilter, setSeriesFilter] = useState<string>('todas');
+  const [collectionSetFilter, setCollectionSetFilter] = useState<string>('todas');
+  const [collectionStatusFilter, setCollectionStatusFilter] = useState<'all' | 'owned' | 'missing'>('owned');
+  const [collectionSetCards, setCollectionSetCards] = useState<TCGCard[]>([]);
+  const [loadingCollectionSetCards, setLoadingCollectionSetCards] = useState(false);
   const [filterRarity, setFilterRarity] = useState('todas');
   const [sortBy, setSortBy] = useState<string>('rarity');
   const [priceVersion, setPriceVersion] = useState(0);
@@ -231,10 +317,66 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
   const selectedOption = currentPackOptions.find(o => o.qty === packQty) || currentPackOptions[0];
   const canBuy = !opening && !cardsLoading && selectedSet && balance >= selectedOption.price && setCards.length > 0;
 
+  const selectedCollectionSet = useMemo(
+    () => (collectionSetFilter === 'todas' ? null : sets.find((s) => s.name === collectionSetFilter) || null),
+    [collectionSetFilter, sets]
+  );
+
+  const ownedByIdMap = useMemo(() => {
+    const map = new Map<string, PokemonCard>();
+    for (const c of collection) map.set(c.id, c);
+    return map;
+  }, [collection]);
+
+  const collectionSetProgressList = useMemo(() => {
+    const ownedCountBySet = new Map<string, number>();
+    for (const c of collection) {
+      if (!c.setName) continue;
+      ownedCountBySet.set(c.setName, (ownedCountBySet.get(c.setName) || 0) + 1);
+    }
+    return sets
+      .map((s) => {
+        const total = Math.max(1, s.total || s.printedTotal || 1);
+        const owned = ownedCountBySet.get(s.name) || 0;
+        const missing = Math.max(0, total - owned);
+        return { set: s, total, owned, missing, pct: Math.min(100, Math.round((owned / total) * 100)) };
+      })
+      .sort((a, b) => {
+        if ((b.owned > 0 ? 1 : 0) !== (a.owned > 0 ? 1 : 0)) return (b.owned > 0 ? 1 : 0) - (a.owned > 0 ? 1 : 0);
+        if (b.owned !== a.owned) return b.owned - a.owned;
+        return 0;
+      });
+  }, [sets, collection]);
+
+  useEffect(() => {
+    if (!selectedCollectionSet) {
+      setCollectionSetCards([]);
+      setLoadingCollectionSetCards(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCollectionSetCards(true);
+    loadSetCardsFromSources(selectedCollectionSet.id)
+      .then((cards) => {
+        if (!cancelled) setCollectionSetCards(cards);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCollectionSetCards(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCollectionSet]);
+
   const filteredCards = collection
     .filter(c => {
+      if (collectionSetFilter !== 'todas' && c.setName !== collectionSetFilter) return false;
       if (filterRarity !== 'todas' && getCardRarityLevel(c.rarity).toString() !== filterRarity) return false;
-      if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (
+        searchQuery &&
+        !c.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !(c.setName || '').toLowerCase().includes(searchQuery.toLowerCase())
+      ) return false;
       return true;
     })
     .sort((a, b) => {
@@ -359,86 +501,11 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
       return cachedPokemonCardsMemory[setId];
     }
 
-    const cacheKey = `pokemonCards_${setId}`;
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached) as TCGCard[];
-        if (parsed.length > 0) {
-          cachedPokemonCardsMemory[setId] = parsed;
-          setSetCards(parsed);
-          cardsSetIdRef.current = setId;
-          return parsed;
-        }
-      }
-    } catch {}
-
     setCardsLoading(true);
     try {
-      let cards: TCGCard[] = [];
-
-      // 1) Fast jsDelivr CDN dataset
-      try {
-        const cdnRes = await fetch(`${CDN_DATA_BASE}/cards/en/${encodeURIComponent(setId)}.json`);
-        if (cdnRes.ok) {
-          const cdnData = await cdnRes.json();
-          if (Array.isArray(cdnData) && cdnData.length > 0) {
-            cards = cdnData;
-          }
-        }
-      } catch {}
-
-      // 2) TCGdex GraphQL API for newer sets not in legacy repo
-      if (cards.length === 0) {
-        try {
-          const gqlRes = await fetch(TCGDEX_GRAPHQL_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({
-              query: `{ set(id: "${setId.replace(/"/g, '')}") { id name serie { name } cards { id name rarity image } } }`,
-            }),
-          });
-          if (gqlRes.ok) {
-            const gqlJson = await gqlRes.json();
-            const dexSet = gqlJson?.data?.set;
-            if (Array.isArray(dexSet?.cards) && dexSet.cards.length > 0) {
-              cards = dexSet.cards
-                .filter((c: any) => c?.image)
-                .map((c: any) => ({
-                  id: c.id,
-                  name: c.name,
-                  rarity: c.rarity || 'Common',
-                  images: {
-                    small: `${c.image}/low.webp`,
-                    large: `${c.image}/high.webp`,
-                  },
-                  set: {
-                    name: dexSet.name || setId,
-                    series: dexSet.serie?.name || 'Scarlet & Violet',
-                  },
-                }));
-            }
-          }
-        } catch {}
-      }
-
-      // 3) Legacy pokemontcg.io fallback
-      if (cards.length === 0) {
-        try {
-          const r = await fetch(`${API_BASE}/cards?q=set.id:${setId}&pageSize=250`);
-          if (r.ok) {
-            const d = await r.json();
-            cards = d.data || [];
-          }
-        } catch {}
-      }
-
-      cachedPokemonCardsMemory[setId] = cards;
+      const cards = await loadSetCardsFromSources(setId);
       setSetCards(cards);
       cardsSetIdRef.current = setId;
-      try {
-        sessionStorage.setItem(cacheKey, JSON.stringify(cards));
-      } catch {}
       return cards;
     } catch {
       return [];
@@ -1089,13 +1156,114 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
 
       {view === 'collection' && (
         <div className="space-y-3">
-          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
+          {/* Strip horizontal de Coleções Iniciadas / Sets */}
+          {collectionSetProgressList.length > 0 && (
+            <div className="bg-[#090b13] border border-[#1a1c2a] rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                <span>📦 Suas Coleções (clique p/ filtrar cartas e ver o que falta)</span>
+                {collectionSetFilter !== 'todas' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectionSetFilter('todas');
+                      setCollectionStatusFilter('owned');
+                    }}
+                    className="text-amber-300 hover:text-amber-200 underline cursor-pointer"
+                  >
+                    Ver todas as coleções
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCollectionSetFilter('todas');
+                    setCollectionStatusFilter('owned');
+                  }}
+                  className={`shrink-0 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    collectionSetFilter === 'todas'
+                      ? 'bg-amber-500/15 border-amber-400 text-amber-300'
+                      : 'bg-[#06070d] border-[#1a1c2a] text-slate-400 hover:border-amber-500/35'
+                  }`}
+                >
+                  <div className="text-[10px] font-extrabold">🌐 Todas</div>
+                  <div className="text-[9px] font-mono mt-0.5">{collection.length} obtidas</div>
+                </button>
+                {collectionSetProgressList.slice(0, 24).map(({ set, total, owned, missing, pct }) => {
+                  const active = collectionSetFilter === set.name;
+                  return (
+                    <button
+                      key={set.id}
+                      type="button"
+                      onClick={() => {
+                        setCollectionSetFilter(set.name);
+                        setCollectionStatusFilter('all');
+                      }}
+                      className={`shrink-0 w-36 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                        active
+                          ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                          : owned > 0
+                            ? 'bg-[#070912] border-amber-500/25 hover:border-amber-400/60'
+                            : 'bg-[#06070d] border-[#1a1c2a] opacity-75 hover:opacity-100'
+                      }`}
+                    >
+                      <div className="text-[10px] font-extrabold text-white truncate">{set.name}</div>
+                      <div className="flex items-center justify-between text-[9px] font-mono mt-0.5">
+                        <span className={owned > 0 ? 'text-amber-300 font-bold' : 'text-slate-500'}>
+                          {owned}/{total}
+                        </span>
+                        <span className={missing === 0 ? 'text-emerald-400 font-bold' : 'text-rose-300'}>
+                          {missing === 0 ? '100%' : `Faltam ${missing}`}
+                        </span>
+                      </div>
+                      <div className="h-1 bg-[#05070d] rounded-full overflow-hidden mt-1">
+                        <div
+                          className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-xl p-3 space-y-2.5">
             <div className="flex gap-2 items-center">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar carta pelo nome..." className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
-              {searchQuery && <button onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white">✕</button>}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar carta pelo nome ou coleção..."
+                className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full"
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} className="text-xs text-slate-500 hover:text-white cursor-pointer">
+                  ✕
+                </button>
+              )}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              <select
+                value={collectionSetFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCollectionSetFilter(val);
+                  setCollectionStatusFilter(val === 'todas' ? 'owned' : 'all');
+                }}
+                className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50 max-w-[230px]"
+              >
+                <option value="todas">📦 Todas as Coleções ({sets.length})</option>
+                {collectionSetProgressList.map(({ set, total, owned, missing }) => (
+                  <option key={set.id} value={set.name}>
+                    {owned > 0 ? '★ ' : ''}{set.name} ({owned}/{total} • Faltam {missing})
+                  </option>
+                ))}
+              </select>
+
               <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
                 <option value="todas">Todas raridades</option>
                 <option value="0">Comum</option>
@@ -1105,6 +1273,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                 <option value="4">Ultra Rara</option>
                 <option value="5">Secret Rara</option>
               </select>
+
               <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2 py-1.5 focus:outline-none focus:border-amber-500/50">
                 <option value="rarity">Raridade ▼</option>
                 <option value="name">Nome A-Z</option>
@@ -1114,11 +1283,170 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
               </select>
             </div>
           </div>
-          {collection.length === 0 ? (
+
+          {/* PAINEL COMPLETO DE PROGRESSO E FALTANTES QUANDO UMA COLEÇÃO ESPECÍFICA ESTÁ SELECIONADA */}
+          {selectedCollectionSet ? (() => {
+            const totalInSet = collectionSetCards.length > 0 ? collectionSetCards.length : (selectedCollectionSet.total || selectedCollectionSet.printedTotal || 1);
+            const ownedInSetCards = collectionSetCards.filter((tc) => ownedByIdMap.has(tc.id));
+            const ownedInSetCount = collectionSetCards.length > 0
+              ? ownedInSetCards.length
+              : collection.filter((c) => c.setName === selectedCollectionSet.name).length;
+            const missingCount = Math.max(0, totalInSet - ownedInSetCount);
+            const pct = Math.min(100, Math.round((ownedInSetCount / totalInSet) * 100));
+
+            const visibleSetCards = collectionSetCards
+              .filter((tc) => {
+                const isOwned = ownedByIdMap.has(tc.id);
+                if (collectionStatusFilter === 'owned' && !isOwned) return false;
+                if (collectionStatusFilter === 'missing' && isOwned) return false;
+                if (filterRarity !== 'todas' && getCardRarityLevel(tc.rarity || 'Common').toString() !== filterRarity) return false;
+                if (searchQuery && !tc.name.toLowerCase().includes(searchQuery.toLowerCase()) && !selectedCollectionSet.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  return false;
+                }
+                return true;
+              })
+              .sort((a, b) => {
+                const aOwned = ownedByIdMap.has(a.id) ? 1 : 0;
+                const bOwned = ownedByIdMap.has(b.id) ? 1 : 0;
+                if (collectionStatusFilter === 'all' && bOwned !== aOwned) return bOwned - aOwned;
+                if (sortBy === 'name') return a.name.localeCompare(b.name);
+                return getCardRarityLevel(b.rarity || 'Common') - getCardRarityLevel(a.rarity || 'Common');
+              });
+
+            return (
+              <div className="space-y-3">
+                <div className="bg-[#0d0e16] border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {selectedCollectionSet.images?.logo && (
+                        <img src={selectedCollectionSet.images.logo} alt={selectedCollectionSet.name} className="h-9 object-contain bg-[#06070d] p-1.5 rounded-lg border border-white/10" />
+                      )}
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">{selectedCollectionSet.name}</h4>
+                        <p className="text-[11px] text-slate-400">
+                          {selectedCollectionSet.series} •{' '}
+                          <strong className="text-amber-300">{ownedInSetCount}/{totalInSet}</strong> cartas •{' '}
+                          <span className={missingCount === 0 ? 'text-emerald-400 font-bold' : 'text-rose-300 font-bold'}>
+                            {missingCount === 0 ? '🏆 Coleção Completa!' : `Faltam ${missingCount} para completar`}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSet(selectedCollectionSet);
+                        setView('sets');
+                        setPackResult([]);
+                        setRevealingIndex(-1);
+                        fetchSetCards(selectedCollectionSet.id);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 font-black text-[11px] cursor-pointer shrink-0 shadow"
+                    >
+                      📦 Abrir Pacote desta Coleção
+                    </button>
+                  </div>
+
+                  <div className="h-2 bg-[#07080f] rounded-full overflow-hidden border border-white/5">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-emerald-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'all' as const, label: `📋 Todas do Set (${totalInSet})` },
+                      { id: 'owned' as const, label: `✅ Possuídas (${ownedInSetCount})` },
+                      { id: 'missing' as const, label: `❌ Faltam (${missingCount})` },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setCollectionStatusFilter(st.id)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                          collectionStatusFilter === st.id
+                            ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                            : 'bg-[#07080f] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {loadingCollectionSetCards ? (
+                  <div className="flex items-center justify-center gap-2 py-12 text-amber-300 text-xs font-mono">
+                    <Loader2 className="w-5 h-5 animate-spin" /> Carregando cartas de {selectedCollectionSet.name}...
+                  </div>
+                ) : visibleSetCards.length === 0 ? (
+                  <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-10 text-center">
+                    <p className="text-slate-300 text-xs font-bold">
+                      {collectionStatusFilter === 'missing' && missingCount === 0
+                        ? `🏆 Parabéns! Não falta nenhuma carta em ${selectedCollectionSet.name}!`
+                        : 'Nenhuma carta encontrada com os filtros atuais.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                    {visibleSetCards.map((tc) => {
+                      const ownedCard = ownedByIdMap.get(tc.id);
+                      const isOwned = Boolean(ownedCard);
+                      const rarity = ownedCard?.rarity || tc.rarity || 'Common';
+                      const lvl = getCardRarityLevel(rarity);
+                      const price = pricesRef.current[tc.id] ?? getBasePrice(rarity);
+
+                      return (
+                        <div
+                          key={tc.id}
+                          className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${
+                            isOwned
+                              ? getRarityBorder(rarity)
+                              : 'border-dashed border-rose-500/35 opacity-60 hover:opacity-90 grayscale-[45%]'
+                          }`}
+                        >
+                          <div className="relative">
+                            <img src={tc.images?.small || ownedCard?.imageUrl || ''} alt={tc.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
+                            <span
+                              className={`absolute top-1 left-1 text-[7px] font-mono font-black px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 ${
+                                isOwned ? 'bg-emerald-500 text-slate-950' : 'bg-rose-600/95 text-white'
+                              }`}
+                            >
+                              {isOwned ? <><Check className="w-2.5 h-2.5" /> TENHO</> : <><Lock className="w-2.5 h-2.5" /> FALTA</>}
+                            </span>
+                            {ownedCard && ownedCard.quantity > 1 && (
+                              <button
+                                onClick={() => onSellCard(ownedCard.id, price)}
+                                className="absolute top-1 right-1 bg-emerald-500/85 hover:bg-emerald-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full transition-all cursor-pointer"
+                                title={`Vender repetida por R$ ${price.toFixed(2)}`}
+                              >
+                                ×{ownedCard.quantity} • R$ {price.toFixed(2)}
+                              </button>
+                            )}
+                          </div>
+                          <div className="p-2 text-center bg-[#080a12]">
+                            <p className="text-[9px] font-bold text-slate-100 truncate">{tc.name}</p>
+                            <p className="text-[7px] font-mono text-amber-300/85 truncate">{selectedCollectionSet.name}</p>
+                            <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${lvl >= 3 ? 'text-yellow-300' : lvl === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                              {getRarityLabel(rarity)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })() : collection.length === 0 ? (
             <div className="bg-[#0d0e16] border border-[#1a1c2a] rounded-2xl p-12 text-center">
               <Package className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm font-bold">Nenhuma carta na coleção</p>
-              <p className="text-slate-500 text-xs mt-1">Compre pacotes para começar sua coleção!</p>
+              <p className="text-slate-400 text-sm font-bold">Nenhuma carta obtida ainda</p>
+              <p className="text-slate-500 text-xs mt-1">
+                Selecione uma coleção acima para ver todas as cartas disponíveis ou compre pacotes!
+              </p>
             </div>
           ) : (
             <>
@@ -1145,7 +1473,7 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   {searchQuery || filterRarity !== 'todas' ? (
                     <><span className="text-slate-300 font-bold">{filteredCards.length}</span> resultados</>
                   ) : (
-                    <>{collection.length} cartas únicas</>
+                    <>{collection.length} cartas únicas • clique no nome da coleção em qualquer carta para ver as faltantes</>
                   )}
                 </p>
               </div>
@@ -1155,40 +1483,55 @@ export default function PokemonTCG({ balance, onUpdateBalance, userId, collectio
                   <p className="text-slate-500 text-xs mt-1">Tente ajustar os filtros.</p>
                 </div>
               ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                {filteredCards.map(card => {
-                  const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
-                  return (
-                  <motion.div
-                    key={card.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.03 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  >
-                    <div className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)} hover:shadow-lg`}>
-                      <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
-                      <div className="p-2 text-center">
-                        <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
-                        <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
-                          {getRarityLabel(card.rarity)}
-                        </span>
-                        {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
-                      </div>
-                      {card.quantity > 1 && (
-                        <button
-                          onClick={() => onSellCard(card.id, price)}
-                          className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
-                          title={`Vender por R$ ${price.toFixed(2)}`}
-                        >
-                          R$ {price.toFixed(2)}
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                  );
-                })}
-              </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {filteredCards.map(card => {
+                    const price = pricesRef.current[card.id] ?? getBasePrice(card.rarity);
+                    return (
+                      <motion.div
+                        key={card.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileHover={{ scale: 1.03 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      >
+                        <div className={`bg-[#0d0e16] rounded-xl overflow-hidden border-2 transition-all group relative ${getRarityBorder(card.rarity)} hover:shadow-lg`}>
+                          <img src={card.imageUrl} alt={card.name} className="w-full aspect-[2/3] object-cover" loading="lazy" />
+                          <div className="p-2 text-center">
+                            <p className="text-[9px] font-bold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{card.name}</p>
+                            {card.setName && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCollectionSetFilter(card.setName);
+                                  setCollectionStatusFilter('all');
+                                }}
+                                className="text-[7px] font-mono text-amber-300/90 hover:text-amber-200 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded mt-0.5 max-w-full truncate inline-block cursor-pointer"
+                                title={`Filtrar coleção ${card.setName} e ver cartas faltantes`}
+                              >
+                                📦 {card.setName}
+                              </button>
+                            )}
+                            <div>
+                              <span className={`text-[7px] font-bold inline-flex items-center gap-0.5 ${getCardRarityLevel(card.rarity) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_4px_rgba(234,179,8,0.3)]' : getCardRarityLevel(card.rarity) === 1 ? 'text-green-400' : 'text-slate-400'}`}>
+                                {getRarityLabel(card.rarity)}
+                              </span>
+                              {card.quantity > 1 && <span className="ml-1 text-[8px] text-slate-500">x{card.quantity}</span>}
+                            </div>
+                          </div>
+                          {card.quantity > 1 && (
+                            <button
+                              onClick={() => onSellCard(card.id, price)}
+                              className="absolute top-1 right-1 bg-emerald-500/80 hover:bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                              title={`Vender por R$ ${price.toFixed(2)}`}
+                            >
+                              R$ {price.toFixed(2)}
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               )}
             </>
           )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, type CSSProperties } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
-import { Search, ArrowLeft, TrendingUp, Crosshair, Loader2, Sparkles, Zap, ShieldCheck } from 'lucide-react';
+import { Search, ArrowLeft, TrendingUp, Crosshair, Loader2, Sparkles, Zap, ShieldCheck, Check, Lock } from 'lucide-react';
 import type { PlacedBet, PokemonCard } from '../types';
 import { useSound } from '../hooks/useSound';
 
@@ -528,6 +528,8 @@ export default function CS2Cases({
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState<number | null>(null);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
+  const [collectionCaseFilter, setCollectionCaseFilter] = useState<string>('todas');
+  const [collectionStatusFilter, setCollectionStatusFilter] = useState<'all' | 'owned' | 'missing'>('owned');
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const [recentDrops, setRecentDrops] = useState<RecentDropEntry[]>([]);
@@ -853,9 +855,41 @@ export default function CS2Cases({
     onSellAllDuplicates(dupePrices);
   }, [collection, onSellAllDuplicates, sellPrice]);
 
+  const cs2OwnedCards = useMemo(
+    () => collection.filter((c) => c.setSeries === 'CS2'),
+    [collection]
+  );
+
+  const isSkinOwnedInInventory = useCallback(
+    (skinId: string) => cs2OwnedCards.some((c) => c.id === skinId || c.id.startsWith(`${skinId}_`)),
+    [cs2OwnedCards]
+  );
+
+  const caseCollectionProgress = useMemo(() => {
+    return cases
+      .map((c) => {
+        const owned = c.items.filter((s) => isSkinOwnedInInventory(s.id)).length;
+        const total = c.items.length;
+        const missing = Math.max(0, total - owned);
+        const pct = total > 0 ? Math.min(100, Math.round((owned / total) * 100)) : 0;
+        return { caze: c, owned, total, missing, pct };
+      })
+      .sort((a, b) => {
+        if ((b.owned > 0 ? 1 : 0) !== (a.owned > 0 ? 1 : 0)) return (b.owned > 0 ? 1 : 0) - (a.owned > 0 ? 1 : 0);
+        return b.owned - a.owned;
+      });
+  }, [cases, isSkinOwnedInInventory]);
+
+  const selectedCollectionCaseObj = useMemo(
+    () => (collectionCaseFilter === 'todas' ? null : cases.find((c) => c.name === collectionCaseFilter) || null),
+    [collectionCaseFilter, cases]
+  );
+
   const filteredCollection = useMemo(() => {
-    return collection
-      .filter((c) => c.setSeries === 'CS2')
+    if (collectionStatusFilter === 'missing') return [];
+    const q = searchQuery.trim().toLowerCase();
+    return cs2OwnedCards
+      .filter((c) => collectionCaseFilter === 'todas' || c.setName === collectionCaseFilter)
       .filter((c) => {
         if (rarityFilter === null) return true;
         const rarMap: Record<string, number> = {
@@ -864,8 +898,35 @@ export default function CS2Cases({
         };
         return rarMap[c.rarity] === rarityFilter;
       })
-      .filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [collection, rarityFilter, searchQuery]);
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.setName || '').toLowerCase().includes(q));
+  }, [cs2OwnedCards, collectionStatusFilter, collectionCaseFilter, rarityFilter, searchQuery]);
+
+  const missingCollectionSkins = useMemo(() => {
+    if (collectionStatusFilter === 'owned') return [];
+    const q = searchQuery.trim().toLowerCase();
+    const targetCases = selectedCollectionCaseObj ? [selectedCollectionCaseObj] : cases;
+    const seen = new Set<string>();
+    const list: Array<{ skin: CSSkin; caseObj: CS2CaseData }> = [];
+
+    for (const caze of targetCases) {
+      for (const skin of caze.items) {
+        if (seen.has(skin.id) || isSkinOwnedInInventory(skin.id)) continue;
+        seen.add(skin.id);
+        if (rarityFilter !== null && skin.rarityLevel !== rarityFilter) continue;
+        if (
+          q &&
+          !skin.name.toLowerCase().includes(q) &&
+          !skin.weapon.toLowerCase().includes(q) &&
+          !caze.name.toLowerCase().includes(q)
+        ) {
+          continue;
+        }
+        list.push({ skin, caseObj: caze });
+      }
+    }
+
+    return list.sort((a, b) => b.skin.rarityLevel - a.skin.rarityLevel);
+  }, [collectionStatusFilter, selectedCollectionCaseObj, cases, isSkinOwnedInInventory, rarityFilter, searchQuery]);
 
   const casesToShow = cases.filter((c) => (tierFilter ? c.tier === tierFilter : true));
 
@@ -1351,46 +1412,205 @@ export default function CS2Cases({
 
         {tab === 'collection' && (
           <motion.div key="collection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
-              <div className="relative flex-1 min-w-[160px] max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Buscar skin..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#0d0e16] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/40"
-                />
+            {/* Strip horizontal de Caixas/Coleções com progresso e faltantes */}
+            {caseCollectionProgress.length > 0 && (
+              <div className="bg-[#090b13] border border-[#1a1d2d] rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                  <span>📦 Coleções / Caixas CS2 (clique para ver possuídas e o que falta)</span>
+                  {collectionCaseFilter !== 'todas' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollectionCaseFilter('todas');
+                        setCollectionStatusFilter('owned');
+                      }}
+                      className="text-orange-300 hover:text-orange-200 underline cursor-pointer"
+                    >
+                      Ver todas as caixas
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectionCaseFilter('todas');
+                      setCollectionStatusFilter('owned');
+                    }}
+                    className={`shrink-0 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                      collectionCaseFilter === 'todas'
+                        ? 'bg-orange-500/15 border-orange-400 text-orange-300'
+                        : 'bg-[#06070d] border-[#1a1d2d] text-slate-400 hover:border-orange-500/35'
+                    }`}
+                  >
+                    <div className="text-[10px] font-extrabold">🌐 Todas</div>
+                    <div className="text-[9px] font-mono mt-0.5">{cs2OwnedCards.length} no inventário</div>
+                  </button>
+                  {caseCollectionProgress.map(({ caze, owned, total, missing, pct }) => {
+                    const active = collectionCaseFilter === caze.name;
+                    return (
+                      <button
+                        key={caze.id}
+                        type="button"
+                        onClick={() => {
+                          setCollectionCaseFilter(caze.name);
+                          setCollectionStatusFilter('all');
+                        }}
+                        className={`shrink-0 w-36 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          active
+                            ? 'bg-orange-500/15 border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.2)]'
+                            : owned > 0
+                              ? 'bg-[#080a14] border-orange-500/25 hover:border-orange-400/60'
+                              : 'bg-[#06070d] border-[#1a1d2d] opacity-75 hover:opacity-100'
+                        }`}
+                      >
+                        <div className="text-[10px] font-extrabold text-white truncate">{caze.name}</div>
+                        <div className="flex items-center justify-between text-[9px] font-mono mt-0.5">
+                          <span className={owned > 0 ? 'text-orange-300 font-bold' : 'text-slate-500'}>
+                            {owned}/{total}
+                          </span>
+                          <span className={missing === 0 ? 'text-emerald-400 font-bold' : 'text-rose-300'}>
+                            {missing === 0 ? '100%' : `Faltam ${missing}`}
+                          </span>
+                        </div>
+                        <div className="h-1 bg-[#05070d] rounded-full overflow-hidden mt-1">
+                          <div
+                            className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-400' : 'bg-orange-400'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <button
-                onClick={() => setRarityFilter(null)}
-                className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                  rarityFilter === null ? 'bg-orange-500/15 border-orange-500/40 text-orange-300' : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d]'
-                }`}
-              >
-                Todas
-              </button>
-              {[
-                { level: 0, label: 'Azul', color: 'text-blue-400' },
-                { level: 1, label: 'Roxa', color: 'text-purple-400' },
-                { level: 2, label: 'Rosa', color: 'text-pink-400' },
-                { level: 3, label: 'Vermelha', color: 'text-red-400' },
-                { level: 4, label: '★ Ouro', color: 'text-amber-300' },
-              ].map((r) => (
+            )}
+
+            <div className="bg-[#0a0c15] border border-[#1a1d2d] rounded-xl p-3 space-y-2.5">
+              <div className="flex gap-2 flex-wrap items-center">
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar skin, arma ou caixa..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#06070d] border border-[#1a1d2d] rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand/40"
+                  />
+                </div>
+
+                <select
+                  value={collectionCaseFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCollectionCaseFilter(val);
+                    setCollectionStatusFilter(val === 'todas' ? 'owned' : 'all');
+                  }}
+                  className="bg-[#06070d] border border-[#1a1d2d] rounded-xl py-2 px-2.5 text-[10px] text-slate-200 focus:outline-none focus:border-orange-500/45 max-w-[210px]"
+                >
+                  <option value="todas">📦 Todas as Caixas ({cases.length})</option>
+                  {caseCollectionProgress.map(({ caze, owned, total, missing }) => (
+                    <option key={caze.id} value={caze.name}>
+                      {owned > 0 ? '★ ' : ''}{caze.name} ({owned}/{total} • Faltam {missing})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-1.5 flex-wrap items-center">
+                {[
+                  { id: 'owned' as const, label: '✅ No Inventário' },
+                  { id: 'all' as const, label: '📋 Todas (Tenho + Faltam)' },
+                  { id: 'missing' as const, label: '❌ Faltam Completar' },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setCollectionStatusFilter(st.id)}
+                    className={`py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                      collectionStatusFilter === st.id
+                        ? 'bg-orange-500/20 border-orange-400 text-orange-300'
+                        : 'bg-[#06070d] text-slate-400 border-[#1a1d2d] hover:text-slate-200'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+
+                <span className="text-slate-700 mx-0.5">|</span>
+
                 <button
-                  key={r.level}
-                  onClick={() => setRarityFilter(rarityFilter === r.level ? null : r.level)}
-                  className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${r.color} ${
-                    rarityFilter === r.level ? 'bg-white/10 border-white/25' : 'bg-[#0d0e16] border-[#1a1d2d]'
+                  onClick={() => setRarityFilter(null)}
+                  className={`py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                    rarityFilter === null ? 'bg-orange-500/15 border-orange-500/40 text-orange-300' : 'bg-[#06070d] text-slate-300 border-[#1a1d2d]'
                   }`}
                 >
-                  {r.label}
+                  Todas Raridades
                 </button>
-              ))}
+                {[
+                  { level: 0, label: 'Azul', color: 'text-blue-400' },
+                  { level: 1, label: 'Roxa', color: 'text-purple-400' },
+                  { level: 2, label: 'Rosa', color: 'text-pink-400' },
+                  { level: 3, label: 'Vermelha', color: 'text-red-400' },
+                  { level: 4, label: '★ Ouro', color: 'text-amber-300' },
+                ].map((r) => (
+                  <button
+                    key={r.level}
+                    onClick={() => setRarityFilter(rarityFilter === r.level ? null : r.level)}
+                    className={`py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${r.color} ${
+                      rarityFilter === r.level ? 'bg-white/10 border-white/25' : 'bg-[#06070d] border-[#1a1d2d]'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {filteredCollection.length === 0 ? (
-              <div className="omnitrix-card rounded-2xl text-center py-12 text-slate-500 text-sm">Nenhuma skin no inventário</div>
+            {selectedCollectionCaseObj && (() => {
+              const info = caseCollectionProgress.find((x) => x.caze.id === selectedCollectionCaseObj.id);
+              if (!info) return null;
+              return (
+                <div className="bg-[#090b13] border border-orange-500/30 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-extrabold text-white flex items-center gap-2 flex-wrap">
+                      <span>📦 {selectedCollectionCaseObj.name}</span>
+                      <span className="text-[10px] font-mono text-orange-300">
+                        {info.owned}/{info.total} skins ({info.pct}%)
+                      </span>
+                      <span className={`text-[10px] font-mono font-bold ${info.missing === 0 ? 'text-emerald-400' : 'text-rose-300'}`}>
+                        {info.missing === 0 ? '🏆 Caixa Completa!' : `Faltam ${info.missing}`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-[#05070d] rounded-full overflow-hidden mt-1.5">
+                      <div
+                        className={`h-full rounded-full ${info.pct >= 100 ? 'bg-emerald-400' : 'bg-orange-400'}`}
+                        style={{ width: `${info.pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCase(selectedCollectionCaseObj);
+                      setTab('cases');
+                      setShowResult(false);
+                      setResult(null);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 font-black text-[11px] cursor-pointer shrink-0 shadow"
+                  >
+                    🎯 Abrir {selectedCollectionCaseObj.name}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {filteredCollection.length === 0 && missingCollectionSkins.length === 0 ? (
+              <div className="omnitrix-card rounded-2xl text-center py-12 text-slate-500 text-sm">
+                {collectionStatusFilter === 'missing'
+                  ? '🏆 Nenhuma skin faltando com esses filtros!'
+                  : 'Nenhuma skin no inventário'}
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                 {filteredCollection.map((card) => {
@@ -1412,17 +1632,33 @@ export default function CS2Cases({
                       className={`bg-[#090b13] border ${rColor.border} rounded-xl p-3 text-center holo-foil flex flex-col justify-between relative`}
                       style={{ boxShadow: `0 0 12px ${rColor.glow}` }}
                     >
+                      <span className="absolute top-2 right-2 text-[7px] font-mono font-black px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 flex items-center gap-0.5">
+                        <Check className="w-2.5 h-2.5" /> TENHO
+                      </span>
                       {isST && (
                         <span className="absolute top-2 left-2 text-[7px] font-mono font-black px-1.5 py-0.5 rounded bg-orange-500/20 border border-orange-400/50 text-orange-300">
                           ST™
                         </span>
                       )}
-                      <div className="h-20 flex items-center justify-center mb-1.5">
+                      <div className="h-20 flex items-center justify-center mb-1.5 mt-2">
                         <CS2Image src={img} alt={card.name} className="max-h-20 max-w-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.7)]" fallbackEmoji={level === 4 ? '⭐' : '🔫'} />
                       </div>
                       <div>
                         <div className="text-[9px] font-mono text-slate-400 truncate">{card.name.split(' | ')[0]}</div>
                         <div className="text-xs font-bold text-white truncate">{card.name.split(' | ')[1] || card.name}</div>
+                        {card.setName && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCollectionCaseFilter(card.setName);
+                              setCollectionStatusFilter('all');
+                            }}
+                            className="text-[8px] font-mono text-orange-300/90 hover:text-orange-200 bg-orange-500/10 border border-orange-500/25 px-1.5 py-0.5 rounded mt-1 max-w-full truncate inline-block cursor-pointer"
+                            title={`Ver todas e faltantes de ${card.setName}`}
+                          >
+                            📦 {card.setName}
+                          </button>
+                        )}
                         <div className={`text-[9px] font-semibold mt-0.5 ${rColor.text}`}>{rarityLabelShort(level)}</div>
                         <div className="text-xs font-mono font-bold mt-1 text-brand">R$ {price.toFixed(2)}</div>
                         {card.quantity > 1 && <div className="text-[10px] text-slate-400 mt-0.5">×{card.quantity}</div>}
@@ -1436,6 +1672,46 @@ export default function CS2Cases({
                         )}
                       </div>
                     </motion.div>
+                  );
+                })}
+
+                {missingCollectionSkins.slice(0, 60).map(({ skin, caseObj }) => {
+                  const rColor = rarityColor(skin.rarityLevel);
+                  return (
+                    <div
+                      key={`missing-${caseObj.id}-${skin.id}`}
+                      className="bg-[#06070d] border border-dashed border-rose-500/35 rounded-xl p-3 text-center opacity-60 hover:opacity-90 transition-all flex flex-col justify-between relative"
+                    >
+                      <span className="absolute top-2 right-2 text-[7px] font-mono font-black px-1.5 py-0.5 rounded bg-rose-600 text-white flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" /> FALTA
+                      </span>
+                      <div className="h-20 flex items-center justify-center mb-1.5 mt-2">
+                        <CS2Image
+                          src={skin.image}
+                          alt={skin.name}
+                          className="max-h-20 max-w-full object-contain grayscale brightness-75"
+                          fallbackEmoji={skin.rarityLevel === 4 ? '⭐' : '🔫'}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 truncate">{skin.weapon}</div>
+                        <div className="text-xs font-bold text-slate-300 truncate">{skin.name}</div>
+                        <div className="text-[8px] font-mono text-orange-300/75 truncate mt-0.5">📦 {caseObj.name}</div>
+                        <div className={`text-[9px] font-semibold mt-0.5 ${rColor.text}`}>{rarityLabelShort(skin.rarityLevel)}</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCase(caseObj);
+                            setTab('cases');
+                            setShowResult(false);
+                            setResult(null);
+                          }}
+                          className="mt-2 w-full py-1 bg-[#111524] hover:bg-orange-500/20 text-orange-300 rounded-lg text-[9px] font-bold border border-orange-500/30 cursor-pointer transition-all"
+                        >
+                          🎯 Abrir Caixa
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

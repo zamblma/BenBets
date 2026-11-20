@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, BookOpen, Star, Medal } from 'lucide-react';
+import { Package, BookOpen, Star, Medal, Search, Lock, Check } from 'lucide-react';
 import type { PokemonCard } from '../types';
 import { fetchWikiThumbnails } from '../utils/wikiImages';
 import { useSound } from '../hooks/useSound';
@@ -485,6 +485,9 @@ export default function WorldCupAlbum({
   const [wikiPhotos, setWikiPhotos] = useState<Record<string, string>>({});
   const [sportsDbPhotos, setSportsDbPhotos] = useState<Record<string, string>>({});
   const [filterRarity, setFilterRarity] = useState('todas');
+  const [filterTeam, setFilterTeam] = useState('todas');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'owned' | 'missing'>('all');
+  const [searchPlayer, setSearchPlayer] = useState('');
   const skipRef = useRef(false);
   const skipHandledRef = useRef(false);
   const { play } = useSound();
@@ -599,9 +602,12 @@ export default function WorldCupAlbum({
         </button>
       </div>
 
-      <div className="bg-[#080a12] border border-[#1a1c2a] rounded-xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-slate-400"><span className="text-brand font-bold font-mono">{uniqueCount}</span>/{totalPlayers} figurinhas • {TEAMS.length} seleções</p>
+      <div className="bg-[#080a12] border border-[#1a1c2a] rounded-xl p-4 space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-1">
+          <p className="text-xs text-slate-400">
+            <span className="text-brand font-bold font-mono">{uniqueCount}</span>/{totalPlayers} figurinhas •{' '}
+            <span className="text-rose-300 font-bold">Faltam {Math.max(0, totalPlayers - uniqueCount)}</span> para completar as {TEAMS.length} seleções
+          </p>
           <p className="text-xs font-bold font-mono text-brand">{progress}%</p>
         </div>
         <div className="h-2.5 bg-[#06070d] rounded-full overflow-hidden border border-[#1a1c2a]">
@@ -609,9 +615,68 @@ export default function WorldCupAlbum({
         </div>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-xs text-slate-400 flex items-center gap-2"><BookOpen className="w-3.5 h-3.5 text-brand" /> Álbum Oficial</p>
-        <div className="flex items-center gap-2">
+      <div className="bg-[#090b13] border border-[#1a1c2a] rounded-xl p-3 space-y-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <p className="text-xs text-slate-300 font-bold flex items-center gap-2">
+            <BookOpen className="w-3.5 h-3.5 text-brand" /> Álbum Oficial & Controle de Faltantes
+          </p>
+          {collection.some(c => c.quantity > 1) && (
+            <button onClick={handleSellAll} className="bg-brand/15 hover:bg-brand text-brand hover:text-slate-950 font-bold px-3 py-1.5 rounded-xl text-[10px] border border-brand/30 transition-all cursor-pointer">
+              Vender Repetidas
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[150px]">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchPlayer}
+              onChange={(e) => setSearchPlayer(e.target.value)}
+              placeholder="Buscar jogador ou seleção..."
+              className="w-full bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-200 pl-8 pr-3 py-1.5 focus:outline-none focus:border-brand/50"
+            />
+          </div>
+
+          <div className="flex gap-1">
+            {[
+              { id: 'all' as const, label: '📋 Todas' },
+              { id: 'owned' as const, label: '✅ Coladas' },
+              { id: 'missing' as const, label: '❌ Faltam' },
+            ].map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setFilterStatus(st.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                  filterStatus === st.id
+                    ? 'bg-brand/20 border-brand text-brand'
+                    : 'bg-[#07080f] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
+
+          <select
+            value={filterTeam}
+            onChange={(e) => setFilterTeam(e.target.value)}
+            className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-brand/50 max-w-[200px]"
+          >
+            <option value="todas">🌍 Todas Seleções ({TEAMS.length})</option>
+            {SORTED_TEAMS.map((t) => {
+              const teamPlayers = ALL_PLAYERS.filter((p) => p.teamId === t.id);
+              const ownedTeam = teamPlayers.filter((p) => collectionMap.has(p.id)).length;
+              return (
+                <option key={t.id} value={t.id}>
+                  Grupo {t.group} • {t.name} ({ownedTeam}/{teamPlayers.length})
+                </option>
+              );
+            })}
+          </select>
+
           <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 px-2.5 py-1.5 focus:outline-none focus:border-brand/50">
             <option value="todas">Todas raridades</option>
             <option value="0">Comum</option>
@@ -619,11 +684,6 @@ export default function WorldCupAlbum({
             <option value="2">Rara</option>
             <option value="3">Super Rara</option>
           </select>
-          {collection.some(c => c.quantity > 1) && (
-            <button onClick={handleSellAll} className="bg-brand/15 hover:bg-brand text-brand hover:text-slate-950 font-bold px-3 py-1.5 rounded-xl text-[10px] border border-brand/30 transition-all cursor-pointer">
-              Vender Repetidas
-            </button>
-          )}
         </div>
       </div>
 
@@ -762,75 +822,126 @@ export default function WorldCupAlbum({
         )}
       </AnimatePresence>
 
-      {collection.length === 0 ? (
-        <div className="omnitrix-card rounded-2xl p-10 text-center">
-          <BookOpen className="w-10 h-10 text-brand/60 mx-auto mb-3" />
-          <p className="text-slate-200 text-sm font-bold">Nenhuma figurinha ainda</p>
-          <p className="text-slate-400 text-xs mt-1">Compre pacotes para montar seu álbum e completar as {totalPlayers} figurinhas de {TEAMS.length} seleções!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {GROUPED_ENTRIES.map(([group, teams]) => (
-            <div key={group} className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-gradient-to-r from-brand/50 to-transparent" />
-                <span className="text-[11px] font-extrabold font-mono text-brand tracking-widest">GRUPO {group}</span>
-                <div className="flex-1 h-px bg-gradient-to-l from-brand/50 to-transparent" />
-              </div>
+      {(() => {
+        const q = searchPlayer.trim().toLowerCase();
+        const visibleGroups = GROUPED_ENTRIES.map(([group, teams]) => {
+          const teamBlocks = teams
+            .filter((team) => filterTeam === 'todas' || team.id === filterTeam)
+            .map((team) => {
+              const allTeam = ALL_PLAYERS.filter((p) => p.teamId === team.id);
+              const filteredPlayers = allTeam.filter((p) => {
+                if (filterRarity !== 'todas' && getRarityLevel(p.rarity) !== parseInt(filterRarity, 10)) return false;
+                const isOwned = collectionMap.has(p.id);
+                if (filterStatus === 'owned' && !isOwned) return false;
+                if (filterStatus === 'missing' && isOwned) return false;
+                if (q && !p.name.toLowerCase().includes(q) && !team.name.toLowerCase().includes(q)) return false;
+                return true;
+              });
+              const totalOwnedTeam = allTeam.filter((p) => collectionMap.has(p.id)).length;
+              return { team, totalTeam: allTeam.length, totalOwnedTeam, missingTeam: allTeam.length - totalOwnedTeam, filteredPlayers };
+            })
+            .filter((b) => b.filteredPlayers.length > 0);
+          return { group, teamBlocks };
+        }).filter((g) => g.teamBlocks.length > 0);
 
-              {teams.map(team => {
-                const allTeam = ALL_PLAYERS.filter(p => p.teamId === team.id);
-                const filteredTeamPlayers = filterRarity === 'todas' ? allTeam : allTeam.filter(p => getRarityLevel(p.rarity) === parseInt(filterRarity));
-                const ownedFiltered = filteredTeamPlayers.filter(p => collectionMap.has(p.id));
-                if (filteredTeamPlayers.length === 0) return null;
+        if (visibleGroups.length === 0) {
+          return (
+            <div className="omnitrix-card rounded-2xl p-10 text-center">
+              <BookOpen className="w-10 h-10 text-brand/60 mx-auto mb-3" />
+              <p className="text-slate-200 text-sm font-bold">Nenhuma figurinha encontrada com os filtros atuais</p>
+              <p className="text-slate-400 text-xs mt-1">
+                {filterStatus === 'owned' && collection.length === 0
+                  ? 'Compre pacotes acima ou mude para "Todos / Faltam" para explorar as 48 seleções!'
+                  : 'Tente alterar a seleção, status ou raridade selecionados.'}
+              </p>
+            </div>
+          );
+        }
 
-                return (
+        return (
+          <div className="space-y-4">
+            {visibleGroups.map(({ group, teamBlocks }) => (
+              <div key={group} className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-gradient-to-r from-brand/50 to-transparent" />
+                  <span className="text-[11px] font-extrabold font-mono text-brand tracking-widest">GRUPO {group}</span>
+                  <div className="flex-1 h-px bg-gradient-to-l from-brand/50 to-transparent" />
+                </div>
+
+                {teamBlocks.map(({ team, totalTeam, totalOwnedTeam, missingTeam, filteredPlayers }) => (
                   <div key={team.id} className="bg-[#090b13] border border-[#1a1c2a] rounded-xl overflow-hidden">
-                    <div className="px-3.5 py-2.5 flex items-center justify-between bg-[#06070d] border-b border-[#1a1c2a]">
+                    <div className="px-3.5 py-2.5 flex items-center justify-between bg-[#06070d] border-b border-[#1a1c2a] flex-wrap gap-2">
                       <div className="flex items-center gap-2.5">
                         <img src={flagUrl(team.iso)} alt={team.name} className="w-6 h-4 object-cover rounded-sm border border-white/15" loading="lazy" />
                         <span className="text-xs font-bold text-slate-100">{team.name}</span>
+                        <span className="text-[9px] font-mono text-slate-500">Grupo {team.group}</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-brand">{ownedFiltered.length}/{filteredTeamPlayers.length}</span>
+                      <div className="flex items-center gap-2 text-[10px] font-mono">
+                        <span className="font-bold text-brand">{totalOwnedTeam}/{totalTeam}</span>
+                        <span className={missingTeam === 0 ? 'text-emerald-400 font-bold' : 'text-rose-300 font-bold'}>
+                          {missingTeam === 0 ? '🏆 Completo!' : `• Faltam ${missingTeam}`}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 p-2.5">
-                      {filteredTeamPlayers.map(player => {
+                      {filteredPlayers.map((player) => {
                         const sticker = collectionMap.get(player.id);
                         const isRare = getRarityLevel(player.rarity) >= 2;
-                        const colInits = player.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-                        const img = sticker ? getPlayerImage(player.id, sticker.imageUrl) : null;
+                        const colInits = player.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                        const img = sticker ? getPlayerImage(player.id, sticker.imageUrl) : getPlayerImage(player.id);
 
                         return (
-                          <div key={player.id}
-                            className={`bg-[#06070d] rounded-xl border overflow-hidden group relative transition-all duration-200 hover:scale-[1.03] hover:z-10 ${sticker && isRare ? `${getRarityBorder(player.rarity)} holo-foil` : sticker ? 'border-brand/25' : 'border-[#181b28] opacity-50'}`}>
+                          <div
+                            key={player.id}
+                            className={`bg-[#06070d] rounded-xl border overflow-hidden group relative transition-all duration-200 hover:scale-[1.03] hover:z-10 ${
+                              sticker && isRare
+                                ? `${getRarityBorder(player.rarity)} holo-foil`
+                                : sticker
+                                  ? 'border-brand/30'
+                                  : 'border-dashed border-rose-500/35 opacity-65 hover:opacity-95'
+                            }`}
+                          >
                             <div className="aspect-[3/4] relative overflow-hidden bg-gradient-to-b from-[#12192b] to-[#06070d] flex items-center justify-center">
-                              {sticker && img ? (
-                                <img src={img} alt={player.name} className="w-full h-full object-cover object-top relative z-10" loading="lazy"
-                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              {img ? (
+                                <img
+                                  src={img}
+                                  alt={player.name}
+                                  className={`w-full h-full object-cover object-top relative z-10 ${!sticker ? 'grayscale brightness-75' : ''}`}
+                                  loading="lazy"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
                               ) : null}
-                              <span className="text-xl font-black text-white/30 select-none">{sticker ? colInits : '?'}</span>
+                              <span className="text-xl font-black text-white/30 select-none">{colInits}</span>
                               <img src={flagUrl(team.iso)} alt="" className="absolute top-1 left-1 w-4 h-3 object-cover rounded-[2px] opacity-90 z-20" loading="lazy" />
+                              <span
+                                className={`absolute top-1 right-1 z-20 text-[6px] font-mono font-black px-1 py-0.5 rounded flex items-center gap-0.5 ${
+                                  sticker ? 'bg-emerald-500 text-slate-950' : 'bg-rose-600/90 text-white'
+                                }`}
+                              >
+                                {sticker ? <Check className="w-2 h-2" /> : <><Lock className="w-2 h-2" /> FALTA</>}
+                              </span>
                               <span className="absolute bottom-1 right-1 text-[7px] font-mono font-bold bg-black/75 text-slate-200 px-1 rounded z-20">
                                 {player.position}
                               </span>
                             </div>
 
                             <div className="p-1 text-center bg-[#070910]">
-                              <p className={`text-[8px] font-bold truncate ${sticker ? 'text-slate-100' : 'text-slate-600'}`}>
-                                {sticker ? player.name : '???'}
+                              <p className={`text-[8px] font-bold truncate ${sticker ? 'text-slate-100' : 'text-slate-300'}`}>
+                                {player.name}
                               </p>
-                              {sticker && (
-                                <p className={`text-[7px] font-bold ${isRare ? 'text-amber-400' : 'text-slate-400'}`}>
-                                  {getRarityLabel(player.rarity)}
-                                  {sticker.quantity > 1 && <span className="text-brand ml-1">×{sticker.quantity}</span>}
-                                </p>
-                              )}
+                              <p className="text-[6px] font-mono text-slate-500 truncate">{team.name}</p>
+                              <p className={`text-[7px] font-bold ${isRare ? 'text-amber-400' : 'text-slate-400'}`}>
+                                {getRarityLabel(player.rarity)}
+                                {sticker && sticker.quantity > 1 && <span className="text-brand ml-1">×{sticker.quantity}</span>}
+                              </p>
                             </div>
 
                             {sticker && sticker.quantity > 1 && (
-                              <button onClick={() => handleSell(sticker.id)}
-                                className="absolute top-1 right-1 z-30 bg-brand hover:bg-[#00e074] text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow">
+                              <button
+                                onClick={() => handleSell(sticker.id)}
+                                className="absolute bottom-8 right-1 z-30 bg-brand hover:bg-[#00e074] text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow"
+                              >
                                 R$ {getBasePrice(player.rarity).toFixed(2)}
                               </button>
                             )}
@@ -839,12 +950,12 @@ export default function WorldCupAlbum({
                       })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
+                ))}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, type CSSProperties } from 'react';
-import { Medal, Package, BookOpen, Star, Search, Sparkles, Crown, Filter } from 'lucide-react';
+import { Medal, Package, BookOpen, Star, Search, Sparkles, Crown, Filter, Check, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlacedBet, PokemonCard } from '../types';
 import { fetchWikiThumbnails } from '../utils/wikiImages';
@@ -645,6 +645,7 @@ export default function KpopPhotocards({
 
   const [filterRarity, setFilterRarity] = useState('todas');
   const [filterGroup, setFilterGroup] = useState('todos');
+  const [binderStatusFilter, setBinderStatusFilter] = useState<'all' | 'owned' | 'missing'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const skipRef = useRef(false);
@@ -914,31 +915,76 @@ export default function KpopPhotocards({
     return { polaroids, broadcasts, totalDuplicateValue };
   }, [collection]);
 
-  const groupedCollection = useMemo(() => {
-    const groups: Record<string, PokemonCard[]> = {};
-    const filtered = collection.filter((c) => {
-      if (filterRarity !== 'todas' && getRarityLevel(c.rarity) !== parseInt(filterRarity, 10)) return false;
-      if (filterGroup !== 'todos' && c.setName !== filterGroup) return false;
-      if (
-        searchQuery &&
-        !c.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !c.setName.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    for (const card of filtered) {
-      (groups[card.setName] ??= []).push(card);
+  const ownedByMemberMap = useMemo(() => {
+    const map = new Map<string, PokemonCard[]>();
+    for (const c of collection) {
+      const mId = getBaseMemberId(c.id);
+      const list = map.get(mId);
+      if (list) list.push(c);
+      else map.set(mId, [c]);
     }
-
-    for (const arr of Object.values(groups)) {
-      arr.sort((a, b) => getRarityLevel(b.rarity) - getRarityLevel(a.rarity));
+    for (const list of map.values()) {
+      list.sort((a, b) => getRarityLevel(b.rarity) - getRarityLevel(a.rarity));
     }
+    return map;
+  }, [collection]);
 
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [collection, filterRarity, filterGroup, searchQuery]);
+  const binderGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const targetRarityLvl = filterRarity === 'todas' ? null : parseInt(filterRarity, 10);
+
+    return GROUPS.filter((g) => filterGroup === 'todos' || g.name === filterGroup)
+      .map((group) => {
+        const members = ALL_MEMBERS.filter((m) => m.groupName === group.name);
+        const ownedUniqueMembers = members.filter((m) => {
+          const cards = ownedByMemberMap.get(m.id) || [];
+          return targetRarityLvl === null
+            ? cards.length > 0
+            : cards.some((c) => getRarityLevel(c.rarity) === targetRarityLvl);
+        }).length;
+
+        const matchingMembers = members.filter((m) => {
+          if (!q) return true;
+          return (
+            m.name.toLowerCase().includes(q) ||
+            group.name.toLowerCase().includes(q) ||
+            group.era.toLowerCase().includes(q)
+          );
+        });
+
+        const ownedCards: PokemonCard[] = [];
+        const missingMembers: IdolDef[] = [];
+
+        for (const m of matchingMembers) {
+          const mCards = ownedByMemberMap.get(m.id) || [];
+          const filteredMCards =
+            targetRarityLvl === null
+              ? mCards
+              : mCards.filter((c) => getRarityLevel(c.rarity) === targetRarityLvl);
+
+          if (filteredMCards.length > 0) {
+            if (binderStatusFilter !== 'missing') {
+              ownedCards.push(...filteredMCards);
+            }
+          } else if (binderStatusFilter !== 'owned') {
+            missingMembers.push(m);
+          }
+        }
+
+        ownedCards.sort((a, b) => getRarityLevel(b.rarity) - getRarityLevel(a.rarity));
+
+        return {
+          group,
+          totalMembers: members.length,
+          ownedUniqueMembers,
+          missingCount: Math.max(0, members.length - ownedUniqueMembers),
+          completionPct: members.length > 0 ? Math.round((ownedUniqueMembers / members.length) * 100) : 0,
+          ownedCards,
+          missingMembers,
+        };
+      })
+      .filter((entry) => entry.ownedCards.length > 0 || entry.missingMembers.length > 0);
+  }, [ownedByMemberMap, filterRarity, filterGroup, binderStatusFilter, searchQuery]);
 
   const renderShowcasePreviewCard = (idolId: string, lvl: number) => {
     const m = MEMBER_BY_ID.get(idolId);
@@ -1229,10 +1275,11 @@ export default function KpopPhotocards({
 
       {tab === 'binder' && (
         <div className="space-y-4">
-          <div className="bg-[#080a12] border border-[#1a1c2a] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-[#080a12] border border-[#1a1c2a] rounded-xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">
-                <span className="text-pink-400 font-bold font-mono">{uniqueIdolCount}</span>/{totalMembers} idols únicos • {GROUPS.length} grupos
+                <span className="text-pink-400 font-bold font-mono">{uniqueIdolCount}</span>/{totalMembers} idols únicos •{' '}
+                <span className="text-rose-300 font-bold">Faltam {Math.max(0, totalMembers - uniqueIdolCount)}</span> para completar os {GROUPS.length} grupos
               </p>
               <p className="text-xs font-bold font-mono text-pink-400">{progress}%</p>
             </div>
@@ -1242,10 +1289,52 @@ export default function KpopPhotocards({
                 style={{ width: `${progress}%` }}
               />
             </div>
+
+            {/* Pills rápidas de Grupos / Coleções com contador possuídos vs faltantes */}
+            <div className="flex gap-1.5 overflow-x-auto pt-1 pb-0.5">
+              <button
+                type="button"
+                onClick={() => setFilterGroup('todos')}
+                className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                  filterGroup === 'todos'
+                    ? 'bg-pink-500/20 border-pink-400 text-pink-200'
+                    : 'bg-[#06070d] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🌐 Todos ({uniqueIdolCount}/{totalMembers})
+              </button>
+              {GROUPS.map((g) => {
+                const ownedG = g.members.filter((m) =>
+                  ownedByMemberMap.has(`${g.name}-${m.name}`.replace(/[^a-zA-Z0-9]/g, '_'))
+                ).length;
+                const missG = g.members.length - ownedG;
+                const active = filterGroup === g.name;
+                return (
+                  <button
+                    key={g.name}
+                    type="button"
+                    onClick={() => setFilterGroup(active ? 'todos' : g.name)}
+                    className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-all flex items-center gap-1.5 ${
+                      active
+                        ? 'bg-pink-500/20 border-pink-400 text-pink-200'
+                        : missG === 0
+                          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
+                          : 'bg-[#06070d] border-[#1a1c2a] text-slate-300 hover:border-pink-500/35'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${g.accent}`} />
+                    <span>{g.name}</span>
+                    <span className="font-mono text-[9px] opacity-80">
+                      {ownedG}/{g.members.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap flex-1">
               <div className="relative">
                 <Search className="w-3 h-3 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -1256,6 +1345,28 @@ export default function KpopPhotocards({
                   className="bg-[#07080f] border border-[#1a1c2a] rounded-lg text-[10px] text-slate-300 pl-7 pr-2.5 py-1.5 w-36 focus:outline-none focus:border-pink-500/50"
                 />
               </div>
+
+              <div className="flex gap-1">
+                {[
+                  { id: 'all' as const, label: '📋 Todos' },
+                  { id: 'owned' as const, label: '✅ Tenho' },
+                  { id: 'missing' as const, label: '❌ Faltam' },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setBinderStatusFilter(st.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                      binderStatusFilter === st.id
+                        ? 'bg-pink-500/20 border-pink-400 text-pink-200'
+                        : 'bg-[#07080f] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex items-center gap-1">
                 <Filter className="w-3 h-3 text-pink-400" />
                 <select
@@ -1291,113 +1402,155 @@ export default function KpopPhotocards({
             )}
           </div>
 
-          {collection.length === 0 ? (
-            <div className="omnitrix-card rounded-2xl p-10 text-center">
-              <BookOpen className="w-10 h-10 text-pink-400/60 mx-auto mb-3" />
-              <p className="text-slate-200 text-sm font-bold">Seu binder está vazio</p>
-              <p className="text-slate-400 text-xs mt-1">
-                Abra Álbuns, Weverse Boxes ou gire a Máquina Lucky Draw para colecionar {totalMembers} idols!
-              </p>
-            </div>
-          ) : groupedCollection.length === 0 ? (
+          {binderGroups.length === 0 ? (
             <div className="bg-[#090b13] border border-[#1a1c2a] rounded-xl p-8 text-center text-xs text-slate-500">
-              Nenhuma carta encontrada com os filtros atuais.
+              Nenhum idol ou photocard encontrado com os filtros atuais.
             </div>
           ) : (
             <div className="space-y-4">
-              {groupedCollection.map(([groupName, cards]) => {
-                const group = GROUP_BY_NAME.get(groupName);
-                const uniqueInGroup = new Set(cards.map((c) => getBaseMemberId(c.id))).size;
-                const groupTotal = group ? group.members.length : uniqueInGroup;
-                return (
-                  <div key={groupName} className="bg-[#090b13] border border-[#1a1c2a] rounded-xl overflow-hidden">
-                    <div className="px-3.5 py-2.5 flex items-center justify-between bg-[#06070d] border-b border-[#1a1c2a]">
+              {binderGroups.map(({ group, totalMembers: groupTotal, ownedUniqueMembers, missingCount, completionPct, ownedCards, missingMembers }) => (
+                <div key={group.name} className="bg-[#090b13] border border-[#1a1c2a] rounded-xl overflow-hidden">
+                  <div className="px-3.5 py-2.5 bg-[#06070d] border-b border-[#1a1c2a] space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${group?.accent || 'bg-pink-600'}`} />
-                        <span className="text-xs font-extrabold text-slate-100">{groupName}</span>
-                        {group && (
-                          <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">• {group.era}</span>
-                        )}
+                        <span className={`w-2.5 h-2.5 rounded-full ${group.accent}`} />
+                        <span className="text-xs font-extrabold text-slate-100">{group.name}</span>
+                        <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">• {group.era}</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-pink-400">
-                        {uniqueInGroup}/{groupTotal} idols ({cards.length} edições)
-                      </span>
+                      <div className="flex items-center gap-2 text-[10px] font-mono">
+                        <span className="font-bold text-pink-400">
+                          {ownedUniqueMembers}/{groupTotal} idols
+                        </span>
+                        <span className={missingCount === 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-bold'}>
+                          {missingCount === 0 ? '🏆 Completo!' : `• Faltam ${missingCount}`}
+                        </span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-2.5">
-                      {cards.map((card) => {
-                        const rInfo = getRarityInfo(card.rarity);
-                        const isPolaroid = rInfo.lvl === 4;
-                        const isBroadcast = rInfo.lvl === 3;
-                        const isHolo = rInfo.lvl >= 2;
-                        const price = rInfo.sellPrice;
-
-                        return (
-                          <div
-                            key={card.id}
-                            className={`rounded-xl overflow-hidden transition-all duration-200 group relative hover:scale-[1.03] hover:z-10 ${
-                              isPolaroid
-                                ? 'bg-gradient-to-b from-white via-pink-50 to-fuchsia-100 p-1.5 border-2 border-white shadow-[0_0_20px_rgba(244,114,182,0.55)] shimmer-rainbow'
-                                : `bg-[#06070d] border ${rInfo.borderCls} ${isHolo ? 'holo-foil' : ''}`
-                            }`}
-                          >
-                            <div className={`aspect-[2/3] relative overflow-hidden bg-[#070910] ${isPolaroid ? 'rounded-md' : ''}`}>
-                              <KpopCardImage
-                                card={card}
-                                commonsMap={commonsMap}
-                                koThumbs={koThumbs}
-                                enThumbs={enThumbs}
-                                groupThumbs={groupThumbs}
-                                className="w-full h-full object-cover object-top"
-                              />
-                              <span
-                                className={`absolute top-1 left-1 text-[6px] font-black px-1 py-0.5 rounded ${
-                                  isPolaroid
-                                    ? 'bg-fuchsia-600 text-white'
-                                    : isBroadcast
-                                    ? 'bg-amber-400 text-slate-950'
-                                    : 'bg-black/75 text-slate-200 border border-white/10'
-                                }`}
-                              >
-                                {isPolaroid ? '★ 1/1' : isBroadcast ? '🎥 /100' : rInfo.code}
-                              </span>
-                              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
-                            </div>
-                            <div className={`p-1.5 text-center ${isPolaroid ? 'bg-transparent text-slate-900' : 'bg-[#070910]'}`}>
-                              {isPolaroid ? (
-                                <>
-                                  <p className="text-[10px] font-serif italic font-bold text-fuchsia-950 truncate">~ {card.name} ♡</p>
-                                  <p className="text-[7px] font-mono font-bold text-slate-600">
-                                    #001/001 {card.quantity > 1 && <span className="text-fuchsia-700">×{card.quantity}</span>}
-                                  </p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-[9px] font-bold text-slate-100 truncate">{card.name}</p>
-                                  <p className={`text-[7px] font-bold truncate ${rInfo.textCls}`}>
-                                    {rInfo.label}
-                                    {card.quantity > 1 && <span className="text-brand ml-1">×{card.quantity}</span>}
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                            {card.quantity > 1 && (
-                              <button
-                                onClick={() => {
-                                  onSellCard(card.id, price);
-                                  play('cashout');
-                                }}
-                                className="absolute top-1 right-1 z-20 bg-brand hover:bg-[#00e074] text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow"
-                              >
-                                R$ {price.toFixed(2)}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="h-1 bg-[#0b0e18] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${completionPct >= 100 ? 'bg-emerald-400' : 'bg-pink-500'}`}
+                        style={{ width: `${completionPct}%` }}
+                      />
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-2.5">
+                    {ownedCards.map((card) => {
+                      const rInfo = getRarityInfo(card.rarity);
+                      const isPolaroid = rInfo.lvl === 4;
+                      const isBroadcast = rInfo.lvl === 3;
+                      const isHolo = rInfo.lvl >= 2;
+                      const price = rInfo.sellPrice;
+
+                      return (
+                        <div
+                          key={card.id}
+                          className={`rounded-xl overflow-hidden transition-all duration-200 group relative hover:scale-[1.03] hover:z-10 ${
+                            isPolaroid
+                              ? 'bg-gradient-to-b from-white via-pink-50 to-fuchsia-100 p-1.5 border-2 border-white shadow-[0_0_20px_rgba(244,114,182,0.55)] shimmer-rainbow'
+                              : `bg-[#06070d] border ${rInfo.borderCls} ${isHolo ? 'holo-foil' : ''}`
+                          }`}
+                        >
+                          <div className={`aspect-[2/3] relative overflow-hidden bg-[#070910] ${isPolaroid ? 'rounded-md' : ''}`}>
+                            <KpopCardImage
+                              card={card}
+                              commonsMap={commonsMap}
+                              koThumbs={koThumbs}
+                              enThumbs={enThumbs}
+                              groupThumbs={groupThumbs}
+                              className="w-full h-full object-cover object-top"
+                            />
+                            <span
+                              className={`absolute top-1 left-1 text-[6px] font-black px-1 py-0.5 rounded flex items-center gap-0.5 ${
+                                isPolaroid
+                                  ? 'bg-fuchsia-600 text-white'
+                                  : isBroadcast
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'bg-black/80 text-emerald-300 border border-emerald-400/40'
+                              }`}
+                            >
+                              <Check className="w-2 h-2" /> {isPolaroid ? '★ 1/1' : isBroadcast ? '🎥 /100' : rInfo.code}
+                            </span>
+                            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/75 to-transparent pointer-events-none" />
+                          </div>
+                          <div className={`p-1.5 text-center ${isPolaroid ? 'bg-transparent text-slate-900' : 'bg-[#070910]'}`}>
+                            {isPolaroid ? (
+                              <>
+                                <p className="text-[10px] font-serif italic font-bold text-fuchsia-950 truncate">~ {card.name} ♡</p>
+                                <p className="text-[7px] font-mono font-bold text-slate-700 truncate">
+                                  {group.name} • #001/001 {card.quantity > 1 && <span className="text-fuchsia-700">×{card.quantity}</span>}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-[9px] font-bold text-slate-100 truncate">{card.name}</p>
+                                <p className="text-[7px] font-mono text-pink-300/80 truncate">{group.name} • {group.era}</p>
+                                <p className={`text-[7px] font-bold truncate ${rInfo.textCls}`}>
+                                  {rInfo.label}
+                                  {card.quantity > 1 && <span className="text-brand ml-1">×{card.quantity}</span>}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          {card.quantity > 1 && (
+                            <button
+                              onClick={() => {
+                                onSellCard(card.id, price);
+                                play('cashout');
+                              }}
+                              className="absolute top-1 right-1 z-20 bg-brand hover:bg-[#00e074] text-slate-950 text-[7px] font-black px-1.5 py-0.5 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow"
+                            >
+                              R$ {price.toFixed(2)}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {missingMembers.map((member) => {
+                      const previewCard: PokemonCard = {
+                        id: `${member.id}__r0`,
+                        name: member.name,
+                        imageUrl: '',
+                        rarity: filterRarity === 'todas' ? 'Album PC' : (RARITIES[parseInt(filterRarity, 10)]?.code || 'Album PC'),
+                        setName: group.name,
+                        setSeries: group.era,
+                        quantity: 0,
+                      };
+                      return (
+                        <div
+                          key={`missing-${member.id}`}
+                          className="rounded-xl overflow-hidden bg-[#06070d] border border-dashed border-rose-500/35 opacity-60 hover:opacity-90 transition-all"
+                        >
+                          <div className="aspect-[2/3] relative overflow-hidden bg-[#070910]">
+                            <KpopCardImage
+                              card={previewCard}
+                              commonsMap={commonsMap}
+                              koThumbs={koThumbs}
+                              enThumbs={enThumbs}
+                              groupThumbs={groupThumbs}
+                              className="w-full h-full object-cover object-top grayscale brightness-75"
+                            />
+                            <span className="absolute top-1 left-1 text-[6px] font-mono font-black px-1.5 py-0.5 rounded bg-rose-600 text-white flex items-center gap-0.5">
+                              <Lock className="w-2 h-2" /> FALTA
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                          </div>
+                          <div className="p-1.5 text-center bg-[#070910]">
+                            <p className="text-[9px] font-bold text-slate-300 truncate">{member.name}</p>
+                            <p className="text-[7px] font-mono text-pink-300/70 truncate">{group.name}</p>
+                            <p className="text-[7px] font-mono text-rose-300/90 truncate">
+                              {filterRarity === 'todas'
+                                ? 'Não obtida'
+                                : `Falta: ${RARITIES[parseInt(filterRarity, 10)]?.label || ''}`}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

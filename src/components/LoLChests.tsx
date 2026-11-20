@@ -1,6 +1,21 @@
 import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Sparkles, TrendingUp, Swords, Search, Loader2, Hammer } from 'lucide-react';
+import {
+  Play,
+  Sparkles,
+  TrendingUp,
+  Swords,
+  Search,
+  Loader2,
+  Hammer,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Check,
+  Lock,
+  Layers,
+} from 'lucide-react';
 import { PlacedBet } from '../types';
 import { useSound } from '../hooks/useSound';
 
@@ -141,6 +156,53 @@ function LoLArtImage({ item, ddVersion, className }: { item: LoLItem; ddVersion:
       alt={item.name}
       className={className}
       loading="lazy"
+      onError={() => setIdx((prev) => prev + 1)}
+    />
+  );
+}
+
+function LoLSplashImage({ item, ddVersion, className }: { item: LoLItem; ddVersion: string; className?: string }) {
+  const candidates = useMemo(() => {
+    const artKey = item.championKey ? normalizeDDragonArtKey(item.championKey) : '';
+    const splashFirst: string[] = [];
+    if (artKey && typeof item.skinNum === 'number') {
+      splashFirst.push(`https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${artKey}_${item.skinNum}.jpg`);
+    }
+    if (item.championNumKey && item.skinId) {
+      splashFirst.push(
+        `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-splashes/${item.championNumKey}/${item.skinId}.jpg`,
+        `https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-splashes/${item.championNumKey}/${item.skinId}.jpg`
+      );
+    }
+    const baseCandidates = getLoLImageCandidates(item, ddVersion);
+    const seen = new Set<string>();
+    return [...splashFirst, ...baseCandidates].filter((u) => {
+      if (!u || !u.startsWith('https://') || seen.has(u)) return false;
+      seen.add(u);
+      return true;
+    });
+  }, [item, ddVersion]);
+
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [item.id, item.image]);
+
+  if (idx >= candidates.length) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#090d1a] p-4 text-center">
+        <span className="text-4xl mb-2">⚔️</span>
+        <span className="text-xs font-bold text-slate-300">{item.name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={candidates[idx]}
+      alt={item.name}
+      className={className}
       onError={() => setIdx((prev) => prev + 1)}
     />
   );
@@ -409,6 +471,12 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
 
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState<number | null>(null);
+  const [collectionViewMode, setCollectionViewMode] = useState<'byChampion' | 'allSkins'>('byChampion');
+  const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'owned' | 'missing'>('all');
+  const [championStatusFilter, setChampionStatusFilter] = useState<'all' | 'started' | 'missing' | 'completed'>('all');
+  const [selectedChampionKey, setSelectedChampionKey] = useState<string | null>(null);
+  const [previewSkin, setPreviewSkin] = useState<LoLItem | null>(null);
+  const [visibleSkinsLimit, setVisibleSkinsLimit] = useState(48);
   const [forgeMessage, setForgeMessage] = useState('');
   const { play } = useSound();
 
@@ -1001,22 +1069,166 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
     }
   };
 
-  const uniqueCollection = useMemo(() => {
-    const map = new Map<string, { item: LoLItem; qty: number }>();
-    for (const c of collection) {
-      const entry = map.get(c.id);
-      if (entry) entry.qty += 1;
-      else map.set(c.id, { item: c, qty: 1 });
+  const handleUnlockSpecificSkin = (item: LoLItem) => {
+    const useMythic = item.rarity >= 4;
+    const cost = useMythic ? 125 : item.essenceValue * 2;
+    if (useMythic) {
+      if (mythicEssence < cost) return;
+      setMythicEssence((prev) => prev - cost);
+    } else {
+      if (essence < cost) return;
+      setEssence((prev) => prev - cost);
     }
+    setCollection((prev) => [...prev, item]);
+    play(item.rarity >= 3 ? 'legendary' : 'rare');
+    setForgeMessage(
+      `✨ ${item.name} desbloqueada por ${cost} ${useMythic ? '🟣 EM' : '💠 Essência'}!`
+    );
+    window.setTimeout(() => setForgeMessage(''), 4000);
+  };
+
+  const ownedQtyMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of collection) {
+      map.set(c.id, (map.get(c.id) || 0) + 1);
+    }
+    return map;
+  }, [collection]);
+
+  const championGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        championKey: string;
+        champName: string;
+        icon?: string;
+        championItem?: LoLItem;
+        skins: LoLItem[];
+      }
+    >();
+
+    const seenItemIds = new Set<string>();
+    const combinedCatalog = [...allItems, akaliSanctumSkin];
+
+    for (const item of combinedCatalog) {
+      if (seenItemIds.has(item.id) || item.type === 'essence' || item.type === 'cosmetic') continue;
+      seenItemIds.add(item.id);
+      const cKey = item.championKey;
+      if (!cKey) continue;
+
+      let entry = map.get(cKey);
+      if (!entry) {
+        entry = {
+          championKey: cKey,
+          champName: item.type === 'champion' ? item.name : item.champion || cKey,
+          icon: item.icon,
+          skins: [],
+        };
+        map.set(cKey, entry);
+      }
+
+      if (!entry.icon && item.icon) entry.icon = item.icon;
+      if (item.type === 'champion') {
+        entry.championItem = item;
+        entry.champName = item.name;
+      } else if (item.type === 'skin') {
+        entry.skins.push(item);
+      }
+    }
+
     return Array.from(map.values())
-      .filter(({ item }) => rarityFilter === null || item.rarity === rarityFilter)
-      .filter(({ item }) =>
-        !searchQuery ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.champion || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
-      .sort((a, b) => b.item.rarity - a.item.rarity);
-  }, [collection, rarityFilter, searchQuery]);
+      .map((entry) => {
+        const skins = [...entry.skins].sort(
+          (a, b) => b.rarity - a.rarity || (a.skinNum ?? 0) - (b.skinNum ?? 0)
+        );
+        const ownedSkinsCount = skins.filter((s) => ownedQtyMap.has(s.id)).length;
+        const missingSkinsCount = Math.max(0, skins.length - ownedSkinsCount);
+        const totalSkins = skins.length;
+        const completionPct = totalSkins > 0 ? Math.round((ownedSkinsCount / totalSkins) * 100) : 0;
+        return {
+          ...entry,
+          skins,
+          ownedSkinsCount,
+          missingSkinsCount,
+          totalSkins,
+          ownedChamp: Boolean(entry.championItem && ownedQtyMap.has(entry.championItem.id)),
+          completionPct,
+        };
+      })
+      .sort((a, b) => {
+        if (b.ownedSkinsCount !== a.ownedSkinsCount) return b.ownedSkinsCount - a.ownedSkinsCount;
+        return a.champName.localeCompare(b.champName);
+      });
+  }, [allItems, akaliSanctumSkin, ownedQtyMap]);
+
+  const totalCatalogSkins = useMemo(
+    () => championGroups.reduce((sum, grp) => sum + grp.totalSkins, 0),
+    [championGroups]
+  );
+
+  const totalOwnedUniqueSkins = useMemo(
+    () => championGroups.reduce((sum, grp) => sum + grp.ownedSkinsCount, 0),
+    [championGroups]
+  );
+
+  const completedChampionsCount = useMemo(
+    () => championGroups.filter((grp) => grp.totalSkins > 0 && grp.missingSkinsCount === 0).length,
+    [championGroups]
+  );
+
+  const selectedChampionGroup = useMemo(
+    () => championGroups.find((g) => g.championKey === selectedChampionKey) || null,
+    [championGroups, selectedChampionKey]
+  );
+
+  const filteredChampionGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return championGroups.filter((grp) => {
+      if (championStatusFilter === 'started' && grp.ownedSkinsCount === 0) return false;
+      if (championStatusFilter === 'missing' && grp.missingSkinsCount === 0) return false;
+      if (championStatusFilter === 'completed' && (grp.totalSkins === 0 || grp.missingSkinsCount > 0)) return false;
+      if (rarityFilter !== null && !grp.skins.some((s) => s.rarity === rarityFilter)) return false;
+      if (q) {
+        const matchChamp = grp.champName.toLowerCase().includes(q) || grp.championKey.toLowerCase().includes(q);
+        const matchSkin = grp.skins.some((s) => s.name.toLowerCase().includes(q));
+        if (!matchChamp && !matchSkin) return false;
+      }
+      return true;
+    });
+  }, [championGroups, championStatusFilter, rarityFilter, searchQuery]);
+
+  const filteredAllSkins = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const list: LoLItem[] = [];
+    for (const grp of championGroups) {
+      if (selectedChampionKey && grp.championKey !== selectedChampionKey) continue;
+      for (const skin of grp.skins) {
+        const isOwned = ownedQtyMap.has(skin.id);
+        if (ownershipFilter === 'owned' && !isOwned) continue;
+        if (ownershipFilter === 'missing' && isOwned) continue;
+        if (rarityFilter !== null && skin.rarity !== rarityFilter) continue;
+        if (
+          q &&
+          !skin.name.toLowerCase().includes(q) &&
+          !grp.champName.toLowerCase().includes(q)
+        ) {
+          continue;
+        }
+        list.push(skin);
+      }
+    }
+    return list.sort((a, b) => {
+      const aOwned = ownedQtyMap.has(a.id) ? 1 : 0;
+      const bOwned = ownedQtyMap.has(b.id) ? 1 : 0;
+      if (bOwned !== aOwned) return bOwned - aOwned;
+      return b.rarity - a.rarity;
+    });
+  }, [championGroups, selectedChampionKey, ownershipFilter, rarityFilter, searchQuery, ownedQtyMap]);
+
+  const previewChampSkins = useMemo(() => {
+    if (!previewSkin?.championKey) return [];
+    return championGroups.find((g) => g.championKey === previewSkin.championKey)?.skins || [previewSkin];
+  }, [previewSkin, championGroups]);
 
   const hasAkaliSanctum = useMemo(
     () => collection.some((c) => c.id === akaliSanctumSkin.id),
@@ -1514,64 +1726,559 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
         )}
 
         {tab === 'collection' && (
-          <motion.div key="collection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="relative flex-1 min-w-[140px]">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Buscar campeão ou skin..."
-                  className="w-full bg-[#06070d] border border-[#1a1c2a] rounded-xl text-xs text-slate-200 pl-8 pr-3 py-1.5 focus:outline-none focus:border-blue-500/50"
+          <motion.div key="collection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3.5">
+            {/* Resumo Geral de Skins & Campeões */}
+            <div className="bg-[#070912] border border-blue-500/25 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-extrabold text-white flex items-center gap-2 flex-wrap">
+                    <span>📚 Catálogo & Skins LoL</span>
+                    <span className="text-[10px] font-mono bg-blue-500/15 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                      {totalOwnedUniqueSkins}/{totalCatalogSkins} Skins Desbloqueadas
+                    </span>
+                    <span className="text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                      {completedChampionsCount}/{championGroups.length} Campeões Completos
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Clique em qualquer campeão para ver todas as skins dele (possuídas + faltantes), Splash Art HD e forja direta.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-[#05070d] p-1 rounded-xl border border-[#1a1c2a] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectionViewMode('byChampion');
+                      setVisibleSkinsLimit(48);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                      collectionViewMode === 'byChampion'
+                        ? 'bg-blue-500/25 text-blue-200 border border-blue-400/50'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-3 h-3" /> Por Campeão ({championGroups.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectionViewMode('allSkins');
+                      setVisibleSkinsLimit(48);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                      collectionViewMode === 'allSkins'
+                        ? 'bg-blue-500/25 text-blue-200 border border-blue-400/50'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" /> Todas as Skins
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-2 bg-[#05070d] rounded-full overflow-hidden border border-[#1a1c2a]">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-600 via-cyan-400 to-brand rounded-full transition-all duration-500"
+                  style={{ width: `${totalCatalogSkins > 0 ? Math.min(100, Math.round((totalOwnedUniqueSkins / totalCatalogSkins) * 100)) : 0}%` }}
                 />
               </div>
-              <button onClick={() => setRarityFilter(null)}
-                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer ${rarityFilter === null ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'bg-[#080a12] border-[#1a1c2a] text-slate-400'}`}>
-                Todas
-              </button>
-              {[0, 1, 2, 3, 4, 5].map(lvl => (
-                <button key={lvl} onClick={() => setRarityFilter(rarityFilter === lvl ? null : lvl)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer ${RARITY_CONFIG[lvl].color} ${rarityFilter === lvl ? 'bg-white/10 border-white/25' : 'bg-[#080a12] border-[#1a1c2a]'}`}>
-                  {RARITY_CONFIG[lvl].label}
-                </button>
-              ))}
             </div>
 
-            {duplicateCount > 0 && (
-              <button onClick={handleSellAllDuplicates}
-                className="w-full py-2.5 bg-cyan-500/10 border border-cyan-500/35 text-cyan-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-cyan-500/20 transition-all">
-                Desmontar {duplicateCount} Repetida{duplicateCount > 1 ? 's' : ''} por Essência 💠
-              </button>
+            {forgeMessage && (
+              <div className="bg-brand/10 border border-brand/35 text-brand text-xs font-bold p-3 rounded-xl text-center">
+                {forgeMessage}
+              </div>
             )}
 
-            {uniqueCollection.length === 0 ? (
-              <div className="text-center text-slate-500 text-xs py-10">Nenhum item na coleção ainda.</div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[440px] overflow-y-auto pr-1">
-                {uniqueCollection.map(({ item, qty }) => {
-                  const cfg = RARITY_CONFIG[item.rarity] || RARITY_CONFIG[0];
-                  return (
-                    <div key={item.id} className={`bg-[#070910] border-2 ${cfg.border} rounded-xl overflow-hidden holo-foil transition-transform hover:scale-[1.02]`}
-                      style={{ boxShadow: `0 0 10px ${cfg.glow}` }}>
-                      <div className="aspect-[3/4] relative bg-[#06070d]">
-                        <LoLArtImage item={item} ddVersion={ddVersion} className="w-full h-full object-cover object-top" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#070910] via-transparent to-transparent" />
-                        {qty > 1 && (
-                          <span className="absolute top-1.5 left-1.5 text-[9px] font-mono font-bold bg-black/80 text-brand border border-brand/30 px-1.5 py-0.5 rounded-md">
-                            ×{qty}
-                          </span>
-                        )}
-                      </div>
-                      <div className="p-2 text-center">
-                        <div className="text-[10px] font-extrabold text-white truncate">{item.name}</div>
-                        {item.champion && <div className="text-[8px] text-slate-400 truncate">{item.champion}</div>}
-                        <div className={`text-[8px] font-bold mt-0.5 ${cfg.color}`}>{item.rarityLabel}</div>
+            {/* Barra de Filtros e Busca */}
+            <div className="bg-[#080a12] border border-[#1a1c2a] rounded-xl p-3 space-y-2.5">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setVisibleSkinsLimit(48);
+                    }}
+                    placeholder="Buscar campeão ou skin (ex: Ahri, K/DA, PROJETO, Guardiã)..."
+                    className="w-full bg-[#06070d] border border-[#1a1c2a] rounded-xl text-xs text-slate-200 pl-8 pr-7 py-1.5 focus:outline-none focus:border-blue-500/50"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {collectionViewMode === 'allSkins' && (
+                  <select
+                    value={selectedChampionKey || ''}
+                    onChange={(e) => {
+                      setSelectedChampionKey(e.target.value || null);
+                      setVisibleSkinsLimit(48);
+                    }}
+                    className="bg-[#06070d] border border-[#1a1c2a] rounded-xl text-[11px] text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-blue-500/50"
+                  >
+                    <option value="">🛡️ Todos os Campeões ({championGroups.length})</option>
+                    {championGroups.map((g) => (
+                      <option key={g.championKey} value={g.championKey}>
+                        {g.champName} ({g.ownedSkinsCount}/{g.totalSkins})
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {duplicateCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSellAllDuplicates}
+                    className="px-3 py-1.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded-xl text-[11px] font-bold cursor-pointer hover:bg-cyan-500/25 transition-all shrink-0"
+                  >
+                    Desmontar {duplicateCount} Repetida{duplicateCount > 1 ? 's' : ''} 💠
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {collectionViewMode === 'byChampion' && !selectedChampionGroup ? (
+                  [
+                    { id: 'all' as const, label: '📋 Todos Campeões' },
+                    { id: 'started' as const, label: '✅ Com Skins' },
+                    { id: 'missing' as const, label: '❌ Faltando Skins' },
+                    { id: 'completed' as const, label: '🏆 100% Completos' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setChampionStatusFilter(st.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                        championStatusFilter === st.id
+                          ? 'bg-brand/20 border-brand text-brand'
+                          : 'bg-[#06070d] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))
+                ) : (
+                  [
+                    { id: 'all' as const, label: '📋 Todas' },
+                    { id: 'owned' as const, label: '✅ Possuídas' },
+                    { id: 'missing' as const, label: '❌ Faltam' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => {
+                        setOwnershipFilter(st.id);
+                        setVisibleSkinsLimit(48);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                        ownershipFilter === st.id
+                          ? 'bg-brand/20 border-brand text-brand'
+                          : 'bg-[#06070d] border-[#1a1c2a] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))
+                )}
+
+                <span className="text-slate-700 mx-0.5">|</span>
+
+                <button
+                  type="button"
+                  onClick={() => setRarityFilter(null)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold border cursor-pointer ${
+                    rarityFilter === null
+                      ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                      : 'bg-[#06070d] border-[#1a1c2a] text-slate-400'
+                  }`}
+                >
+                  Todas Raridades
+                </button>
+                {[1, 2, 3, 4, 5].map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => {
+                      setRarityFilter(rarityFilter === lvl ? null : lvl);
+                      setVisibleSkinsLimit(48);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border cursor-pointer ${RARITY_CONFIG[lvl].color} ${
+                      rarityFilter === lvl ? 'bg-white/10 border-white/30' : 'bg-[#06070d] border-[#1a1c2a]'
+                    }`}
+                  >
+                    {RARITY_CONFIG[lvl].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* MODO 1A: VITRINE DETALHADA DAS SKINS DO CAMPEÃO SELECIONADO */}
+            {collectionViewMode === 'byChampion' && selectedChampionGroup && (() => {
+              const currIdx = filteredChampionGroups.findIndex((g) => g.championKey === selectedChampionGroup.championKey);
+              const prevChamp = currIdx > 0 ? filteredChampionGroups[currIdx - 1] : null;
+              const nextChamp = currIdx >= 0 && currIdx < filteredChampionGroups.length - 1 ? filteredChampionGroups[currIdx + 1] : null;
+
+              const champSkinsToRender = selectedChampionGroup.skins.filter((sk) => {
+                const isOwned = ownedQtyMap.has(sk.id);
+                if (ownershipFilter === 'owned' && !isOwned) return false;
+                if (ownershipFilter === 'missing' && isOwned) return false;
+                if (rarityFilter !== null && sk.rarity !== rarityFilter) return false;
+                if (searchQuery && !sk.name.toLowerCase().includes(searchQuery.toLowerCase()) && !selectedChampionGroup.champName.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  return false;
+                }
+                return true;
+              });
+
+              return (
+                <div className="space-y-3">
+                  <div className="bg-[#070912] border border-blue-500/35 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChampionKey(null)}
+                        className="px-3 py-1.5 rounded-xl bg-[#0e1222] hover:bg-[#171d35] border border-white/10 text-xs font-bold text-slate-200 cursor-pointer flex items-center gap-1.5"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Todos os Campeões
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={!prevChamp}
+                          onClick={() => prevChamp && setSelectedChampionKey(prevChamp.championKey)}
+                          className="p-1.5 rounded-lg bg-[#0d111f] border border-white/10 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                          title="Campeão anterior"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!nextChamp}
+                          onClick={() => nextChamp && setSelectedChampionKey(nextChamp.championKey)}
+                          className="p-1.5 rounded-lg bg-[#0d111f] border border-white/10 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                          title="Próximo campeão"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    <div className="flex items-center gap-3">
+                      {selectedChampionGroup.icon && (
+                        <img
+                          src={selectedChampionGroup.icon}
+                          alt={selectedChampionGroup.champName}
+                          className="w-14 h-14 rounded-xl border-2 border-blue-400/50 object-cover shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-black text-white">{selectedChampionGroup.champName}</h3>
+                          {selectedChampionGroup.ownedChamp ? (
+                            <span className="text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-2 py-0.5 rounded-full">
+                              ✓ Campeão Desbloqueado
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
+                              Campeão Base (Sem Drop)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          <strong className="text-brand">{selectedChampionGroup.ownedSkinsCount}</strong>/{selectedChampionGroup.totalSkins} skins na coleção •{' '}
+                          <span className={selectedChampionGroup.missingSkinsCount === 0 ? 'text-emerald-300 font-bold' : 'text-amber-300 font-bold'}>
+                            {selectedChampionGroup.missingSkinsCount === 0 ? '🏆 100% Completo!' : `Faltam ${selectedChampionGroup.missingSkinsCount} skins`}
+                          </span>
+                        </p>
+                        <div className="h-1.5 bg-[#05070d] rounded-full overflow-hidden mt-2 border border-white/5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              selectedChampionGroup.completionPct >= 100 ? 'bg-emerald-400' : 'bg-blue-400'
+                            }`}
+                            style={{ width: `${selectedChampionGroup.completionPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {champSkinsToRender.length === 0 ? (
+                    <div className="text-center text-slate-500 text-xs py-10 bg-[#070910] rounded-xl border border-[#1a1c2a]">
+                      Nenhuma skin de {selectedChampionGroup.champName} encontrada com esses filtros.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[540px] overflow-y-auto pr-1">
+                      {champSkinsToRender.map((item) => {
+                        const qty = ownedQtyMap.get(item.id) || 0;
+                        const isOwned = qty > 0;
+                        const cfg = RARITY_CONFIG[item.rarity] || RARITY_CONFIG[0];
+                        const useMythic = item.rarity >= 4;
+                        const forgeCost = useMythic ? 125 : item.essenceValue * 2;
+                        const canForge = useMythic ? mythicEssence >= forgeCost : essence >= forgeCost;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`bg-[#070910] border-2 rounded-xl overflow-hidden flex flex-col transition-all ${
+                              isOwned
+                                ? `${cfg.border} holo-foil`
+                                : 'border-[#1d2236] opacity-80 hover:opacity-100 hover:border-blue-500/45'
+                            }`}
+                            style={isOwned ? { boxShadow: `0 0 12px ${cfg.glow}` } : undefined}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setPreviewSkin(item)}
+                              className="aspect-[3/4] relative bg-[#06070d] w-full overflow-hidden cursor-pointer group text-left"
+                              title="Clique para ampliar Splash Art HD"
+                            >
+                              <LoLArtImage
+                                item={item}
+                                ddVersion={ddVersion}
+                                className={`w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105 ${
+                                  !isOwned ? 'grayscale-[45%] contrast-95' : ''
+                                }`}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#070910] via-transparent to-black/30" />
+                              <span
+                                className={`absolute top-1.5 left-1.5 text-[8px] font-mono font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                                  isOwned
+                                    ? 'bg-emerald-500 text-slate-950 shadow'
+                                    : 'bg-rose-500/90 text-white shadow'
+                                }`}
+                              >
+                                {isOwned ? (
+                                  <>
+                                    <Check className="w-2.5 h-2.5" /> {qty > 1 ? `×${qty}` : 'TENHO'}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock className="w-2.5 h-2.5" /> FALTA
+                                  </>
+                                )}
+                              </span>
+                              <span className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/75 border border-white/15 text-white opacity-85 group-hover:opacity-100">
+                                <Eye className="w-3 h-3" />
+                              </span>
+                            </button>
+
+                            <div className="p-2 flex-1 flex flex-col justify-between gap-1.5 text-center bg-[#070910]">
+                              <div>
+                                <div className="text-[10px] font-extrabold text-white line-clamp-2 leading-tight">{item.name}</div>
+                                <div className={`text-[8px] font-bold mt-0.5 ${cfg.color}`}>{item.rarityLabel}</div>
+                              </div>
+
+                              {!isOwned && (
+                                <button
+                                  type="button"
+                                  disabled={!canForge}
+                                  onClick={() => handleUnlockSpecificSkin(item)}
+                                  className="w-full py-1 px-2 rounded-lg text-[9px] font-mono font-bold border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/25 disabled:opacity-35 disabled:cursor-not-allowed text-cyan-200 cursor-pointer transition-all"
+                                >
+                                  🔨 Forjar {forgeCost} {useMythic ? '🟣' : '💠'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* MODO 1B: LISTA DE CAMPEÕES AGRUPADOS */}
+            {collectionViewMode === 'byChampion' && !selectedChampionGroup && (
+              filteredChampionGroups.length === 0 ? (
+                <div className="text-center text-slate-500 text-xs py-10">Nenhum campeão encontrado com esses filtros.</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[560px] overflow-y-auto pr-1">
+                  {filteredChampionGroups.map((grp) => (
+                    <button
+                      key={grp.championKey}
+                      type="button"
+                      onClick={() => setSelectedChampionKey(grp.championKey)}
+                      className={`text-left rounded-xl p-3 border transition-all cursor-pointer group ${
+                        grp.completionPct >= 100 && grp.totalSkins > 0
+                          ? 'bg-emerald-950/15 border-emerald-500/45 hover:border-emerald-400'
+                          : grp.ownedSkinsCount > 0
+                            ? 'bg-[#090d1a] border-blue-500/35 hover:border-blue-400'
+                            : 'bg-[#070910] border-[#1a1c2a] hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {grp.icon ? (
+                          <img
+                            src={grp.icon}
+                            alt={grp.champName}
+                            className="w-11 h-11 rounded-lg border border-white/15 object-cover shrink-0 group-hover:scale-105 transition-transform"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-lg bg-[#111524] flex items-center justify-center text-lg shrink-0">⚔️</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-xs font-extrabold text-white truncate group-hover:text-blue-300 transition-colors">
+                              {grp.champName}
+                            </span>
+                            <span className="text-[10px] font-mono font-bold text-brand shrink-0">
+                              {grp.ownedSkinsCount}/{grp.totalSkins}
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-between">
+                            <span>
+                              {grp.missingSkinsCount === 0 ? '🏆 Todas skins completas!' : `Faltam ${grp.missingSkinsCount} skins`}
+                            </span>
+                            <span className="font-mono text-slate-500">{grp.completionPct}%</span>
+                          </div>
+                          <div className="h-1 bg-[#05070d] rounded-full overflow-hidden mt-1.5">
+                            <div
+                              className={`h-full rounded-full ${grp.completionPct >= 100 ? 'bg-emerald-400' : 'bg-blue-400'}`}
+                              style={{ width: `${grp.completionPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mini prévia de skins do boneco */}
+                      {grp.skins.length > 0 && (
+                        <div className="grid grid-cols-5 gap-1 mt-2.5">
+                          {grp.skins.slice(0, 5).map((sk) => {
+                            const owned = ownedQtyMap.has(sk.id);
+                            return (
+                              <div
+                                key={sk.id}
+                                className={`aspect-[3/4] rounded-md overflow-hidden border relative bg-[#05070d] ${
+                                  owned ? 'border-emerald-400/75 ring-1 ring-emerald-400/30' : 'border-white/10 opacity-45 grayscale'
+                                }`}
+                                title={`${sk.name} (${owned ? 'Na coleção' : 'Falta'})`}
+                              >
+                                <LoLArtImage item={sk} ddVersion={ddVersion} className="w-full h-full object-cover object-top" />
+                                {owned && (
+                                  <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 shadow" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* MODO 2: CATÁLOGO GERAL DE SKINS (COM FILTRO POSSUÍDAS / FALTAM E PAGINAÇÃO) */}
+            {collectionViewMode === 'allSkins' && (
+              filteredAllSkins.length === 0 ? (
+                <div className="text-center text-slate-500 text-xs py-10">Nenhuma skin encontrada com esses filtros.</div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-[10px] font-mono text-slate-400 flex items-center justify-between px-1">
+                    <span>
+                      Mostrando {Math.min(visibleSkinsLimit, filteredAllSkins.length)} de {filteredAllSkins.length} skins
+                    </span>
+                    <span className="text-slate-500">Clique na imagem para ver Splash Art HD</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[540px] overflow-y-auto pr-1">
+                    {filteredAllSkins.slice(0, visibleSkinsLimit).map((item) => {
+                      const qty = ownedQtyMap.get(item.id) || 0;
+                      const isOwned = qty > 0;
+                      const cfg = RARITY_CONFIG[item.rarity] || RARITY_CONFIG[0];
+                      const useMythic = item.rarity >= 4;
+                      const forgeCost = useMythic ? 125 : item.essenceValue * 2;
+                      const canForge = useMythic ? mythicEssence >= forgeCost : essence >= forgeCost;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`bg-[#070910] border-2 rounded-xl overflow-hidden flex flex-col transition-all ${
+                            isOwned ? `${cfg.border} holo-foil` : 'border-[#1a1f32] opacity-80 hover:opacity-100'
+                          }`}
+                          style={isOwned ? { boxShadow: `0 0 10px ${cfg.glow}` } : undefined}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPreviewSkin(item)}
+                            className="aspect-[3/4] relative bg-[#06070d] w-full overflow-hidden cursor-pointer group"
+                          >
+                            <LoLArtImage
+                              item={item}
+                              ddVersion={ddVersion}
+                              className={`w-full h-full object-cover object-top group-hover:scale-105 transition-transform ${
+                                !isOwned ? 'grayscale-[45%]' : ''
+                              }`}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#070910] via-transparent to-black/25" />
+                            <span
+                              className={`absolute top-1.5 left-1.5 text-[8px] font-mono font-black px-1.5 py-0.5 rounded-md ${
+                                isOwned ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500/90 text-white'
+                              }`}
+                            >
+                              {isOwned ? (qty > 1 ? `✓ ×${qty}` : '✓ TENHO') : '🔒 FALTA'}
+                            </span>
+                            <span className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/75 border border-white/15 text-white">
+                              <Eye className="w-3 h-3" />
+                            </span>
+                          </button>
+                          <div className="p-2 text-center flex-1 flex flex-col justify-between gap-1">
+                            <div>
+                              <div className="text-[10px] font-extrabold text-white truncate">{item.name}</div>
+                              {item.champion && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCollectionViewMode('byChampion');
+                                    setSelectedChampionKey(item.championKey || null);
+                                  }}
+                                  className="text-[9px] text-blue-300 hover:text-blue-200 underline cursor-pointer truncate"
+                                >
+                                  {item.champion}
+                                </button>
+                              )}
+                              <div className={`text-[8px] font-bold mt-0.5 ${cfg.color}`}>{item.rarityLabel}</div>
+                            </div>
+
+                            {!isOwned && (
+                              <button
+                                type="button"
+                                disabled={!canForge}
+                                onClick={() => handleUnlockSpecificSkin(item)}
+                                className="w-full py-1 px-2 rounded-lg text-[9px] font-mono font-bold border border-cyan-500/35 bg-cyan-500/10 hover:bg-cyan-500/25 disabled:opacity-35 text-cyan-200 cursor-pointer transition-all"
+                              >
+                                🔨 {forgeCost} {useMythic ? '🟣' : '💠'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {visibleSkinsLimit < filteredAllSkins.length && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleSkinsLimit((v) => v + 48)}
+                      className="w-full py-2.5 rounded-xl bg-[#0b1020] hover:bg-[#121933] border border-blue-500/35 text-blue-300 text-xs font-bold cursor-pointer transition-all"
+                    >
+                      Carregar Mais Skins ({filteredAllSkins.length - visibleSkinsLimit} restantes)
+                    </button>
+                  )}
+                </div>
+              )
             )}
           </motion.div>
         )}
@@ -1662,6 +2369,143 @@ export default function LoLChests({ balance, onUpdateBalance, onAddBetHistory, u
             </div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Modal Visualizador Splash Art HD de Skins */}
+      <AnimatePresence>
+        {previewSkin && (() => {
+          const idx = previewChampSkins.findIndex((s) => s.id === previewSkin.id);
+          const prevSkin = idx > 0 ? previewChampSkins[idx - 1] : null;
+          const nextSkin = idx >= 0 && idx < previewChampSkins.length - 1 ? previewChampSkins[idx + 1] : null;
+          const qty = ownedQtyMap.get(previewSkin.id) || 0;
+          const isOwned = qty > 0;
+          const cfg = RARITY_CONFIG[previewSkin.rarity] || RARITY_CONFIG[0];
+          const useMythic = previewSkin.rarity >= 4;
+          const forgeCost = useMythic ? 125 : previewSkin.essenceValue * 2;
+          const canForge = useMythic ? mythicEssence >= forgeCost : essence >= forgeCost;
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewSkin(null)}
+              className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-3xl bg-[#0b0e19] border border-blue-500/40 rounded-2xl overflow-hidden shadow-[0_0_45px_rgba(59,130,246,0.28)]"
+              >
+                <div className="relative aspect-[16/9] bg-[#05070d] overflow-hidden">
+                  <LoLSplashImage item={previewSkin} ddVersion={ddVersion} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e19] via-transparent to-black/45" />
+
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSkin(null)}
+                    className="absolute top-3 right-3 p-2 rounded-full bg-black/75 hover:bg-black text-white border border-white/15 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  {prevSkin && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewSkin(prevSkin)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/75 hover:bg-blue-500/80 text-white border border-white/15 cursor-pointer transition-all"
+                      title={`Anterior: ${prevSkin.name}`}
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  {nextSkin && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewSkin(nextSkin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/75 hover:bg-blue-500/80 text-white border border-white/15 cursor-pointer transition-all"
+                      title={`Próxima: ${nextSkin.name}`}
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-black/80 border ${cfg.border} ${cfg.color}`}>
+                          {previewSkin.rarityLabel}
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono font-black px-2 py-0.5 rounded ${
+                            isOwned ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
+                          }`}
+                        >
+                          {isOwned ? `✓ NA COLEÇÃO (×${qty})` : '🔒 FALTA NA COLEÇÃO'}
+                        </span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-black text-white drop-shadow">{previewSkin.name}</h3>
+                      {previewSkin.champion && (
+                        <p className="text-xs text-blue-300 font-bold">{previewSkin.champion}</p>
+                      )}
+                    </div>
+
+                    {!isOwned && (
+                      <button
+                        type="button"
+                        disabled={!canForge}
+                        onClick={() => handleUnlockSpecificSkin(previewSkin)}
+                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-slate-950 font-black text-xs cursor-pointer disabled:cursor-not-allowed shadow"
+                      >
+                        🔨 Desbloquear por {forgeCost} {useMythic ? '🟣 EM' : '💠'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {previewChampSkins.length > 1 && (
+                  <div className="p-3 bg-[#070912] border-t border-white/5 space-y-2">
+                    <div className="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+                      <span>Todas as skins de {previewSkin.champion || 'Campeão'} ({previewChampSkins.length})</span>
+                      <span>{idx + 1} / {previewChampSkins.length}</span>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {previewChampSkins.map((sk) => {
+                        const active = sk.id === previewSkin.id;
+                        const skOwned = ownedQtyMap.has(sk.id);
+                        return (
+                          <button
+                            key={sk.id}
+                            type="button"
+                            onClick={() => setPreviewSkin(sk)}
+                            className={`shrink-0 w-16 rounded-lg overflow-hidden border-2 transition-all cursor-pointer relative ${
+                              active
+                                ? 'border-brand scale-105 shadow-[0_0_12px_rgba(0,255,135,0.45)]'
+                                : skOwned
+                                  ? 'border-blue-400/50 opacity-90 hover:opacity-100'
+                                  : 'border-white/10 opacity-50 grayscale hover:opacity-85'
+                            }`}
+                            title={sk.name}
+                          >
+                            <div className="aspect-[3/4] bg-[#05070d]">
+                              <LoLArtImage item={sk} ddVersion={ddVersion} className="w-full h-full object-cover object-top" />
+                            </div>
+                            {skOwned && (
+                              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 shadow" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

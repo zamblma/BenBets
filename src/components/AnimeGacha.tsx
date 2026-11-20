@@ -85,7 +85,37 @@ const MAX_FREE_ROLLS_PER_HOUR = 5;
 const MAX_EXTRA_ROLLS_PER_HOUR = 2;
 const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v5';
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v6';
+
+// Faixas de páginas na AniList API (~50 personagens por página, cobrindo 10.000+ bonecos)
+const TIER_PAGE_RANGES: Array<[number, number]> = [
+  [46, 200], // Rank C (~7.750 personagens)
+  [13, 45],  // Rank B (~1.650 personagens)
+  [5, 12],   // Rank A (~400 personagens)
+  [1, 4],    // Rank S (~200 personagens)
+  [1, 2],    // Rank S+ Ícone (+ Top 50 canônico)
+];
+
+function getTierWeights(luckMultiplier: number): number[] {
+  return [
+    1.0, // C
+    0.65, // B
+    0.30 * luckMultiplier, // A
+    0.11 * luckMultiplier, // S
+    0.04 * luckMultiplier, // S+
+  ];
+}
+
+function pickTargetTierIndex(luckMultiplier: number): number {
+  const weights = getTierWeights(luckMultiplier);
+  const total = weights.reduce((acc, w) => acc + w, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return 0;
+}
 
 const TIER_CONFIG = [
   { label: 'Rank C', badge: 'text-slate-300 bg-slate-500/15 border-slate-500/40', embed: '#64748b', cardGlow: '' },
@@ -428,8 +458,18 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
     if (canon) {
       claimRank = canon.rank;
     } else {
+      const minEstimatedRank =
+        item.favourites >= 50000
+          ? 1
+          : item.favourites >= 24000
+            ? 31
+            : item.favourites >= 11000
+              ? 101
+              : item.favourites >= 3500
+                ? 251
+                : 651;
       while (usedCanonicalRanks.has(nextFreeRank)) nextFreeRank += 1;
-      claimRank = nextFreeRank;
+      claimRank = Math.max(nextFreeRank, minEstimatedRank);
       nextFreeRank += 1;
     }
     const { baseValue, tierIndex, tierLabel } = computeMudaeValueAndTier(
@@ -476,6 +516,28 @@ function buildFallbackCatalog(): MudaeChar[] {
 
 let cachedMudaeMemory: MudaeChar[] | null = null;
 let loadedWavePageMemory = 0;
+const loadedPagesMemory = new Set<number>();
+
+function saveCatalogToStorage(list: MudaeChar[]) {
+  try {
+    localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(list.slice(0, 2200)));
+  } catch {
+    /* ignore storage quota */
+  }
+}
+
+function pickRandomPageForTier(tierIndex: number): number {
+  const [minP, maxP] = TIER_PAGE_RANGES[tierIndex] || TIER_PAGE_RANGES[0];
+  const unloaded: number[] = [];
+  for (let p = minP; p <= maxP; p++) {
+    if (!loadedPagesMemory.has(p)) unloaded.push(p);
+  }
+  const pool =
+    unloaded.length > 0
+      ? unloaded
+      : Array.from({ length: maxP - minP + 1 }, (_, idx) => minP + idx);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 function normalizeGender(raw: any): CharGender {
   if (typeof raw !== 'string') return 'Other';
@@ -586,6 +648,7 @@ async function fetchAniListPagesList(pages: number[]): Promise<RawCharSeed[]> {
   const seeds: RawCharSeed[] = [];
 
   for (let i = 0; i < pages.length; i++) {
+    loadedPagesMemory.add(pages[i]);
     const list = data[`p${i}`]?.characters;
     if (!Array.isArray(list)) continue;
     for (const ch of list) {
@@ -594,6 +657,29 @@ async function fetchAniListPagesList(pages: number[]): Promise<RawCharSeed[]> {
     }
   }
   return seeds;
+}
+
+async function fetchRandomUnloadedPageForTier(
+  tierIndex: number,
+  timeoutMs = 1400,
+  secondRandomTier?: number
+): Promise<RawCharSeed[]> {
+  const pages = [pickRandomPageForTier(tierIndex)];
+  if (secondRandomTier !== undefined) {
+    const secondPage = pickRandomPageForTier(secondRandomTier);
+    if (!pages.includes(secondPage)) pages.push(secondPage);
+  }
+  try {
+    const timeoutPromise = new Promise<RawCharSeed[]>((resolve) =>
+      window.setTimeout(() => resolve([]), timeoutMs)
+    );
+    return await Promise.race([
+      fetchAniListPagesList(pages).catch(() => []),
+      timeoutPromise,
+    ]);
+  } catch {
+    return [];
+  }
 }
 
 async function searchAndImportFromGlobalApi(searchTerm: string): Promise<RawCharSeed[]> {
@@ -804,6 +890,7 @@ export default function AnimeGacha({
   const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [expandingApi, setExpandingApi] = useState(false);
   const [searchingGlobal, setSearchingGlobal] = useState(false);
+  const [rollingMode, setRollingMode] = useState<RollMode | null>(null);
   const [mudaeData, setMudaeData] = useState<MudaeUserData>(getDefaultMudaeUserData);
   const [serverClaims, setServerClaims] = useState<Record<string, ServerAnimeClaim>>({});
   const [serverWishCounts, setServerWishCounts] = useState<Record<string, number>>({});
@@ -837,6 +924,7 @@ export default function AnimeGacha({
   const [resettingGlobal, setResettingGlobal] = useState(false);
 
   const toastTimerRef = useRef<number | null>(null);
+  const rollingLockRef = useRef(false);
   const processedReceiptIdsRef = useRef<Set<string>>(new Set());
   const seenRemoteRollIdsRef = useRef<Set<string>>(new Set());
   const catalogRef = useRef<MudaeChar[]>(catalog);
@@ -939,12 +1027,13 @@ export default function AnimeGacha({
     }
 
     try {
-      const rawCache = sessionStorage.getItem(CATALOG_CACHE_KEY);
+      const rawCache = localStorage.getItem(CATALOG_CACHE_KEY);
       if (rawCache) {
         const parsed = JSON.parse(rawCache);
         if (Array.isArray(parsed) && parsed.length >= 800) {
           cachedMudaeMemory = parsed;
           loadedWavePageMemory = 32;
+          for (let p = 1; p <= 32; p++) loadedPagesMemory.add(p);
           setCatalog(parsed);
           return;
         }
@@ -961,10 +1050,11 @@ export default function AnimeGacha({
           fetchCanonicalTopCharsFromAniList(),
         ]);
         if (cancelled) return;
-        let currentCatalog = mergeCatalogChars([], [...wave1, ...canonicalTop]);
+        let currentCatalog = mergeCatalogChars(catalogRef.current.length > 30 ? catalogRef.current : [], [...wave1, ...canonicalTop]);
         cachedMudaeMemory = currentCatalog;
         loadedWavePageMemory = 4;
         setCatalog(currentCatalog);
+        saveCatalogToStorage(currentCatalog);
 
         const batches: number[][] = [
           [3, 4, 5, 6],
@@ -994,9 +1084,7 @@ export default function AnimeGacha({
         }
 
         if (!cancelled && currentCatalog.length > 0) {
-          try {
-            sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(currentCatalog.slice(0, 1800)));
-          } catch { /* quota */ }
+          saveCatalogToStorage(currentCatalog);
         }
       } catch {
         if (!cancelled) setCatalog(buildFallbackCatalog());
@@ -1026,6 +1114,7 @@ export default function AnimeGacha({
           cachedMudaeMemory = working;
           loadedWavePageMemory = s + 3;
           setCatalog(working);
+          saveCatalogToStorage(working);
         }
         await new Promise((r) => setTimeout(r, 550));
       }
@@ -1055,6 +1144,7 @@ export default function AnimeGacha({
         const merged = mergeCatalogChars(catalogRef.current, found);
         const addedCount = Math.max(0, merged.length - beforeCount);
         cachedMudaeMemory = merged;
+        saveCatalogToStorage(merged);
         setCatalog(merged);
         setWishSearch(q);
         play('rare');
@@ -1190,37 +1280,44 @@ export default function AnimeGacha({
     [mergedLiveRolls, activeRollId]
   );
 
-  // Rarity-weighted roll pick: Rank C/B common, Rank S/S+ genuinely rare!
+  // Rarity-weighted roll pick: Rank C/B common, Rank S/S+ genuinely rare across loaded + live API tiers
   const pickCharacterForRoll = useCallback(
-    (mode: RollMode): MudaeChar => {
+    (mode: RollMode, targetTier?: number, sourceCatalog?: MudaeChar[]): MudaeChar => {
+      const source = sourceCatalog || catalogRef.current;
       const disabledSet = new Set(mudaeData.disablelist);
       const wishSet = new Set(mudaeData.wishlist);
 
-      let pool = catalog.filter((c) => {
+      let pool = source.filter((c) => {
         if (mode === 'wa' && c.gender !== 'Female') return false;
         if (mode === 'ha' && c.gender !== 'Male') return false;
         return !disabledSet.has(c.series);
       });
 
       if (pool.length < 15) {
-        pool = catalog.filter((c) => {
+        pool = source.filter((c) => {
           if (mode === 'wa') return c.gender === 'Female';
           if (mode === 'ha') return c.gender === 'Male';
           return true;
         });
       }
-      if (pool.length === 0) pool = catalog;
+      if (pool.length === 0) pool = source;
 
-      const TIER_WEIGHTS = [
-        1.0, // C
-        0.65, // B
-        0.30 * luckMultiplier, // A
-        0.11 * luckMultiplier, // S
-        0.04 * luckMultiplier, // S+
-      ];
+      const wishMatches = pool.filter((c) => wishSet.has(c.id));
+      const wishBonusChance = Math.min(0.35, wishMatches.length * 0.015 * wishSpawnWeight);
+      if (wishMatches.length > 0 && Math.random() < wishBonusChance) {
+        return wishMatches[Math.floor(Math.random() * wishMatches.length)];
+      }
 
+      if (targetTier !== undefined) {
+        const tierPool = pool.filter((c) => c.tierIndex === targetTier);
+        if (tierPool.length > 0) {
+          return tierPool[Math.floor(Math.random() * tierPool.length)];
+        }
+      }
+
+      const tierWeights = getTierWeights(luckMultiplier);
       const weighted = pool.map((c) => {
-        let weight = TIER_WEIGHTS[c.tierIndex] ?? 0.5;
+        let weight = tierWeights[c.tierIndex] ?? 0.5;
         if (wishSet.has(c.id)) {
           weight *= wishSpawnWeight;
         }
@@ -1235,12 +1332,12 @@ export default function AnimeGacha({
       }
       return pool[Math.floor(Math.random() * pool.length)];
     },
-    [catalog, mudaeData.disablelist, mudaeData.wishlist, luckMultiplier, wishSpawnWeight]
+    [mudaeData.disablelist, mudaeData.wishlist, luckMultiplier, wishSpawnWeight]
   );
 
   const performRoll = useCallback(
-    (mode: RollMode) => {
-      if (catalog.length === 0) return;
+    async (mode: RollMode) => {
+      if (rollingLockRef.current) return;
 
       const usingPaidExtra = freeRollsRemaining <= 0;
 
@@ -1258,120 +1355,175 @@ export default function AnimeGacha({
           showToast(`Saldo insuficiente para Roll Extra (R$ ${EXTRA_ROLL_COST.toFixed(2)}).`, 'warn');
           return;
         }
-        onUpdateBalance(-EXTRA_ROLL_COST);
       }
 
-      const rolledAt = Date.now();
-      const windowExpired = mudaeData.rollsWindowStart === 0 || rolledAt - mudaeData.rollsWindowStart >= HOUR_MS;
-      const nextRollsWindowStart = windowExpired ? rolledAt : mudaeData.rollsWindowStart;
-      const nextFreeUsed = windowExpired ? (usingPaidExtra ? 0 : 1) : (usingPaidExtra ? freeRollsUsed : freeRollsUsed + 1);
-      const nextExtraUsed = windowExpired ? (usingPaidExtra ? 1 : 0) : (usingPaidExtra ? extraRollsUsed + 1 : extraRollsUsed);
+      rollingLockRef.current = true;
+      setRollingMode(mode);
 
-      setMudaeData((prev) => ({
-        ...prev,
-        rollsWindowStart: nextRollsWindowStart,
-        rollsUsed: nextFreeUsed,
-        extraRollsUsed: nextExtraUsed,
-      }));
+      try {
+        const targetTier = pickTargetTierIndex(luckMultiplier);
+        let workingCatalog = catalogRef.current;
 
-      setTab('roll');
-      setLastRollMode(mode);
-      const char = pickCharacterForRoll(mode);
-      const isWish = mudaeData.wishlist.includes(char.id);
-      const myOwned = myCollectionMap.get(char.id);
-      const serverOwner = serverClaims[char.id];
-      const alreadyMarriedInServer = Boolean(myOwned || serverOwner);
+        const disabledSet = new Set(mudaeData.disablelist);
+        const matchingTierCount = workingCatalog.filter((c) => {
+          if (mode === 'wa' && c.gender !== 'Female') return false;
+          if (mode === 'ha' && c.gender !== 'Male') return false;
+          if (c.tierIndex !== targetTier) return false;
+          return !disabledSet.has(c.series);
+        }).length;
 
-      let grantedKeyHere = 0;
-      if (myOwned) {
-        const bonusKeyChance = mudaeData.tower.floor6Rainbow * 0.12;
-        const gainedKeys = Math.random() < bonusKeyChance ? 2 : 1;
-        grantedKeyHere = gainedKeys;
-        const cardsToAdd: PokemonCard[] = [];
-        for (let i = 0; i < gainedKeys; i++) {
-          cardsToAdd.push({
-            id: char.id,
-            name: char.name,
-            imageUrl: char.image,
-            rarity: char.tierLabel,
-            setName: char.series,
-            setSeries: `Rank #${char.claimRank} • ${char.gender === 'Female' ? '$wa Feminino' : char.gender === 'Male' ? '$ha Masculino' : '$ma Especial'} • ${char.favourites} favs`,
-            quantity: 1,
-          });
+        // Fetches an unloaded page directly from AniList when cache is cold/small or 45% of rolls to reach 10k+ chars
+        const shouldFetchLivePage =
+          workingCatalog.length <= 30 || matchingTierCount < 12 || Math.random() < 0.45;
+
+        if (shouldFetchLivePage) {
+          const backupTier = workingCatalog.length <= 30 ? (targetTier === 0 ? 1 : 0) : undefined;
+          const liveSeeds = await fetchRandomUnloadedPageForTier(targetTier, 1400, backupTier);
+          if (liveSeeds.length > 0) {
+            const merged = mergeCatalogChars(catalogRef.current, liveSeeds);
+            workingCatalog = merged;
+            cachedMudaeMemory = merged;
+            saveCatalogToStorage(merged);
+            setCatalog(merged);
+          }
         }
-        onCollectionUpdate(cardsToAdd);
-      }
 
-      // 100% chance of Orb on married rolls, 65% chance on free rolls for intense server competition!
-      const orb =
-        alreadyMarriedInServer || Math.random() < 0.65
-          ? generateOrbCrystal(char.tierIndex, mudaeData.tower.floor6Rainbow, Boolean(myOwned))
-          : null;
+        if (workingCatalog.length === 0) return;
 
-      const liveRoll: MudaeLiveRoll = {
-        instanceId: `roll-${userId.slice(0, 5)}-${rolledAt}-${Math.random().toString(36).slice(2, 6)}`,
-        rollerUid: userId,
-        rollerName: userName,
-        mode,
-        rolledAt,
-        expiresAt: rolledAt + CLAIM_WINDOW_MS,
-        char: {
-          id: char.id,
-          name: char.name,
-          series: char.series,
-          image: char.image,
-          gender: char.gender,
-          favourites: char.favourites,
-          claimRank: char.claimRank,
-          baseValue: char.baseValue,
-          tierIndex: char.tierIndex,
-          tierLabel: char.tierLabel,
-        },
-        ...(grantedKeyHere > 0 ? { grantedKeyToRoller: grantedKeyHere } : {}),
-        orb,
-      };
+        if (usingPaidExtra) {
+          onUpdateBalance(-EXTRA_ROLL_COST);
+        }
 
-      setLocalLiveRolls((prev) => [liveRoll, ...prev].slice(0, 8));
-      setActiveRollId(liveRoll.instanceId);
+        const rolledAt = Date.now();
+        const windowExpired = mudaeData.rollsWindowStart === 0 || rolledAt - mudaeData.rollsWindowStart >= HOUR_MS;
+        const nextRollsWindowStart = windowExpired ? rolledAt : mudaeData.rollsWindowStart;
+        const nextFreeUsed = windowExpired ? (usingPaidExtra ? 0 : 1) : (usingPaidExtra ? freeRollsUsed : freeRollsUsed + 1);
+        const nextExtraUsed = windowExpired ? (usingPaidExtra ? 1 : 0) : (usingPaidExtra ? extraRollsUsed + 1 : extraRollsUsed);
 
-      // Broadcast live roll to ALL online Firebase users immediately!
-      if (userId) {
-        publishLiveMudaeRoll(userId, liveRoll, {
+        setMudaeData((prev) => ({
+          ...prev,
           rollsWindowStart: nextRollsWindowStart,
           rollsUsed: nextFreeUsed,
           extraRollsUsed: nextExtraUsed,
-        }).catch(() => {});
-      }
+        }));
 
-      if (isWish) {
-        play('legendary');
-        showToast(`🌟 ALERTA DE WISHLIST! ${char.name} (#${char.claimRank} • R$ ${char.baseValue.toFixed(0)}) apareceu!`, 'wish');
-      } else if (myOwned) {
-        play('rare');
-        showToast(
-          `🔑 Chaos Key +${grantedKeyHere} em ${char.name}! Valor +${grantedKeyHere * 10}% + Orbe R$ no servidor!`,
-          'kakera'
-        );
-      } else if (char.tierIndex >= 3) {
-        play('legendary');
-        showToast(`🔥 ${char.tierLabel.toUpperCase()}! ${char.name} (R$ ${char.baseValue.toFixed(2)}) apareceu ao vivo!`, 'wish');
-      } else {
-        play('cardFlip');
+        setTab('roll');
+        setLastRollMode(mode);
+        const char = pickCharacterForRoll(mode, targetTier, workingCatalog);
+        const isWish = mudaeData.wishlist.includes(char.id);
+        const myOwned = myCollectionMap.get(char.id);
+        const serverOwner = serverClaims[char.id];
+        const alreadyMarriedInServer = Boolean(myOwned || serverOwner);
+
+        let grantedKeyHere = 0;
+        if (myOwned) {
+          const bonusKeyChance = mudaeData.tower.floor6Rainbow * 0.12;
+          const gainedKeys = Math.random() < bonusKeyChance ? 2 : 1;
+          grantedKeyHere = gainedKeys;
+          const cardsToAdd: PokemonCard[] = [];
+          for (let i = 0; i < gainedKeys; i++) {
+            cardsToAdd.push({
+              id: char.id,
+              name: char.name,
+              imageUrl: char.image,
+              rarity: char.tierLabel,
+              setName: char.series,
+              setSeries: `Rank #${char.claimRank} • ${char.gender === 'Female' ? '$wa Feminino' : char.gender === 'Male' ? '$ha Masculino' : '$ma Especial'} • ${char.favourites} favs`,
+              quantity: 1,
+            });
+          }
+          onCollectionUpdate(cardsToAdd);
+        }
+
+        // 100% chance of Orb on married rolls, 65% chance on free rolls for intense server competition!
+        const orb =
+          alreadyMarriedInServer || Math.random() < 0.65
+            ? generateOrbCrystal(char.tierIndex, mudaeData.tower.floor6Rainbow, Boolean(myOwned))
+            : null;
+
+        const liveRoll: MudaeLiveRoll = {
+          instanceId: `roll-${userId.slice(0, 5)}-${rolledAt}-${Math.random().toString(36).slice(2, 6)}`,
+          rollerUid: userId,
+          rollerName: userName,
+          mode,
+          rolledAt,
+          expiresAt: rolledAt + CLAIM_WINDOW_MS,
+          char: {
+            id: char.id,
+            name: char.name,
+            series: char.series,
+            image: char.image,
+            gender: char.gender,
+            favourites: char.favourites,
+            claimRank: char.claimRank,
+            baseValue: char.baseValue,
+            tierIndex: char.tierIndex,
+            tierLabel: char.tierLabel,
+          },
+          ...(grantedKeyHere > 0 ? { grantedKeyToRoller: grantedKeyHere } : {}),
+          orb,
+        };
+
+        setLocalLiveRolls((prev) => [liveRoll, ...prev].slice(0, 8));
+        setActiveRollId(liveRoll.instanceId);
+
+        // Broadcast live roll to ALL online Firebase users immediately!
+        if (userId) {
+          publishLiveMudaeRoll(userId, liveRoll, {
+            rollsWindowStart: nextRollsWindowStart,
+            rollsUsed: nextFreeUsed,
+            extraRollsUsed: nextExtraUsed,
+          }).catch(() => {});
+        }
+
+        if (isWish) {
+          play('legendary');
+          showToast(`🌟 ALERTA DE WISHLIST! ${char.name} (#${char.claimRank} • R$ ${char.baseValue.toFixed(0)}) apareceu!`, 'wish');
+        } else if (myOwned) {
+          play('rare');
+          showToast(
+            `🔑 Chaos Key +${grantedKeyHere} em ${char.name}! Valor +${grantedKeyHere * 10}% + Orbe R$ no servidor!`,
+            'kakera'
+          );
+        } else if (char.tierIndex >= 3) {
+          play('legendary');
+          showToast(`🔥 ${char.tierLabel.toUpperCase()}! ${char.name} (R$ ${char.baseValue.toFixed(2)}) apareceu ao vivo!`, 'wish');
+        } else {
+          play('cardFlip');
+        }
+
+        // Pré-busca silenciosa em background de uma página aleatória inédita (1..200) para manter o pool sempre amplo
+        const prefetchTier = pickTargetTierIndex(luckMultiplier);
+        fetchRandomUnloadedPageForTier(prefetchTier, 2500)
+          .then((extraSeeds) => {
+            if (extraSeeds.length === 0) return;
+            setCatalog((prev) => {
+              const updated = mergeCatalogChars(prev, extraSeeds);
+              cachedMudaeMemory = updated;
+              saveCatalogToStorage(updated);
+              return updated;
+            });
+          })
+          .catch(() => {});
+      } finally {
+        rollingLockRef.current = false;
+        setRollingMode(null);
       }
     },
     [
-      catalog.length,
       freeRollsRemaining,
       extraRollsRemaining,
       rollsResetInMs,
       balance,
-      onUpdateBalance,
+      luckMultiplier,
+      mudaeData.disablelist,
       mudaeData.rollsWindowStart,
+      mudaeData.wishlist,
+      mudaeData.tower.floor6Rainbow,
+      onUpdateBalance,
       freeRollsUsed,
       extraRollsUsed,
       pickCharacterForRoll,
-      mudaeData.wishlist,
-      mudaeData.tower.floor6Rainbow,
       myCollectionMap,
       serverClaims,
       onCollectionUpdate,
@@ -2244,9 +2396,10 @@ export default function AnimeGacha({
               </div>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white font-extrabold text-xs cursor-pointer transition-all shrink-0"
+                disabled={rollingMode !== null}
+                className="px-4 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] disabled:opacity-50 text-white font-extrabold text-xs cursor-pointer transition-all shrink-0"
               >
-                Enviar
+                {rollingMode ? 'Rolando...' : 'Enviar'}
               </button>
             </form>
 
@@ -2256,7 +2409,8 @@ export default function AnimeGacha({
                 { mode: 'ha' as RollMode, cmd: '$ha / /ha', title: 'Roleta Husbando (Anime)', emoji: '♂️', border: 'border-sky-500/40 hover:border-sky-400 from-sky-600/20', badge: 'text-sky-300 bg-sky-500/20 border-sky-400/40' },
                 { mode: 'ma' as RollMode, cmd: '$ma / /ma', title: 'Roleta Mista (Todos)', emoji: '🎴', border: 'border-purple-500/40 hover:border-purple-400 from-purple-600/20', badge: 'text-purple-300 bg-purple-500/20 border-purple-400/40' },
               ]).map((btn) => {
-                const blocked = freeRollsRemaining <= 0 && extraRollsRemaining <= 0;
+                const blocked = rollingMode !== null || (freeRollsRemaining <= 0 && extraRollsRemaining <= 0);
+                const isRollingThis = rollingMode === btn.mode;
                 return (
                   <button
                     key={btn.mode}
@@ -2275,9 +2429,13 @@ export default function AnimeGacha({
                       </span>
                       <span className="text-base">{btn.emoji}</span>
                     </div>
-                    <p className="text-sm font-extrabold text-white mt-1.5">{btn.title}</p>
+                    <p className="text-sm font-extrabold text-white mt-1.5">
+                      {isRollingThis ? 'Sorteando na API...' : btn.title}
+                    </p>
                     <p className="text-[10px] mt-0.5 font-mono">
-                      {freeRollsRemaining > 0 ? (
+                      {isRollingThis ? (
+                        <span className="text-purple-300 animate-pulse">⏳ Buscando entre +10.000 bonecos...</span>
+                      ) : freeRollsRemaining > 0 ? (
                         <span className="text-emerald-300">Grátis ({freeRollsRemaining}/5 restantes)</span>
                       ) : extraRollsRemaining > 0 ? (
                         <span className="text-amber-300 font-bold">
