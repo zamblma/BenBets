@@ -88,6 +88,31 @@ export function sanitizePlacedBets(rawBets: any): { bets: PlacedBet[]; repaired:
       cleanBet.outcomeValue = cleanOutcome;
     }
 
+    if (typeof b.matchId === 'string' && b.matchId) {
+      cleanBet.matchId = b.matchId;
+    }
+    if (b.pickedOutcome === 'home' || b.pickedOutcome === 'draw' || b.pickedOutcome === 'away') {
+      cleanBet.pickedOutcome = b.pickedOutcome;
+    }
+    if (Array.isArray(b.legs)) {
+      const validLegs = b.legs
+        .filter(
+          (l: any) =>
+            l &&
+            typeof l === 'object' &&
+            typeof l.matchId === 'string' &&
+            (l.pickedOutcome === 'home' || l.pickedOutcome === 'draw' || l.pickedOutcome === 'away')
+        )
+        .map((l: any) => ({
+          matchId: String(l.matchId),
+          matchName: String(l.matchName || ''),
+          pickedOutcome: l.pickedOutcome as 'home' | 'draw' | 'away',
+          selectionName: String(l.selectionName || ''),
+          odds: typeof l.odds === 'number' && Number.isFinite(l.odds) ? l.odds : 1,
+        }));
+      if (validLegs.length > 0) cleanBet.legs = validLegs;
+    }
+
     bets.push(cleanBet);
   }
 

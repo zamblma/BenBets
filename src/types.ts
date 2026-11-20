@@ -1,6 +1,6 @@
 export interface Match {
   id: string;
-  sport: 'Futebol' | 'Basquete' | 'Tênis' | 'E-Sports' | 'MMA' | 'Vôlei';
+  sport: 'Futebol' | 'Basquete' | 'Tênis' | 'E-Sports' | 'MMA' | 'Vôlei' | 'Hóquei';
   league: string;
   countryFlag?: string;
   phase?: string;
@@ -15,6 +15,7 @@ export interface Match {
   logoAway?: string;
   time: string;
   isLive: boolean;
+  isFinished?: boolean;
   scoreHome?: number;
   scoreAway?: number;
   timeElapsed?: string;
@@ -24,6 +25,11 @@ export interface Match {
     shotsHome?: number;
     shotsAway?: number;
     detailLabel?: string;
+  };
+  baseOdds?: {
+    home: number;
+    draw?: number;
+    away: number;
   };
   odds: {
     home: number;
@@ -40,6 +46,14 @@ export interface BetSelection {
   odds: number;
 }
 
+export interface PlacedBetLeg {
+  matchId: string;
+  matchName: string;
+  pickedOutcome: 'home' | 'draw' | 'away';
+  selectionName: string;
+  odds: number;
+}
+
 export interface PlacedBet {
   id: string;
   matchName: string;
@@ -49,8 +63,11 @@ export interface PlacedBet {
   potentialPayout: number;
   status: 'pending' | 'won' | 'lost';
   placedAt: string;
-  type: 'sports' | 'casino' | 'crash';
+  type: 'sports' | 'crash' | 'casino';
   outcomeValue?: string;
+  matchId?: string;
+  pickedOutcome?: 'home' | 'draw' | 'away';
+  legs?: PlacedBetLeg[];
 }
 
 export interface Transaction {

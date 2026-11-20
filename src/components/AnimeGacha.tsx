@@ -85,7 +85,7 @@ const MAX_FREE_ROLLS_PER_HOUR = 5;
 const MAX_EXTRA_ROLLS_PER_HOUR = 2;
 const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v4';
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v5';
 
 const TIER_CONFIG = [
   { label: 'Rank C', badge: 'text-slate-300 bg-slate-500/15 border-slate-500/40', embed: '#64748b', cardGlow: '' },
@@ -211,35 +211,143 @@ const TOWER_FLOORS: TowerFloorDef[] = [
   },
 ];
 
-// Values and tiers strictly reflect AniList popularity (likes / favourites) & rank:
-// top famous icons skyrocket up to R$ 1,500 while low-rank extras stay R$ 2 - R$ 48.
-function computeMudaeValueAndTier(claimRank: number, favourites = 1000): { baseValue: number; tierIndex: number; tierLabel: string } {
+function normalizeMudaeName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Canonical Mudae TOP 1000 scale (ka = R$) with user's exact #16-#30 examples & top icons
+const MUDAE_CANONICAL_TOP: Record<string, { rank: number; ka: number }> = {
+  'zero two': { rank: 1, ka: 3450 },
+  'rem': { rank: 2, ka: 3280 },
+  'megumin': { rank: 3, ka: 3120 },
+  'saber': { rank: 4, ka: 2980 },
+  'altria pendragon': { rank: 4, ka: 2980 },
+  'mai sakurajima': { rank: 5, ka: 2890 },
+  'mikasa ackerman': { rank: 6, ka: 2840 },
+  'power': { rank: 7, ka: 2760 },
+  'makima': { rank: 8, ka: 2710 },
+  'satoru gojo': { rank: 9, ka: 2680 },
+  'levi': { rank: 10, ka: 2640 },
+  'levi ackerman': { rank: 10, ka: 2640 },
+  'yor forger': { rank: 11, ka: 2520 },
+  'asuna yuuki': { rank: 12, ka: 2460 },
+  'rias gremory': { rank: 13, ka: 2410 },
+  'kurisu makise': { rank: 14, ka: 2340 },
+  'albedo': { rank: 15, ka: 2280 },
+  'nico robin': { rank: 16, ka: 2195 },
+  'miku nakano': { rank: 17, ka: 2159 },
+  'emilia': { rank: 18, ka: 2168 },
+  'kirby': { rank: 19, ka: 1939 },
+  'marin kitagawa': { rank: 20, ka: 2069 },
+  'nezuko kamado': { rank: 21, ka: 2186 },
+  'frieren': { rank: 22, ka: 2061 },
+  'violet evergarden': { rank: 23, ka: 2061 },
+  'aqua': { rank: 24, ka: 2134 },
+  'hange zoe': { rank: 25, ka: 1766 },
+  'ram': { rank: 26, ka: 2195 },
+  'shinobu kochou': { rank: 27, ka: 2038 },
+  'shinobu kocho': { rank: 27, ka: 2038 },
+  'monkey d luffy': { rank: 28, ka: 2222 },
+  'reze': { rank: 29, ka: 1966 },
+  'rin tohsaka': { rank: 30, ka: 1887 },
+  'roronoa zoro': { rank: 31, ka: 1750 },
+  'killua zoldyck': { rank: 32, ka: 1710 },
+  'itachi uchiha': { rank: 33, ka: 1680 },
+  'l lawliet': { rank: 34, ka: 1640 },
+  'naruto uzumaki': { rank: 35, ka: 1620 },
+  'son goku': { rank: 36, ka: 1590 },
+  'edward elric': { rank: 37, ka: 1540 },
+  'eren yeager': { rank: 38, ka: 1510 },
+  'nami': { rank: 39, ka: 1490 },
+  'sasuke uchiha': { rank: 40, ka: 1460 },
+  'ichigo kurosaki': { rank: 41, ka: 1420 },
+  'boa hancock': { rank: 42, ka: 1390 },
+  'kaguya shinomiya': { rank: 43, ka: 1360 },
+  'esdeath': { rank: 44, ka: 1320 },
+  'ai hoshino': { rank: 45, ka: 1350 },
+  'hinata hyuga': { rank: 46, ka: 1290 },
+  'chika fujiwara': { rank: 47, ka: 1240 },
+  'anya forger': { rank: 48, ka: 1280 },
+  'spike spiegel': { rank: 49, ka: 1180 },
+  'kurumi tokisaki': { rank: 50, ka: 1210 },
+};
+
+const CANONICAL_TOP_FETCH_NAMES = [
+  'Zero Two',
+  'Rem',
+  'Megumin',
+  'Nico Robin',
+  'Miku Nakano',
+  'Emilia',
+  'Kirby',
+  'Marin Kitagawa',
+  'Nezuko Kamado',
+  'Frieren',
+  'Violet Evergarden',
+  'Aqua',
+  'Hange Zoë',
+  'Ram',
+  'Shinobu Kochou',
+  'Monkey D. Luffy',
+  'Reze',
+  'Rin Tohsaka',
+];
+
+function getCanonicalMatch(name?: string): { rank: number; ka: number } | null {
+  if (!name) return null;
+  const norm = normalizeMudaeName(name);
+  return MUDAE_CANONICAL_TOP[norm] || null;
+}
+
+// Mudae ka = R$ curve: TOP 30 (R$ 1.766–3.450), Rank S (R$ 750–1.750), Rank A (R$ 140–680),
+// while common low-rank Rank B and Rank C characters cost strictly R$ 3,00 to R$ 7,00.
+function computeMudaeValueAndTier(
+  claimRank: number,
+  favourites = 1000,
+  name?: string
+): { baseValue: number; tierIndex: number; tierLabel: string } {
+  const canonical = getCanonicalMatch(name);
+  if (canonical) {
+    const tierIndex = canonical.rank <= 30 ? 4 : 3;
+    return {
+      baseValue: canonical.ka,
+      tierIndex,
+      tierLabel: TIER_CONFIG[tierIndex].label,
+    };
+  }
+
   const rank = Math.max(1, claimRank);
   const favs = Math.max(0, favourites);
 
   let tierIndex = 0;
-  let baseValue = 5;
+  let baseValue = 4;
 
-  if (favs >= 65000 || rank <= 15) {
+  if (favs >= 50000 || rank <= 30) {
     tierIndex = 4;
-    const progress = Math.min(1, Math.max(0, (Math.max(65000, favs) - 65000) / 75000));
-    baseValue = Math.min(1500, Math.round(450 + progress * 1050));
-  } else if (favs >= 28000 || rank <= 75) {
+    const progress = Math.min(1, Math.max(0, (Math.max(50000, favs) - 50000) / 85000));
+    baseValue = Math.min(3450, Math.round(1766 + progress * 1684));
+  } else if (favs >= 24000 || rank <= 100) {
     tierIndex = 3;
-    const progress = Math.min(1, Math.max(0, (Math.max(28000, favs) - 28000) / 37000));
-    baseValue = Math.min(420, Math.round(160 + progress * 260));
-  } else if (favs >= 12000 || rank <= 220) {
+    const progress = Math.min(1, Math.max(0, (Math.max(24000, favs) - 24000) / 26000));
+    baseValue = Math.min(1750, Math.round(750 + progress * 1000));
+  } else if (favs >= 11000 || rank <= 250) {
     tierIndex = 2;
-    const progress = Math.min(1, Math.max(0, (Math.max(12000, favs) - 12000) / 16000));
-    baseValue = Math.min(145, Math.round(65 + progress * 80));
-  } else if (favs >= 4000 || rank <= 600) {
+    const progress = Math.min(1, Math.max(0, (Math.max(11000, favs) - 11000) / 13000));
+    baseValue = Math.min(680, Math.round(140 + progress * 540));
+  } else if (favs >= 3500 || rank <= 650) {
     tierIndex = 1;
-    const progress = Math.min(1, Math.max(0, (Math.max(4000, favs) - 4000) / 8000));
-    baseValue = Math.min(48, Math.round(15 + progress * 33));
+    const progress = Math.min(1, Math.max(0, (Math.max(3500, favs) - 3500) / 7500));
+    baseValue = Math.max(5, Math.min(7, Math.round(5 + progress * 2)));
   } else {
     tierIndex = 0;
-    const progress = Math.min(1, Math.max(0, Math.min(4000, favs) / 4000));
-    baseValue = Math.max(2, Math.min(12, Math.round(2 + progress * 10)));
+    const progress = Math.min(1, Math.max(0, Math.min(3500, favs) / 3500));
+    baseValue = Math.max(3, Math.min(5, Math.round(3 + progress * 2)));
   }
 
   return {
@@ -296,10 +404,39 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
       dedup.set(s.id, s);
     }
   }
-  const sorted = Array.from(dedup.values()).sort((a, b) => b.favourites - a.favourites);
-  return sorted.map((item, idx) => {
-    const claimRank = idx + 1;
-    const { baseValue, tierIndex, tierLabel } = computeMudaeValueAndTier(claimRank, item.favourites);
+
+  const allItems = Array.from(dedup.values());
+  const usedCanonicalRanks = new Set<number>();
+  for (const item of allItems) {
+    const canon = getCanonicalMatch(item.name);
+    if (canon) usedCanonicalRanks.add(canon.rank);
+  }
+
+  allItems.sort((a, b) => {
+    const canonA = getCanonicalMatch(a.name);
+    const canonB = getCanonicalMatch(b.name);
+    if (canonA && canonB) return canonA.rank - canonB.rank || b.favourites - a.favourites;
+    if (canonA && !canonB) return -1;
+    if (!canonA && canonB) return 1;
+    return b.favourites - a.favourites;
+  });
+
+  let nextFreeRank = 1;
+  return allItems.map((item) => {
+    const canon = getCanonicalMatch(item.name);
+    let claimRank: number;
+    if (canon) {
+      claimRank = canon.rank;
+    } else {
+      while (usedCanonicalRanks.has(nextFreeRank)) nextFreeRank += 1;
+      claimRank = nextFreeRank;
+      nextFreeRank += 1;
+    }
+    const { baseValue, tierIndex, tierLabel } = computeMudaeValueAndTier(
+      claimRank,
+      item.favourites,
+      item.name
+    );
     return {
       ...item,
       claimRank,
@@ -371,6 +508,48 @@ function mapAniListNode(ch: any, fallbackSeries?: string): RawCharSeed | null {
     favourites: typeof ch.favourites === 'number' && Number.isFinite(ch.favourites) ? ch.favourites : 400,
     role,
   };
+}
+
+// Fetch real AniList portraits/IDs for canonical Mudae Top 30 characters in 1 batched GraphQL call
+async function fetchCanonicalTopCharsFromAniList(): Promise<RawCharSeed[]> {
+  const fields = CANONICAL_TOP_FETCH_NAMES.map(
+    (charName, i) => `
+      c${i}: Page(page: 1, perPage: 1) {
+        characters(search: ${JSON.stringify(charName)}, sort: [FAVOURITES_DESC]) {
+          id
+          name { full }
+          gender
+          favourites
+          image { large }
+          media(sort: [POPULARITY_DESC], perPage: 1) {
+            edges {
+              characterRole
+              node { title { romaji english } }
+            }
+          }
+        }
+      }
+    `
+  );
+  try {
+    const res = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: `query { ${fields.join('\n')} }` }),
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const data = json?.data || {};
+    const seeds: RawCharSeed[] = [];
+    for (let i = 0; i < CANONICAL_TOP_FETCH_NAMES.length; i++) {
+      const ch = data[`c${i}`]?.characters?.[0];
+      const mapped = mapAniListNode(ch);
+      if (mapped) seeds.push(mapped);
+    }
+    return seeds;
+  } catch {
+    return [];
+  }
 }
 
 // Fetch arbitrary explicit list of AniList pages (up to 4 per aliased request)
@@ -775,11 +954,14 @@ export default function AnimeGacha({
     let cancelled = false;
     (async () => {
       try {
-        setLoadingStatus('Carregando Top Famosos + Personagens variados da AniList API...');
-        // Wave 1 mixes Top pages (1,2) + Mid/Low pages (12,26) so all rarity tiers exist immediately!
-        const wave1 = await fetchAniListPagesList([1, 2, 12, 26]);
+        setLoadingStatus('Carregando TOP Mudae (ka = R$) + catálogo variado da AniList API...');
+        // Wave 1 mixes Top pages (1,2) + Mid/Low pages (12,26) + Canonical TOP 30 portraits!
+        const [wave1, canonicalTop] = await Promise.all([
+          fetchAniListPagesList([1, 2, 12, 26]),
+          fetchCanonicalTopCharsFromAniList(),
+        ]);
         if (cancelled) return;
-        let currentCatalog = mergeCatalogChars([], wave1);
+        let currentCatalog = mergeCatalogChars([], [...wave1, ...canonicalTop]);
         cachedMudaeMemory = currentCatalog;
         loadedWavePageMemory = 4;
         setCatalog(currentCatalog);
@@ -910,6 +1092,32 @@ export default function AnimeGacha({
       }
     }
     return Array.from(map.values())
+      .map((roll) => {
+        const canon = getCanonicalMatch(roll.char.name);
+        if (canon) {
+          const tIdx = canon.rank <= 30 ? 4 : 3;
+          return {
+            ...roll,
+            char: {
+              ...roll.char,
+              claimRank: canon.rank,
+              baseValue: canon.ka,
+              tierIndex: tIdx,
+              tierLabel: TIER_CONFIG[tIdx].label,
+            },
+          };
+        }
+        const computed = computeMudaeValueAndTier(roll.char.claimRank, roll.char.favourites, roll.char.name);
+        return {
+          ...roll,
+          char: {
+            ...roll.char,
+            baseValue: computed.baseValue,
+            tierIndex: computed.tierIndex,
+            tierLabel: computed.tierLabel,
+          },
+        };
+      })
       .sort((a, b) => b.rolledAt - a.rolledAt)
       .slice(0, 16);
   }, [serverLiveRolls, localLiveRolls]);
@@ -1714,12 +1922,12 @@ export default function AnimeGacha({
     const list = collection.map((card) => {
       const cat = catalogById.get(card.id);
       const parsed = parseCardMetadata(card);
-      const rank = cat?.claimRank ?? parsed.rank;
+      const rank = getCanonicalMatch(card.name)?.rank ?? cat?.claimRank ?? parsed.rank;
       const favourites = cat?.favourites ?? parsed.favourites;
       const gender = cat?.gender ?? parsed.gender;
       const tierInfo = cat
         ? { baseValue: cat.baseValue, tierIndex: cat.tierIndex, tierLabel: cat.tierLabel }
-        : computeMudaeValueAndTier(rank, favourites);
+        : computeMudaeValueAndTier(rank, favourites, card.name);
       const keys = Math.max(1, card.quantity || 1);
       const divorceValue = getEffectiveValue(tierInfo.baseValue, keys);
       const activeListing = listingByCardId.get(card.id);
@@ -1769,11 +1977,11 @@ export default function AnimeGacha({
     const enriched = marketListings.map((l) => {
       const cat = catalogById.get(l.cardId);
       const parsed = parseCardMetadata(l.card);
-      const rank = cat?.claimRank ?? l.rank ?? parsed.rank;
+      const rank = getCanonicalMatch(l.card.name)?.rank ?? cat?.claimRank ?? l.rank ?? parsed.rank;
       const favs = cat?.favourites ?? parsed.favourites;
       const tierInfo = cat
         ? { baseValue: cat.baseValue, tierIndex: cat.tierIndex, tierLabel: cat.tierLabel }
-        : computeMudaeValueAndTier(rank, favs);
+        : computeMudaeValueAndTier(rank, favs, l.card.name);
       return {
         ...l,
         image: cat?.image || l.card.imageUrl,
@@ -1804,11 +2012,11 @@ export default function AnimeGacha({
     return (Object.values(serverClaims) as ServerAnimeClaim[])
       .map((claim) => {
         const cat = catalogById.get(claim.cardId);
-        const rank = cat?.claimRank ?? 350;
+        const rank = getCanonicalMatch(claim.name)?.rank ?? cat?.claimRank ?? 350;
         const favs = cat?.favourites ?? 2000;
         const valInfo = cat
           ? { baseValue: cat.baseValue, tierIndex: cat.tierIndex, tierLabel: cat.tierLabel }
-          : computeMudaeValueAndTier(rank, favs);
+          : computeMudaeValueAndTier(rank, favs, claim.name);
         return {
           ...claim,
           image: cat?.image || claim.image,
@@ -1910,7 +2118,7 @@ export default function AnimeGacha({
               </button>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-400 mt-1">
-              Valores por fama real (<span className="text-slate-300">R$ 2–48 comuns</span> • <span className="text-brand font-bold">R$ 160–1.500 estrelas S/S+</span>). Rolls de todos aparecem ao vivo para disputar Orbes R$ ou dar Snipe!
+              Tabela oficial Mudae (<span className="text-slate-300">Rank B/C R$ 3–7</span> • <span className="text-brand font-bold">TOP Mudae até R$ 3.450</span>). Rolls ao vivo no servidor para disputar Orbes ou dar Snipe!
             </p>
           </div>
 
@@ -2464,7 +2672,7 @@ export default function AnimeGacha({
                 Pronto para rodar ao vivo no servidor!
               </h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Você tem <strong className="text-emerald-300">5 rolls grátis</strong> e até <strong className="text-amber-300">2 rolls extras (R$ 100,00)</strong> por hora. Famosos S/S+ valem até <strong className="text-brand">R$ 1.500,00</strong>!
+                Você tem <strong className="text-emerald-300">5 rolls grátis</strong> e até <strong className="text-amber-300">2 rolls extras (R$ 100,00)</strong> por hora. Rank B/C valem <strong className="text-slate-200">R$ 3–7</strong> e estrelas do TOP Mudae até <strong className="text-brand">R$ 3.450,00</strong>!
               </p>
               <div className="flex justify-center gap-2 pt-2">
                 <button

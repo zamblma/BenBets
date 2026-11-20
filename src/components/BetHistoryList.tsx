@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Ticket, Wallet, Play, CheckCircle2, XCircle, Clock, Percent, ShieldCheck, RefreshCw, Trophy } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { Ticket, Clock, Percent, ShieldCheck, XCircle, Trophy } from 'lucide-react';
 import { BetSelection, PlacedBet } from '../types';
 
 function getSafeBetNumbers(bet: PlacedBet) {
@@ -32,10 +31,15 @@ export default function BetHistoryList({
   onUpdateBalance,
   placedBets,
   onAddPlacedBet,
-  onSettleBet,
 }: BetHistoryListProps) {
   const [activeTab, setActiveTab] = useState<'slip' | 'history'>('history');
   const [stakeInput, setStakeInput] = useState<string>('');
+
+  useEffect(() => {
+    if (selections.length > 0) {
+      setActiveTab('slip');
+    }
+  }, [selections.length]);
 
   // Compute multi accumulator odds (+15% bonus when 2+ selections)
   const rawOdds = selections.reduce((accum, sel) => accum * sel.odds, 1.0);
@@ -60,13 +64,11 @@ export default function BetHistoryList({
     // Deduct from balance
     onUpdateBalance(-stake);
 
-    // Create unique bet
-    const compositeName = selections.map(s => s.matchName).join(' + ');
-    const compositeSelections = selections.map(s => `${s.selectionName} (${s.odds})`).join(' e ');
+    const compositeSelections = selections.map(s => `${s.selectionName} (@${s.odds.toFixed(2)})`).join(' + ');
 
     const newBet: PlacedBet = {
       id: `bet-sports-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      matchName: selections.length > 1 ? `Acumulada (${selections.length} Seleções)` : selections[0].matchName,
+      matchName: selections.length > 1 ? `Múltipla (${selections.length} Seleções)` : selections[0].matchName,
       selectionName: compositeSelections,
       odds: formattedOdds,
       stake: stake,
@@ -74,25 +76,22 @@ export default function BetHistoryList({
       status: 'pending',
       placedAt: new Date().toLocaleTimeString('pt-BR'),
       type: 'sports',
+      ...(selections.length === 1
+        ? { matchId: selections[0].matchId, pickedOutcome: selections[0].type }
+        : {}),
+      legs: selections.map(s => ({
+        matchId: s.matchId,
+        matchName: s.matchName,
+        pickedOutcome: s.type,
+        selectionName: s.selectionName,
+        odds: s.odds,
+      })),
     };
 
     onAddPlacedBet(newBet);
     onClearSelections();
-    setStakeInput('20');
+    setStakeInput('');
     setActiveTab('history');
-  };
-
-  const handleManualPayout = (bet: PlacedBet, outcome: 'won' | 'lost') => {
-    const { payout: safePayout } = getSafeBetNumbers(bet);
-    const payout = outcome === 'won' ? safePayout : 0;
-    onSettleBet(bet.id, outcome, payout);
-  };
-
-  const handleEarlyCashout = (bet: PlacedBet) => {
-    // Standard cashout takes stake * current odds * a minor discount factor
-    const { stake: betStake, odds: betOdds } = getSafeBetNumbers(bet);
-    const cashoutValue = parseFloat((betStake * betOdds * 0.85).toFixed(2));
-    onSettleBet(bet.id, 'won', cashoutValue);
   };
 
   return (
@@ -306,31 +305,16 @@ export default function BetHistoryList({
                       </span></div>
                     </div>
 
-                    {/* Interactive action buttons for PENDING sports matches */}
+                    {/* Realistic settlement notice for PENDING sports bets & Final Score on settled bets */}
                     {bet.status === 'pending' && bet.type === 'sports' && (
-                      <div className="mt-3.5 flex gap-1.5 border-t border-[#1c1f2e] pt-2.5">
-                        {/* Cash out button */}
-                        <button
-                          onClick={() => handleEarlyCashout(bet)}
-                          className="flex-1 py-1.5 bg-amber-500 hover:bg-amber-400 rounded-lg text-[10px] font-black text-slate-950 flex items-center justify-center gap-1 cursor-pointer"
-                          title="Fazer cash out antecipado (com taxa de conveniência de 15%)"
-                        >
-                          <Percent className="w-3 h-3 stroke-[2.5]" /> Cashout (R$ {(betStake * betOdds * 0.85).toFixed(2)})
-                        </button>
-
-                        {/* Force result buttons to demo winning/losing sports settling */}
-                        <button
-                          onClick={() => handleManualPayout(bet, 'won')}
-                          className="bg-brand/10 text-brand border border-brand/20 hover:bg-brand/20 py-1 px-1.5 rounded-lg text-[9px] font-bold cursor-pointer"
-                        >
-                          Ganhar
-                        </button>
-                        <button
-                          onClick={() => handleManualPayout(bet, 'lost')}
-                          className="bg-rose-950 text-rose-400 border border-rose-800/40 hover:bg-rose-900 py-1 px-1.5 rounded-lg text-[9px] font-bold cursor-pointer"
-                        >
-                          Perder
-                        </button>
+                      <div className="mt-2.5 border-t border-[#1c1f2e] pt-2 text-[10px] text-amber-300/90 flex items-center gap-1.5 font-mono">
+                        <Clock className="w-3 h-3 shrink-0" />
+                        <span>Aguardando Fim de Jogo (apuração somente após apito final)</span>
+                      </div>
+                    )}
+                    {bet.status !== 'pending' && bet.outcomeValue && bet.type === 'sports' && (
+                      <div className="mt-2 border-t border-[#1c1f2e] pt-1.5 text-[10px] text-slate-400 font-mono">
+                        🏁 {bet.outcomeValue}
                       </div>
                     )}
                   </div>

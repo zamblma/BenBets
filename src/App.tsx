@@ -33,6 +33,7 @@ import { Match, BetSelection, PlacedBet, Transaction, PokemonCard } from './type
 // Source data
 import { INITIAL_MATCHES } from './data/mockMatches';
 import { fetchBrazilianFootballMatches } from './utils/brazilianFootballApi';
+import { fetchRealHockeyMatches, computeLiveOddsFromScore, parseMatchProgress } from './utils/hockeyApi';
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -100,12 +101,16 @@ export default function App() {
   // Navigation & Category states
   const [selectedSport, setSelectedSport] = useState<string>('Home');
   const [sportFilter, setSportFilter] = useState<string>('todas');
-  const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'live' | 'upcoming'>('all');
+  const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'finished'>('all');
   const [leagueFilter, setLeagueFilter] = useState<string>('todas');
   const [selectedCasinoGame, setSelectedCasinoGame] = useState<string | null>(null);
   const [casinoCategory, setCasinoCategory] = useState<'all' | 'originals' | 'slots' | 'table'>('all');
   const [selectedColecionavel, setSelectedColecionavel] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeQuickBet, setActiveQuickBet] = useState<{ matchId: string; type: 'home' | 'draw' | 'away' } | null>(null);
+  const [quickBetStake, setQuickBetStake] = useState<string>('20');
+  const [quickBetFeedback, setQuickBetFeedback] = useState<{ matchId: string; text: string } | null>(null);
+  const settledBetIdsRef = useRef<Set<string>>(new Set());
   
   // Custom modals/drawers
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
@@ -368,7 +373,11 @@ export default function App() {
   const syncRealMatches = useCallback(async (force = false) => {
     setLoadingRealMatches(true);
     try {
-      const realList = await fetchBrazilianFootballMatches(force);
+      const [brList, hockeyList] = await Promise.all([
+        fetchBrazilianFootballMatches(force),
+        fetchRealHockeyMatches(force),
+      ]);
+      const realList = [...brList, ...hockeyList];
       if (realList.length > 0) {
         setRealMatchesCount(realList.length);
         const coveredLeagues = new Set(realList.map((m) => m.league));
@@ -394,47 +403,53 @@ export default function App() {
     return () => clearInterval(refreshId);
   }, [syncRealMatches]);
 
-  // Periodic score updates, live event play-by-play, stats, and odds drifting
+  // Realistic live match progression until official end (isFinished = true)
   useEffect(() => {
     const scoreInterval = setInterval(() => {
       setMatches((prevMatches) =>
         prevMatches.map((match) => {
-          if (!match.isLive) return match;
+          if (!match.isLive || match.isFinished) return match;
 
-          // Real ESPN API matches keep official real score/clock/events
+          // Real ESPN API matches recompute live odds coherently from official score & clock
           if (match.id.startsWith('espn-')) {
-            const drift = () => 0.99 + Math.random() * 0.02;
+            const baseOdds = match.baseOdds || match.odds;
+            const liveOdds = computeLiveOddsFromScore({
+              sport: match.sport,
+              scoreHome: match.scoreHome ?? 0,
+              scoreAway: match.scoreAway ?? 0,
+              progress: parseMatchProgress(match.sport, match.timeElapsed),
+              baseOdds,
+            });
             return {
               ...match,
-              odds: {
-                home: parseFloat(Math.max(1.01, match.odds.home * drift()).toFixed(2)),
-                draw: match.odds.draw ? parseFloat(Math.max(1.01, match.odds.draw * drift()).toFixed(2)) : undefined,
-                away: parseFloat(Math.max(1.01, match.odds.away * drift()).toFixed(2)),
-              },
+              baseOdds,
+              odds: liveOdds,
             };
           }
 
-          let hScore = match.scoreHome;
-          let aScore = match.scoreAway;
-          let elapsed = match.timeElapsed;
+          let hScore = match.scoreHome ?? 0;
+          let aScore = match.scoreAway ?? 0;
+          let elapsed = match.timeElapsed || '';
           let liveEvent = match.liveEvent;
+          let isLive = true;
+          let isFinished = false;
+          let timeLabel = match.time;
           const prevStats = match.stats || { possessionHome: 50, shotsHome: 5, shotsAway: 5 };
           let posHome = prevStats.possessionHome ?? 50;
           let shotsH = prevStats.shotsHome ?? 5;
           let shotsA = prevStats.shotsAway ?? 5;
           const probability = Math.random();
 
-          // Slight possession oscillation
           posHome = Math.max(30, Math.min(72, posHome + (Math.random() > 0.5 ? 1 : -1)));
 
           if (match.sport === 'Futebol') {
             if (probability < 0.08) {
               if (Math.random() > 0.48) {
-                hScore = (hScore ?? 0) + 1;
+                hScore += 1;
                 shotsH += 1;
                 liveEvent = `⚽ GOOOL do ${match.teamHome}! Vibração na arquibancada!`;
               } else {
-                aScore = (aScore ?? 0) + 1;
+                aScore += 1;
                 shotsA += 1;
                 liveEvent = `⚽ GOOOL do ${match.teamAway}! Empurra a defesa para trás!`;
               }
@@ -451,17 +466,32 @@ export default function App() {
               ];
               liveEvent = plays[Math.floor(Math.random() * plays.length)];
             }
-            if (elapsed) {
-              const minutes = parseInt(elapsed.replace("'", ''), 10);
-              if (!isNaN(minutes)) {
-                elapsed = minutes < 90 ? `${minutes + 1}'` : "90+2'";
-              }
+
+            const baseMatch = elapsed.match(/(\d+)/);
+            const extraMatch = elapsed.match(/90\+(\d+)/);
+            const currentMin = extraMatch
+              ? 90 + parseInt(extraMatch[1], 10)
+              : baseMatch
+                ? parseInt(baseMatch[1], 10)
+                : 60;
+            const nextMin = currentMin + 3;
+
+            if (nextMin >= 94) {
+              isLive = false;
+              isFinished = true;
+              timeLabel = 'Encerrado';
+              elapsed = 'Fim de Jogo';
+              liveEvent = `🏁 Apito Final! Placar encerrado: ${match.teamHome} ${hScore} × ${aScore} ${match.teamAway}`;
+            } else if (nextMin > 90) {
+              elapsed = `90+${nextMin - 90}'`;
+            } else {
+              elapsed = `${nextMin}'`;
             }
           } else if (match.sport === 'Basquete') {
             const hDelta = probability < 0.7 ? (Math.random() < 0.32 ? 3 : 2) : 0;
             const aDelta = probability > 0.28 ? (Math.random() < 0.3 ? 3 : 2) : 0;
-            hScore = (hScore ?? 80) + hDelta;
-            aScore = (aScore ?? 80) + aDelta;
+            hScore = (match.scoreHome ?? 80) + hDelta;
+            aScore = (match.scoreAway ?? 80) + aDelta;
             if (hDelta > 0) shotsH += 1;
             if (aDelta > 0) shotsA += 1;
             if (hDelta === 3) liveEvent = `🔥 Bola de 3 pontos convertida pelo ${match.teamHome}!`;
@@ -469,71 +499,222 @@ export default function App() {
             else if (hDelta === 2 || aDelta === 2) {
               liveEvent = `🏀 Bandeja no garrafão de ${hDelta > aDelta ? match.teamHome : match.teamAway}!`;
             }
+
+            const qMatch = elapsed.match(/(\d+)º\s*Qtr\s*•\s*(\d+):(\d+)/i);
+            const otMatch = elapsed.match(/OT\s*•\s*(\d+):(\d+)/i);
+            let qtr = otMatch ? 5 : qMatch ? parseInt(qMatch[1], 10) : 4;
+            let totalSec = otMatch
+              ? parseInt(otMatch[1], 10) * 60 + parseInt(otMatch[2], 10)
+              : qMatch
+                ? parseInt(qMatch[2], 10) * 60 + parseInt(qMatch[3], 10)
+                : 120;
+            totalSec -= 45;
+
+            if (totalSec <= 0) {
+              if (qtr >= 4) {
+                if (hScore === aScore) {
+                  qtr = 5;
+                  totalSec = 90;
+                  elapsed = 'OT • 01:30';
+                  liveEvent = '⏱️ Prorrogação no basquete! Placar empatado!';
+                } else {
+                  isLive = false;
+                  isFinished = true;
+                  timeLabel = 'Encerrado';
+                  elapsed = 'Fim de Jogo';
+                  liveEvent = `🏁 Fim de Jogo! ${hScore > aScore ? match.teamHome : match.teamAway} vence (${hScore} × ${aScore})!`;
+                }
+              } else {
+                qtr += 1;
+                totalSec = 600;
+                elapsed = `${qtr}º Qtr • 10:00`;
+              }
+            } else {
+              const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+              const ss = String(totalSec % 60).padStart(2, '0');
+              elapsed = qtr >= 5 ? `OT • ${mm}:${ss}` : `${qtr}º Qtr • ${mm}:${ss}`;
+            }
           } else if (match.sport === 'Tênis') {
-            if (probability < 0.45) {
-              const g1 = Math.floor(Math.random() * 6);
-              const g2 = Math.floor(Math.random() * 6);
-              elapsed = `Set 4 • G: ${g1}-${g2}`;
-              const server = Math.random() > 0.5 ? match.teamHome : match.teamAway;
-              if (Math.random() > 0.5) shotsH += 1;
+            if (probability < 0.65) {
+              const homePoint = Math.random() > 0.48;
+              const server = homePoint ? match.teamHome : match.teamAway;
+              if (homePoint) shotsH += 1;
               else shotsA += 1;
-              liveEvent =
-                Math.random() > 0.5
-                  ? `🎾 Ace no saque de ${server}! Ponto direto!`
-                  : `🔥 Winner paralelo na linha de ${server}!`;
+              if (Math.random() < 0.25) {
+                if (homePoint) hScore += 1;
+                else aScore += 1;
+              }
+              if (hScore >= 3 || aScore >= 3) {
+                if (hScore === aScore) hScore += 1;
+                isLive = false;
+                isFinished = true;
+                timeLabel = 'Encerrado';
+                elapsed = 'Fim de Jogo';
+                liveEvent = `🏁 Game, Set & Match para ${hScore > aScore ? match.teamHome : match.teamAway}!`;
+              } else {
+                const g1 = Math.floor(Math.random() * 6);
+                const g2 = Math.floor(Math.random() * 6);
+                elapsed = `Set ${Math.min(5, hScore + aScore + 1)} • G: ${g1}-${g2}`;
+                liveEvent = Math.random() > 0.5 ? `🎾 Ace no saque de ${server}!` : `🔥 Winner paralelo de ${server}!`;
+              }
             }
           } else if (match.sport === 'E-Sports') {
-            if (probability < 0.32) {
+            if (match.league.includes('CS2')) {
               const homeRound = Math.random() > 0.48;
-              if (homeRound) hScore = (hScore ?? 0) + 1;
-              else aScore = (aScore ?? 0) + 1;
-              shotsH = hScore ?? shotsH;
-              shotsA = aScore ?? shotsA;
+              if (homeRound) hScore += 1;
+              else aScore += 1;
+              shotsH = hScore;
+              shotsA = aScore;
               const actor = homeRound ? match.teamHome : match.teamAway;
-              liveEvent = match.league.includes('LoL')
-                ? `🐉 ${actor} vence teamfight no Dragão e avança mapa!`
-                : `💣 ${actor} converte round armado com retake sólido!`;
-              if (match.league.includes('CS2') && ((hScore ?? 0) > 13 || (aScore ?? 0) > 13)) {
-                hScore = 0;
-                aScore = 0;
+              liveEvent = `💣 ${actor} vence o round!`;
+              if ((hScore >= 13 || aScore >= 13) && Math.abs(hScore - aScore) >= 2) {
+                isLive = false;
+                isFinished = true;
+                timeLabel = 'Encerrado';
+                elapsed = 'Fim de Jogo';
+                liveEvent = `🏁 GG! ${hScore > aScore ? match.teamHome : match.teamAway} fecha o mapa (${hScore} × ${aScore})!`;
+              } else {
+                elapsed = `Mapa 2 • R${hScore + aScore + 1}`;
+              }
+            } else {
+              const timeParts = elapsed.match(/(\d+):(\d+)/);
+              const mins = timeParts ? parseInt(timeParts[1], 10) + 4 : 30;
+              if (Math.random() < 0.4) {
+                const homeMap = Math.random() > 0.48;
+                if (homeMap) hScore += 1;
+                else aScore += 1;
+                shotsH += homeMap ? 3 : 1;
+                shotsA += homeMap ? 1 : 3;
+                liveEvent = `🐉 ${homeMap ? match.teamHome : match.teamAway} garante o Nexus!`;
+              }
+              if (mins >= 42 || hScore >= 3 || aScore >= 3) {
+                if (hScore === aScore) {
+                  if (Math.random() > 0.5) hScore += 1;
+                  else aScore += 1;
+                }
+                isLive = false;
+                isFinished = true;
+                timeLabel = 'Encerrado';
+                elapsed = 'Fim de Jogo';
+                liveEvent = `🏁 Série encerrada! Vitória de ${hScore > aScore ? match.teamHome : match.teamAway}!`;
+              } else {
+                elapsed = `Jogo ${Math.min(5, hScore + aScore + 1)} • ${mins}:15`;
               }
             }
           } else if (match.sport === 'MMA') {
-            if (probability < 0.4) {
-              const homeHit = Math.random() > 0.45;
-              if (homeHit) shotsH += 3;
-              else shotsA += 3;
-              const fighter = homeHit ? match.teamHome : match.teamAway;
-              liveEvent =
-                Math.random() > 0.5
-                  ? `🥊 ${fighter} encaixa sequência forte de jabs e chute baixo!`
-                  : `🤼 ${fighter} defende queda na grade e pressiona no clinch!`;
+            const rMatch = elapsed.match(/Round\s*(\d+)/i);
+            const currentRound = rMatch ? parseInt(rMatch[1], 10) : 4;
+            const homeHit = Math.random() > 0.45;
+            if (homeHit) {
+              hScore += 1;
+              shotsH += 5;
+            } else {
+              aScore += 1;
+              shotsA += 5;
+            }
+            const fighter = homeHit ? match.teamHome : match.teamAway;
+            liveEvent = Math.random() > 0.5
+              ? `🥊 ${fighter} encaixa sequência forte de golpes!`
+              : `🤼 ${fighter} domina na grade!`;
+
+            if (currentRound >= 5 || Math.random() < 0.18) {
+              if (hScore === aScore) hScore += 1;
+              isLive = false;
+              isFinished = true;
+              timeLabel = 'Encerrado';
+              elapsed = 'Fim de Jogo';
+              liveEvent = `🏁 Fim da Luta! Vitória de ${hScore > aScore ? match.teamHome : match.teamAway}!`;
+            } else {
+              elapsed = `Round ${currentRound + 1} • 03:30`;
             }
           } else if (match.sport === 'Vôlei') {
-            if (probability < 0.5) {
-              const p1 = 15 + Math.floor(Math.random() * 9);
-              const p2 = 15 + Math.floor(Math.random() * 9);
-              elapsed = `4º Set • ${p1}-${p2}`;
-              const hitter = p1 >= p2 ? match.teamHome : match.teamAway;
-              if (p1 >= p2) shotsH += 1;
+            const homeSet = Math.random() > 0.46;
+            if (homeSet) {
+              shotsH += 2;
+              if (Math.random() < 0.35) hScore += 1;
+            } else {
+              shotsA += 2;
+              if (Math.random() < 0.35) aScore += 1;
+            }
+            if (hScore >= 3 || aScore >= 3) {
+              if (hScore === aScore) hScore += 1;
+              isLive = false;
+              isFinished = true;
+              timeLabel = 'Encerrado';
+              elapsed = 'Fim de Jogo';
+              liveEvent = `🏁 Fim de Jogo! ${hScore > aScore ? match.teamHome : match.teamAway} vence por ${hScore} × ${aScore} sets!`;
+            } else {
+              const p1 = 18 + Math.floor(Math.random() * 6);
+              const p2 = 17 + Math.floor(Math.random() * 6);
+              elapsed = `${Math.min(5, hScore + aScore + 1)}º Set • ${p1}-${p2}`;
+              liveEvent = `🏐 Cortada potente de ${homeSet ? match.teamHome : match.teamAway}!`;
+            }
+          } else if (match.sport === 'Hóquei') {
+            if (probability < 0.11) {
+              if (Math.random() > 0.48) {
+                hScore += 1;
+                shotsH += 1;
+                liveEvent = `🥅 GOOOL no gelo do ${match.teamHome}!`;
+              } else {
+                aScore += 1;
+                shotsA += 1;
+                liveEvent = `🥅 GOOOL no gelo do ${match.teamAway}!`;
+              }
+            } else if (probability < 0.44) {
+              const homeAtk = Math.random() > 0.46;
+              if (homeAtk) shotsH += 1;
               else shotsA += 1;
-              liveEvent =
-                Math.random() > 0.5
-                  ? `🏐 Cortada rápida pelo meio de ${hitter}!`
-                  : `🧱 Bloqueio simples de ${hitter} levanta a arena!`;
+              const actor = homeAtk ? match.teamHome : match.teamAway;
+              const plays = [
+                `🏒 Disparo de primeira de ${actor} defendido pelo goleiro!`,
+                `⚡ Power Play perigoso armado pelo ${actor}!`,
+                `🚨 Disco passa tirando tinta da trave para o ${actor}!`,
+              ];
+              liveEvent = plays[Math.floor(Math.random() * plays.length)];
+            }
+
+            const pMatch = elapsed.match(/(\d+)º\s*Per\s+(\d+):(\d+)/i);
+            let period = pMatch ? parseInt(pMatch[1], 10) : 2;
+            let totalSec = pMatch
+              ? parseInt(pMatch[2], 10) * 60 + parseInt(pMatch[3], 10)
+              : 600;
+            totalSec -= 105;
+
+            if (totalSec <= 0) {
+              if (period >= 3) {
+                isLive = false;
+                isFinished = true;
+                timeLabel = 'Encerrado';
+                elapsed = 'Fim de Jogo';
+                liveEvent = `🏁 Fim dos 3 Períodos! Placar regulamentar: ${match.teamHome} ${hScore} × ${aScore} ${match.teamAway}`;
+              } else {
+                period += 1;
+                totalSec = 1200;
+                elapsed = `${period}º Per 20:00`;
+                liveEvent = `🏒 Início do ${period}º Período no gelo!`;
+              }
+            } else {
+              const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+              const ss = String(totalSec % 60).padStart(2, '0');
+              elapsed = `${period}º Per ${mm}:${ss}`;
             }
           }
 
-          // Random odds drift (fluctuations up/down 4%)
-          const drift = () => 0.98 + Math.random() * 0.04;
-          const newOdds = {
-            home: parseFloat(Math.max(1.01, match.odds.home * drift()).toFixed(2)),
-            draw: match.odds.draw ? parseFloat(Math.max(1.01, match.odds.draw * drift()).toFixed(2)) : undefined,
-            away: parseFloat(Math.max(1.01, match.odds.away * drift()).toFixed(2)),
-          };
+          // Dynamic odds synced mathematically with current score & remaining time
+          const baseOdds = match.baseOdds || match.odds;
+          const liveOdds = computeLiveOddsFromScore({
+            sport: match.sport,
+            scoreHome: hScore,
+            scoreAway: aScore,
+            progress: isFinished ? 1 : parseMatchProgress(match.sport, elapsed),
+            baseOdds,
+          });
 
           return {
             ...match,
+            isLive,
+            isFinished,
+            time: timeLabel,
             scoreHome: hScore,
             scoreAway: aScore,
             timeElapsed: elapsed,
@@ -544,7 +725,8 @@ export default function App() {
               shotsHome: shotsH,
               shotsAway: shotsA,
             },
-            odds: newOdds,
+            baseOdds,
+            odds: liveOdds,
           };
         })
       );
@@ -553,51 +735,126 @@ export default function App() {
     return () => clearInterval(scoreInterval);
   }, []);
 
-  // Periodic sports betting simulation settlement engine (Resolves a pending sports bet every 20 seconds)
+  // REAL SPORTSBOOK SETTLEMENT ENGINE:
+  // Only settles pending sports bets AFTER match.isFinished === true based on the REAL final score!
   useEffect(() => {
-    const settleInterval = setInterval(() => {
-      setPlacedBets((prevBets) => {
-        const pendingSportsIdx = prevBets.findIndex(b => b.status === 'pending' && b.type === 'sports');
-        if (pendingSportsIdx === -1) return prevBets;
+    const matchesById = new Map<string, Match>(matches.map((m) => [m.id, m]));
+    const pendingSports = placedBets.filter(
+      (b) => b.status === 'pending' && b.type === 'sports' && !settledBetIdsRef.current.has(b.id)
+    );
+    if (pendingSports.length === 0) return;
 
-        const updated = [...prevBets];
-        const bet = updated[pendingSportsIdx];
-        const playerWon = Math.random() > 0.45; // 55% chance to win for playful satisfaction
+    const getMatchFinalOutcome = (m: Match): 'home' | 'draw' | 'away' | null => {
+      if (!m.isFinished) return null;
+      if (typeof m.scoreHome !== 'number' || typeof m.scoreAway !== 'number') return null;
+      if (m.scoreHome > m.scoreAway) return 'home';
+      if (m.scoreHome === m.scoreAway) return 'draw';
+      return 'away';
+    };
 
-        if (playerWon) {
-          updated[pendingSportsIdx] = {
-            ...bet,
-            status: 'won',
-          };
-          adjustBalanceSafe(bet.potentialPayout);
-          if (firebaseUser) updateBet(firebaseUser.uid, bet.id, { status: 'won' }).catch(() => {});
-        } else {
-          updated[pendingSportsIdx] = {
-            ...bet,
-            status: 'lost'
-          };
-          if (firebaseUser) updateBet(firebaseUser.uid, bet.id, { status: 'lost' }).catch(() => {});
+    const resolutions: Array<{ id: string; won: boolean; payout: number; outcomeValue: string }> = [];
+
+    for (const bet of pendingSports) {
+      let legsToCheck: Array<{ matchId: string; matchName: string; pickedOutcome: 'home' | 'draw' | 'away' }> = [];
+
+      if (Array.isArray(bet.legs) && bet.legs.length > 0) {
+        legsToCheck = bet.legs;
+      } else if (bet.matchId && bet.pickedOutcome) {
+        legsToCheck = [{ matchId: bet.matchId, matchName: bet.matchName, pickedOutcome: bet.pickedOutcome }];
+      } else {
+        const legacyMatch = matches.find((m) => `${m.teamHome} x ${m.teamAway}` === bet.matchName);
+        if (legacyMatch) {
+          const pickedOutcome: 'home' | 'draw' | 'away' = /empate/i.test(bet.selectionName)
+            ? 'draw'
+            : bet.selectionName.includes(legacyMatch.teamHome)
+              ? 'home'
+              : 'away';
+          legsToCheck = [{ matchId: legacyMatch.id, matchName: bet.matchName, pickedOutcome }];
         }
-        return updated;
-      });
-    }, 22000);
+      }
 
-    return () => clearInterval(settleInterval);
-  }, [firebaseUser]);
+      if (legsToCheck.length === 0) continue;
 
-  // Handler to toggle selection in the slip
-  const handleOddsClick = (match: Match, outcomeType: 'home' | 'draw' | 'away', oddsValue: number) => {
+      let allFinished = true;
+      let allWon = true;
+      const scoreParts: string[] = [];
+
+      for (const leg of legsToCheck) {
+        const m = matchesById.get(leg.matchId);
+        if (!m || !m.isFinished) {
+          allFinished = false;
+          break;
+        }
+        const finalOutcome = getMatchFinalOutcome(m);
+        if (!finalOutcome) {
+          allFinished = false;
+          break;
+        }
+        if (finalOutcome !== leg.pickedOutcome) allWon = false;
+        scoreParts.push(`${m.teamHome} ${m.scoreHome ?? 0}×${m.scoreAway ?? 0} ${m.teamAway}`);
+      }
+
+      if (allFinished) {
+        settledBetIdsRef.current.add(bet.id);
+        resolutions.push({
+          id: bet.id,
+          won: allWon,
+          payout: allWon ? bet.potentialPayout : 0,
+          outcomeValue: `Placar Final: ${scoreParts.join(' | ')}`,
+        });
+      }
+    }
+
+    if (resolutions.length === 0) return;
+
+    const resMap = new Map(resolutions.map((r) => [r.id, r]));
+    setPlacedBets((prev) =>
+      prev.map((b) => {
+        const r = resMap.get(b.id);
+        if (!r) return b;
+        return {
+          ...b,
+          status: r.won ? 'won' : 'lost',
+          outcomeValue: r.outcomeValue,
+        };
+      })
+    );
+
+    for (const r of resolutions) {
+      if (r.won && Number.isFinite(r.payout) && r.payout > 0) {
+        adjustBalanceSafe(r.payout);
+      }
+      if (firebaseUser) {
+        updateBet(firebaseUser.uid, r.id, {
+          status: r.won ? 'won' : 'lost',
+          outcomeValue: r.outcomeValue,
+        }).catch(() => {});
+      }
+    }
+  }, [matches, placedBets, firebaseUser, adjustBalanceSafe]);
+
+  // Open inline quick-bet panel directly inside the match card when clicking 1 / X / 2
+  const handleOddsClick = (match: Match, outcomeType: 'home' | 'draw' | 'away') => {
+    if (match.isFinished) return;
+    setQuickBetFeedback(null);
+    setActiveQuickBet((prev) =>
+      prev && prev.matchId === match.id && prev.type === outcomeType
+        ? null
+        : { matchId: match.id, type: outcomeType }
+    );
+  };
+
+  // Toggle selection into multi-accumulator Cupom slip (optional for +15% combos)
+  const handleAddToSlipCombo = (match: Match, outcomeType: 'home' | 'draw' | 'away', oddsValue: number) => {
+    if (match.isFinished) return;
     let outcomeLabel = '';
     if (outcomeType === 'home') outcomeLabel = `${match.teamHome} (Vence)`;
     else if (outcomeType === 'away') outcomeLabel = `${match.teamAway} (Vence)`;
     else outcomeLabel = 'Empate';
 
-    // Check if match already has selection
     const existingIndex = selections.findIndex(s => s.matchId === match.id);
-
     if (existingIndex !== -1) {
       const existingSelection = selections[existingIndex];
-      // If same selection, remove it. If different, update odds.
       if (existingSelection.type === outcomeType) {
         setSelections(prev => prev.filter(s => s.matchId !== match.id));
       } else {
@@ -610,7 +867,6 @@ export default function App() {
         } : s));
       }
     } else {
-      // Add new selection
       const newSel: BetSelection = {
         matchId: match.id,
         matchName: `${match.teamHome} x ${match.teamAway}`,
@@ -620,6 +876,63 @@ export default function App() {
       };
       setSelections(prev => [...prev, newSel]);
     }
+    setActiveQuickBet(null);
+  };
+
+  // Confirm direct single-match bet right inside the match card (settles ONLY when match.isFinished === true)
+  const handleConfirmQuickBet = (match: Match, outcomeType: 'home' | 'draw' | 'away', oddsValue: number) => {
+    if (match.isFinished) return;
+    const rawStake = parseFloat(quickBetStake.replace(',', '.'));
+    if (!Number.isFinite(rawStake) || rawStake <= 0) {
+      setQuickBetFeedback({ matchId: match.id, text: '⚠️ Digite um valor válido maior que R$ 0,00.' });
+      return;
+    }
+    const safeStake = Number(rawStake.toFixed(2));
+    if (safeStake > balance) {
+      setQuickBetFeedback({ matchId: match.id, text: '⚠️ Saldo insuficiente para esta aposta.' });
+      return;
+    }
+
+    const outcomeLabel =
+      outcomeType === 'home'
+        ? `${match.teamHome} (Vence)`
+        : outcomeType === 'away'
+          ? `${match.teamAway} (Vence)`
+          : 'Empate Final (X)';
+    const matchLabel = `${match.teamHome} x ${match.teamAway}`;
+    const potentialPayout = Number((safeStake * oddsValue).toFixed(2));
+
+    adjustBalanceSafe(-safeStake);
+
+    const newBet: PlacedBet = {
+      id: `bet-sports-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      matchName: matchLabel,
+      selectionName: `${outcomeLabel} (@${oddsValue.toFixed(2)})`,
+      odds: oddsValue,
+      stake: safeStake,
+      potentialPayout,
+      status: 'pending',
+      placedAt: new Date().toLocaleTimeString('pt-BR'),
+      type: 'sports',
+      matchId: match.id,
+      pickedOutcome: outcomeType,
+      legs: [
+        {
+          matchId: match.id,
+          matchName: matchLabel,
+          pickedOutcome: outcomeType,
+          selectionName: outcomeLabel,
+          odds: oddsValue,
+        },
+      ],
+    };
+
+    handleAddPlacedBet(newBet);
+    setActiveQuickBet(null);
+    setQuickBetFeedback({
+      matchId: match.id,
+      text: `✅ Aposta confirmada em "${outcomeLabel}" (R$ ${safeStake.toFixed(2)} → R$ ${potentialPayout.toFixed(2)}). Resultado ao apito final!`,
+    });
   };
 
   const handleRemoveSelection = (matchId: string) => {
@@ -852,11 +1165,15 @@ export default function App() {
   }, [matches, selectedSport, sportFilter]);
 
   const liveMatchesCount = useMemo(
-    () => sportScopedMatches.filter((m) => m.isLive).length,
+    () => sportScopedMatches.filter((m) => m.isLive && !m.isFinished).length,
     [sportScopedMatches]
   );
   const upcomingMatchesCount = useMemo(
-    () => sportScopedMatches.filter((m) => !m.isLive).length,
+    () => sportScopedMatches.filter((m) => !m.isLive && !m.isFinished).length,
+    [sportScopedMatches]
+  );
+  const finishedMatchesCount = useMemo(
+    () => sportScopedMatches.filter((m) => Boolean(m.isFinished)).length,
     [sportScopedMatches]
   );
 
@@ -873,8 +1190,9 @@ export default function App() {
   const filteredMatches = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return sportScopedMatches.filter((match) => {
-      if (matchStatusFilter === 'live' && !match.isLive) return false;
-      if (matchStatusFilter === 'upcoming' && match.isLive) return false;
+      if (matchStatusFilter === 'live' && (!match.isLive || match.isFinished)) return false;
+      if (matchStatusFilter === 'upcoming' && (match.isLive || match.isFinished)) return false;
+      if (matchStatusFilter === 'finished' && !match.isFinished) return false;
       if (leagueFilter !== 'todas' && match.league !== leagueFilter) return false;
       if (!q) return true;
       return (
@@ -1562,12 +1880,12 @@ export default function App() {
                       </span>
                       {realMatchesCount > 0 && (
                         <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-2 py-0.5 rounded-full">
-                          🟢 API ESPN • {realMatchesCount} Jogos BR Reais
+                          🟢 API ESPN • {realMatchesCount} Jogos Reais (BR & NHL)
                         </span>
                       )}
                     </h2>
                     <p className="text-[10px] text-slate-400">
-                      Jogos reais do futebol brasileiro com escudos e odds da ESPN + cobertura multi-esportes.
+                      Jogos reais do futebol brasileiro e NHL com escudos, placares e odds dinâmicas + cobertura em 7 esportes.
                     </p>
                   </div>
                 </div>
@@ -1578,7 +1896,7 @@ export default function App() {
                     onClick={() => syncRealMatches(true)}
                     disabled={loadingRealMatches}
                     className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 cursor-pointer transition-all flex items-center gap-1 disabled:opacity-60"
-                    title="Atualizar jogos reais do futebol brasileiro"
+                    title="Atualizar jogos reais do futebol brasileiro e NHL"
                   >
                     <RefreshCw className={`w-3 h-3 ${loadingRealMatches ? 'animate-spin' : ''}`} />
                     <span>Atualizar API</span>
@@ -1587,6 +1905,7 @@ export default function App() {
                     { id: 'all' as const, label: `🌐 Todos (${sportScopedMatches.length})` },
                     { id: 'live' as const, label: `🔴 Ao Vivo (${liveMatchesCount})` },
                     { id: 'upcoming' as const, label: `📅 Pré-Jogo (${upcomingMatchesCount})` },
+                    { id: 'finished' as const, label: `🏁 Encerrados (${finishedMatchesCount})` },
                   ].map((st) => (
                     <button
                       key={st.id}
@@ -1603,6 +1922,33 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Esquema Oficial de Apostas Esportivas Reais (1X2 — Tempo Regulamentar) */}
+              <div className="bg-[#080b14] border border-brand/25 rounded-2xl p-3 sm:p-3.5 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-[11px] font-extrabold text-white flex items-center gap-1.5">
+                    <span>📖</span>
+                    <span>Como Funcionam as Apostas Reais (Mercado 1X2 — Resultado Final)</span>
+                  </p>
+                  <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    ⏱️ Só liquida ao Apito Final (Fim de Jogo)
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] text-slate-300">
+                  <div className="bg-[#05070d] border border-[#1a1f32] rounded-xl px-2.5 py-2">
+                    <strong className="text-brand font-mono">1 (Casa):</strong> Ganha somente se o mandante terminar na frente ao fim da partida.
+                  </div>
+                  <div className="bg-[#05070d] border border-[#1a1f32] rounded-xl px-2.5 py-2">
+                    <strong className="text-amber-300 font-mono">X (Empate):</strong> Só vence se o jogo <strong>acabar empatado no apito final</strong> (empatar no meio não paga).
+                  </div>
+                  <div className="bg-[#05070d] border border-[#1a1f32] rounded-xl px-2.5 py-2">
+                    <strong className="text-sky-300 font-mono">2 (Fora):</strong> Ganha somente se o visitante terminar na frente no placar final.
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  💡 Clique em qualquer odd (<strong className="text-white">1</strong>, <strong className="text-white">X</strong> ou <strong className="text-white">2</strong>) para digitar o valor e confirmar <strong className="text-brand">direto no card do jogo</strong>!
+                </p>
+              </div>
+
               {/* Sport sub-tabs for Todos os Esportes */}
               {selectedSport === 'Todos' && (
                 <div className="flex gap-1.5 flex-wrap">
@@ -1610,6 +1956,7 @@ export default function App() {
                     { id: 'todas', label: 'Todas', icon: '📋' },
                     { id: 'Futebol', label: 'Futebol', icon: '⚽' },
                     { id: 'Basquete', label: 'Basquete', icon: '🏀' },
+                    { id: 'Hóquei', label: 'Hóquei', icon: '🏒' },
                     { id: 'E-Sports', label: 'E-Sports', icon: '🎮' },
                     { id: 'Tênis', label: 'Tênis', icon: '🎾' },
                     { id: 'MMA', label: 'MMA', icon: '🥊' },
@@ -1731,150 +2078,327 @@ export default function App() {
                         const awayBadge = match.badgeAway || match.teamAway.slice(0, 3).toUpperCase();
                         const homeColor = match.colorHome || '#00ff87';
                         const awayColor = match.colorAway || '#94a3b8';
-                        const posHome = match.stats?.possessionHome;
+                        const totalShotsStat = (match.stats?.shotsHome ?? 0) + (match.stats?.shotsAway ?? 0);
+                        const posHome =
+                          match.stats?.possessionHome ??
+                          (totalShotsStat > 0 && match.stats?.detailLabel
+                            ? Math.round(((match.stats?.shotsHome ?? 0) / totalShotsStat) * 100)
+                            : undefined);
+                        const isQuickOpen = activeQuickBet?.matchId === match.id && !match.isFinished;
+                        const selectedQuickType = isQuickOpen ? activeQuickBet.type : null;
+                        const quickOdd =
+                          selectedQuickType === 'home'
+                            ? match.odds.home
+                            : selectedQuickType === 'draw'
+                              ? (match.odds.draw ?? 1)
+                              : selectedQuickType === 'away'
+                                ? match.odds.away
+                                : 1;
+                        const quickLabel =
+                          selectedQuickType === 'home'
+                            ? `${match.teamHome} vence (1)`
+                            : selectedQuickType === 'draw'
+                              ? 'Empate Final (X)'
+                              : `${match.teamAway} vence (2)`;
+                        const parsedQuickStake = parseFloat(quickBetStake.replace(',', '.')) || 0;
+                        const quickPotentialReturn = Number((parsedQuickStake * quickOdd).toFixed(2));
+                        const matchPlacedBets = placedBets.filter(
+                          (b) =>
+                            b.type === 'sports' &&
+                            (b.matchId === match.id ||
+                              b.legs?.some((l) => l.matchId === match.id) ||
+                              b.matchName === `${match.teamHome} x ${match.teamAway}`)
+                        );
 
                         return (
                           <div
                             key={match.id}
-                            className="omnitrix-card rounded-2xl p-3.5 md:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 overflow-hidden"
+                            className="omnitrix-card rounded-2xl p-3.5 md:p-4 space-y-3 overflow-hidden relative"
                           >
                             <div
                               className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${
-                                match.isLive
-                                  ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
-                                  : 'bg-brand/70 shadow-[0_0_10px_rgba(0,255,135,0.35)]'
+                                match.isFinished
+                                  ? 'bg-slate-500'
+                                  : match.isLive
+                                    ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
+                                    : 'bg-brand/70 shadow-[0_0_10px_rgba(0,255,135,0.35)]'
                               }`}
                             />
-                            {/* Left: Meta, Teams, Live Play-by-Play & Stats */}
-                            <div className="flex-1 space-y-2 pl-2 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {match.id.startsWith('espn-') && (
-                                  <span className="text-[8px] font-mono font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/35 px-1.5 py-0.5 rounded uppercase">
-                                    🟢 API REAL
-                                  </span>
-                                )}
-                                {match.phase && (
-                                  <span className="text-[9px] font-mono font-bold text-slate-300 bg-[#111524] px-2 py-0.5 rounded border border-white/10">
-                                    {match.phase}
-                                  </span>
-                                )}
-                                {match.venue && (
-                                  <span className="text-[10px] text-slate-400">
-                                    🏟️ {match.venue}
-                                  </span>
-                                )}
-                                {match.isLive && (
-                                  <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1 uppercase shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                                    Ao vivo
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Teams & Live Score */}
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between md:justify-start gap-3">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <TeamCrest name={match.teamHome} badge={homeBadge} color={homeColor} logo={match.logoHome} />
-                                    <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
-                                  </div>
-                                  {match.isLive && (
-                                    <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[30px] text-center">
-                                      {match.scoreHome}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+                              {/* Left: Meta, Teams, Live Play-by-Play & Stats */}
+                              <div className="flex-1 space-y-2 pl-2 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {match.id.startsWith('espn-') && (
+                                    <span className="text-[8px] font-mono font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/35 px-1.5 py-0.5 rounded uppercase">
+                                      🟢 API REAL
                                     </span>
                                   )}
-                                </div>
-                                <div className="flex items-center justify-between md:justify-start gap-3">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <TeamCrest name={match.teamAway} badge={awayBadge} color={awayColor} logo={match.logoAway} />
-                                    <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
-                                  </div>
-                                  {match.isLive && (
-                                    <span className="font-mono font-black text-rose-400 bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border border-rose-500/30 min-w-[30px] text-center">
-                                      {match.scoreAway}
+                                  {match.phase && (
+                                    <span className="text-[9px] font-mono font-bold text-slate-300 bg-[#111524] px-2 py-0.5 rounded border border-white/10">
+                                      {match.phase}
                                     </span>
                                   )}
+                                  {match.venue && (
+                                    <span className="text-[10px] text-slate-400">
+                                      🏟️ {match.venue}
+                                    </span>
+                                  )}
+                                  {match.isFinished ? (
+                                    <span className="bg-slate-700/40 text-slate-200 border border-slate-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] uppercase shrink-0">
+                                      🏁 Fim de Jogo
+                                    </span>
+                                  ) : match.isLive ? (
+                                    <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1 uppercase shrink-0">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                                      Ao vivo
+                                    </span>
+                                  ) : null}
                                 </div>
-                              </div>
 
-                              {/* Live Time, Play-by-Play Ticker & Stats Bar */}
-                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-                                <span>{match.time}</span>
-                                {match.isLive && match.timeElapsed && (
-                                  <>
-                                    <span className="text-slate-600">•</span>
-                                    <span className="text-rose-400 font-mono text-xs font-bold">{match.timeElapsed}</span>
-                                  </>
+                                {/* Teams & Score */}
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between md:justify-start gap-3">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <TeamCrest name={match.teamHome} badge={homeBadge} color={homeColor} logo={match.logoHome} />
+                                      <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
+                                    </div>
+                                    {(match.isLive || match.isFinished) && (
+                                      <span className={`font-mono font-black bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border min-w-[30px] text-center ${
+                                        match.isFinished ? 'text-slate-200 border-slate-600/50' : 'text-rose-400 border-rose-500/30'
+                                      }`}>
+                                        {match.scoreHome}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between md:justify-start gap-3">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <TeamCrest name={match.teamAway} badge={awayBadge} color={awayColor} logo={match.logoAway} />
+                                      <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
+                                    </div>
+                                    {(match.isLive || match.isFinished) && (
+                                      <span className={`font-mono font-black bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border min-w-[30px] text-center ${
+                                        match.isFinished ? 'text-slate-200 border-slate-600/50' : 'text-rose-400 border-rose-500/30'
+                                      }`}>
+                                        {match.scoreAway}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Time, Play-by-Play Ticker & Stats Bar */}
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                                  <span>{match.time}</span>
+                                  {(match.isLive || match.isFinished) && match.timeElapsed && (
+                                    <>
+                                      <span className="text-slate-600">•</span>
+                                      <span className={`font-mono text-xs font-bold ${match.isFinished ? 'text-slate-300' : 'text-rose-400'}`}>
+                                        {match.timeElapsed}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {match.liveEvent && (
+                                  <div
+                                    className={`bg-[#070911] rounded-lg px-2.5 py-1 text-[10px] truncate border ${
+                                      match.isLive ? 'border-brand/20 text-slate-200' : 'border-[#1a1f30] text-slate-400'
+                                    }`}
+                                  >
+                                    {match.liveEvent}
+                                  </div>
+                                )}
+
+                                {match.isLive && posHome !== undefined && (
+                                  <div className="space-y-1 pt-0.5 max-w-sm">
+                                    <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                                      <span>{posHome}%</span>
+                                      <span className="text-slate-500">{match.stats?.detailLabel || 'Domínio'} ({match.stats?.shotsHome ?? 0} × {match.stats?.shotsAway ?? 0})</span>
+                                      <span>{100 - posHome}%</span>
+                                    </div>
+                                    <div className="h-1 rounded-full bg-[#131726] overflow-hidden flex">
+                                      <div className="bg-brand/80 h-full transition-all duration-500" style={{ width: `${posHome}%` }} />
+                                    </div>
+                                  </div>
                                 )}
                               </div>
 
-                              {match.liveEvent && (
-                                <div
-                                  className={`bg-[#070911] rounded-lg px-2.5 py-1 text-[10px] truncate border ${
-                                    match.isLive ? 'border-brand/20 text-slate-200' : 'border-[#1a1f30] text-slate-400'
-                                  }`}
-                                >
-                                  {match.liveEvent}
-                                </div>
-                              )}
-
-                              {match.isLive && posHome !== undefined && (
-                                <div className="space-y-1 pt-0.5 max-w-sm">
-                                  <div className="flex justify-between text-[9px] font-mono text-slate-400">
-                                    <span>{posHome}%</span>
-                                    <span className="text-slate-500">{match.stats?.detailLabel || 'Domínio'} ({match.stats?.shotsHome ?? 0} × {match.stats?.shotsAway ?? 0})</span>
-                                    <span>{100 - posHome}%</span>
-                                  </div>
-                                  <div className="h-1 rounded-full bg-[#131726] overflow-hidden flex">
-                                    <div className="bg-brand/80 h-full transition-all duration-500" style={{ width: `${posHome}%` }} />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Right: Interactive Odds Buttons */}
-                            <div className="flex gap-2 md:self-center pl-2 md:pl-0 shrink-0">
-                              <button
-                                onClick={() => handleOddsClick(match, 'home', match.odds.home)}
-                                className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                                  selections.some(s => s.matchId === match.id && s.type === 'home')
-                                    ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                                    : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
-                                }`}
-                              >
-                                <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'home') ? 'text-slate-900' : 'text-slate-500'}`}>1</span>
-                                <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.home.toFixed(2)}</span>
-                                <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">{homeBadge}</span>
-                              </button>
-
-                              {match.odds.draw !== undefined && (
+                              {/* Right: Interactive Odds Buttons */}
+                              <div className="flex gap-2 md:self-center pl-2 md:pl-0 shrink-0">
                                 <button
-                                  onClick={() => handleOddsClick(match, 'draw', match.odds.draw!)}
-                                  className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                                    selections.some(s => s.matchId === match.id && s.type === 'draw')
-                                      ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                                      : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
+                                  type="button"
+                                  disabled={Boolean(match.isFinished)}
+                                  onClick={() => handleOddsClick(match, 'home')}
+                                  className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-200 flex flex-col justify-center items-center ${
+                                    match.isFinished
+                                      ? 'opacity-45 bg-[#06070d] border-[#1c1e2d] text-slate-500 cursor-not-allowed'
+                                      : (isQuickOpen && selectedQuickType === 'home') || selections.some(s => s.matchId === match.id && s.type === 'home')
+                                        ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02] cursor-pointer'
+                                        : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d] cursor-pointer'
                                   }`}
                                 >
-                                  <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'draw') ? 'text-slate-900' : 'text-slate-500'}`}>X</span>
-                                  <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.draw.toFixed(2)}</span>
-                                  <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">Empate</span>
+                                  <span className={`text-[9px] uppercase font-bold ${(isQuickOpen && selectedQuickType === 'home') || selections.some(s => s.matchId === match.id && s.type === 'home') ? 'text-slate-900' : 'text-slate-500'}`}>1</span>
+                                  <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.home.toFixed(2)}</span>
+                                  <span className="text-[8px] block opacity-70 font-sans tracking-wide mt-0.5">{homeBadge}</span>
                                 </button>
-                              )}
 
-                              <button
-                                onClick={() => handleOddsClick(match, 'away', match.odds.away)}
-                                className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-300 cursor-pointer flex flex-col justify-center items-center ${
-                                  selections.some(s => s.matchId === match.id && s.type === 'away')
-                                    ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02]'
-                                    : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d]'
-                                }`}
-                              >
-                                <span className={`text-[9px] uppercase font-bold ${selections.some(s => s.matchId === match.id && s.type === 'away') ? 'text-slate-900' : 'text-slate-500'}`}>2</span>
-                                <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.away.toFixed(2)}</span>
-                                <span className="text-[8px] block opacity-60 font-sans tracking-wide mt-0.5">{awayBadge}</span>
-                              </button>
+                                {match.odds.draw !== undefined && (
+                                  <button
+                                    type="button"
+                                    disabled={Boolean(match.isFinished)}
+                                    onClick={() => handleOddsClick(match, 'draw')}
+                                    className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-200 flex flex-col justify-center items-center ${
+                                      match.isFinished
+                                        ? 'opacity-45 bg-[#06070d] border-[#1c1e2d] text-slate-500 cursor-not-allowed'
+                                        : (isQuickOpen && selectedQuickType === 'draw') || selections.some(s => s.matchId === match.id && s.type === 'draw')
+                                          ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02] cursor-pointer'
+                                          : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d] cursor-pointer'
+                                    }`}
+                                  >
+                                    <span className={`text-[9px] uppercase font-bold ${(isQuickOpen && selectedQuickType === 'draw') || selections.some(s => s.matchId === match.id && s.type === 'draw') ? 'text-slate-900' : 'text-slate-500'}`}>X</span>
+                                    <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.draw.toFixed(2)}</span>
+                                    <span className="text-[8px] block opacity-70 font-sans tracking-wide mt-0.5">Empate</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={Boolean(match.isFinished)}
+                                  onClick={() => handleOddsClick(match, 'away')}
+                                  className={`flex-1 md:w-24 py-2.5 px-3 rounded-xl border text-center transition-all duration-200 flex flex-col justify-center items-center ${
+                                    match.isFinished
+                                      ? 'opacity-45 bg-[#06070d] border-[#1c1e2d] text-slate-500 cursor-not-allowed'
+                                      : (isQuickOpen && selectedQuickType === 'away') || selections.some(s => s.matchId === match.id && s.type === 'away')
+                                        ? 'bg-brand border-brand text-slate-950 font-extrabold font-mono shadow-[0_0_18px_rgba(0,255,135,0.4)] scale-[1.02] cursor-pointer'
+                                        : 'bg-[#06070d] hover:bg-[#111524] hover:border-brand/40 text-slate-300 border-[#1c1e2d] cursor-pointer'
+                                  }`}
+                                >
+                                  <span className={`text-[9px] uppercase font-bold ${(isQuickOpen && selectedQuickType === 'away') || selections.some(s => s.matchId === match.id && s.type === 'away') ? 'text-slate-900' : 'text-slate-500'}`}>2</span>
+                                  <span className="text-sm font-mono font-bold leading-none mt-1">{match.odds.away.toFixed(2)}</span>
+                                  <span className="text-[8px] block opacity-70 font-sans tracking-wide mt-0.5">{awayBadge}</span>
+                                </button>
+                              </div>
                             </div>
+
+                            {/* Inline Direct Bet Panel right inside the Match Card */}
+                            {isQuickOpen && selectedQuickType && (
+                              <div className="ml-2 bg-[#070912] border border-brand/40 rounded-xl p-3 space-y-2.5 shadow-[0_0_20px_rgba(0,255,135,0.08)]">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-black text-brand">🎯 {quickLabel}</span>
+                                    <span className="font-mono font-bold bg-brand/15 text-brand border border-brand/30 px-2 py-0.5 rounded-md text-[11px]">
+                                      @{quickOdd.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-amber-300">
+                                    🏁 Apurado somente no Fim de Jogo
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                  <div className="flex items-center gap-1.5 bg-[#04050a] border border-[#222840] rounded-lg px-2.5 py-1.5 sm:w-40">
+                                    <span className="text-xs font-mono font-bold text-slate-400">R$</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={quickBetStake}
+                                      onChange={(e) => setQuickBetStake(e.target.value)}
+                                      placeholder="Valor"
+                                      className="w-full bg-transparent text-sm font-mono font-bold text-white outline-none"
+                                      autoFocus
+                                    />
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-1 flex-1">
+                                    {[5, 10, 25, 50, 100, 250].map((v) => (
+                                      <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() => setQuickBetStake(String(v))}
+                                        className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-all ${
+                                          Number(quickBetStake) === v
+                                            ? 'bg-brand/20 border-brand text-brand'
+                                            : 'bg-[#0b0e18] border-[#1f2438] text-slate-300 hover:border-brand/40'
+                                        }`}
+                                      >
+                                        R${v}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuickBetStake(String(Math.floor(Math.max(1, balance))))}
+                                      className="px-2 py-1.5 rounded-lg text-[10px] font-mono font-black bg-amber-500/15 border border-amber-400/40 text-amber-300 hover:bg-amber-500/25 cursor-pointer"
+                                    >
+                                      MAX
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                                  <div className="text-[11px] font-mono text-slate-300">
+                                    Retorno se vencer no Fim de Jogo:{' '}
+                                    <strong className="text-brand text-sm">R$ {quickPotentialReturn.toFixed(2)}</strong>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddToSlipCombo(match, selectedQuickType, quickOdd)}
+                                      className="px-3 py-2 rounded-lg bg-[#101526] hover:bg-[#182038] border border-[#2a3352] text-[11px] font-bold text-slate-200 cursor-pointer transition-all"
+                                      title="Adicionar ao Cupom lateral para fazer aposta Múltipla (+15% bônus)"
+                                    >
+                                      + Múltipla (Cupom)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={parsedQuickStake <= 0 || parsedQuickStake > balance}
+                                      onClick={() => handleConfirmQuickBet(match, selectedQuickType, quickOdd)}
+                                      className="px-4 py-2 rounded-lg bg-brand hover:bg-[#00e276] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black text-xs cursor-pointer transition-all shadow-[0_0_14px_rgba(0,255,135,0.2)]"
+                                    >
+                                      ✅ Confirmar Aposta
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Inline confirmation toast for this match */}
+                            {quickBetFeedback?.matchId === match.id && (
+                              <div className="ml-2 bg-emerald-500/15 border border-emerald-400/45 text-emerald-200 rounded-xl px-3 py-2 text-[11px] font-bold flex items-center justify-between gap-2">
+                                <span>{quickBetFeedback.text}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickBetFeedback(null)}
+                                  className="text-xs opacity-70 hover:opacity-100 cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Existing bets placed on this match */}
+                            {matchPlacedBets.length > 0 && (
+                              <div className="ml-2 flex flex-wrap gap-1.5">
+                                {matchPlacedBets.slice(0, 3).map((b) => (
+                                  <div
+                                    key={b.id}
+                                    className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
+                                      b.status === 'won'
+                                        ? 'bg-brand/10 border-brand/40 text-brand font-bold'
+                                        : b.status === 'lost'
+                                          ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+                                          : 'bg-amber-500/10 border-amber-400/35 text-amber-200'
+                                    }`}
+                                  >
+                                    <span>
+                                      {b.status === 'won' ? '🏆' : b.status === 'lost' ? '❌' : '⏳'}
+                                    </span>
+                                    <span className="truncate max-w-[260px]">{b.selectionName}</span>
+                                    <span>• R$ {b.stake.toFixed(0)} → R$ {b.potentialPayout.toFixed(2)}</span>
+                                    {b.status === 'pending' && <span className="text-[9px] opacity-80">(Fim de Jogo)</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

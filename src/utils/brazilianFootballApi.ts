@@ -1,6 +1,7 @@
 import { Match } from '../types';
+import { computeLiveOddsFromScore, parseMatchProgress } from './hockeyApi';
 
-const CACHE_KEY = 'benbets_br_football_api_v2';
+const CACHE_KEY = 'benbets_br_football_api_v4';
 const CACHE_TTL_MS = 60 * 1000;
 
 interface LeagueDef {
@@ -130,7 +131,7 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
 
   const state = comp?.status?.type?.state;
   const completed = Boolean(comp?.status?.type?.completed);
-  if (completed || state === 'post') return null;
+  const isFinished = completed || state === 'post';
 
   const homeComp = comp.competitors.find((c: any) => c.homeAway === 'home') || comp.competitors[0];
   const awayComp = comp.competitors.find((c: any) => c.homeAway === 'away') || comp.competitors[1];
@@ -143,21 +144,23 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
   const badgeHome = String(homeTeam.abbreviation || teamHome.slice(0, 3)).toUpperCase().slice(0, 3);
   const badgeAway = String(awayTeam.abbreviation || teamAway.slice(0, 3)).toUpperCase().slice(0, 3);
 
-  const isLive = state === 'in';
+  const isLive = state === 'in' && !isFinished;
   const rawH = parseInt(String(homeComp?.score ?? '0'), 10);
   const rawA = parseInt(String(awayComp?.score ?? '0'), 10);
-  const scoreHome = isLive && Number.isFinite(rawH) ? rawH : isLive ? 0 : undefined;
-  const scoreAway = isLive && Number.isFinite(rawA) ? rawA : isLive ? 0 : undefined;
+  const scoreHome = (isLive || isFinished) ? (Number.isFinite(rawH) ? rawH : 0) : undefined;
+  const scoreAway = (isLive || isFinished) ? (Number.isFinite(rawA) ? rawA : 0) : undefined;
 
   const displayClock = comp?.status?.displayClock;
   const statusShort = comp?.status?.type?.shortDetail;
-  const timeElapsed = isLive
-    ? displayClock && displayClock !== "0'"
-      ? String(displayClock)
-      : statusShort && !/scheduled/i.test(statusShort)
-      ? String(statusShort)
-      : 'Em andamento'
-    : undefined;
+  const timeElapsed = isFinished
+    ? 'Fim de Jogo'
+    : isLive
+      ? displayClock && displayClock !== "0'"
+        ? String(displayClock)
+        : statusShort && !/scheduled/i.test(statusShort)
+        ? String(statusShort)
+        : 'Em andamento'
+      : undefined;
 
   // Real Moneyline Odds -> Decimal
   const oddsObj = Array.isArray(comp.odds) ? comp.odds[0] : undefined;
@@ -167,11 +170,21 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
   const decAway = americanToDecimal(ml?.away?.close?.odds ?? ml?.away?.open?.odds);
 
   const fallbackOdds = deriveOddsFromForm(homeComp?.form, awayComp?.form);
-  const odds = {
+  const baseOdds = {
     home: decHome ?? fallbackOdds.home,
     draw: decDraw ?? fallbackOdds.draw,
     away: decAway ?? fallbackOdds.away,
   };
+  const odds =
+    isLive && scoreHome !== undefined && scoreAway !== undefined
+      ? computeLiveOddsFromScore({
+          sport: 'Futebol',
+          scoreHome,
+          scoreAway,
+          progress: parseMatchProgress('Futebol', timeElapsed),
+          baseOdds,
+        })
+      : baseOdds;
 
   // Real statistics & play details
   const posHome = findStatNumber(homeComp?.statistics, ['possessionPct']);
@@ -179,7 +192,9 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
   const shotsAway = findStatNumber(awayComp?.statistics, ['totalShots', 'shotsOnTarget']);
 
   let liveEvent: string | undefined;
-  if (isLive) {
+  if (isFinished) {
+    liveEvent = '🏁 Fim de Jogo — Placar Final Oficial';
+  } else if (isLive) {
     const details = Array.isArray(comp.details) ? comp.details : [];
     const latest = details[details.length - 1];
     if (latest) {
@@ -221,8 +236,9 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
     colorAway: normalizeTeamColor(awayTeam.color, '#38bdf8'),
     logoHome: typeof homeTeam.logo === 'string' ? homeTeam.logo : undefined,
     logoAway: typeof awayTeam.logo === 'string' ? awayTeam.logo : undefined,
-    time: isLive ? 'Ao Vivo' : formatBrazilMatchTime(comp.date || ev.date),
+    time: isFinished ? 'Encerrado' : isLive ? 'Ao Vivo' : formatBrazilMatchTime(comp.date || ev.date),
     isLive,
+    isFinished,
     scoreHome,
     scoreAway,
     timeElapsed,
@@ -236,6 +252,7 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
             detailLabel: 'Posse % • Finalizações',
           }
         : undefined,
+    baseOdds,
     odds,
   };
 }
@@ -321,8 +338,11 @@ export async function fetchBrazilianFootballMatches(forceRefresh = false): Promi
       }
     }
 
-    // Put live matches first, then preserve chronological order
-    combined.sort((a, b) => Number(b.isLive) - Number(a.isLive));
+    // Put live matches first, upcoming second, finished last
+    combined.sort((a, b) => {
+      const rank = (m: Match) => (m.isLive ? 0 : !m.isFinished ? 1 : 2);
+      return rank(a) - rank(b);
+    });
 
     if (combined.length > 0) {
       memoryCache = { ts: Date.now(), matches: combined };

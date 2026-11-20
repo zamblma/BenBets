@@ -45,7 +45,7 @@ const sections = [
     accent: 'rgba(59,130,246,0.42)',
     glow: 'rgba(59,130,246,0.16)',
     iconBg: 'bg-blue-500/10 text-blue-400 border border-blue-500/25',
-    games: ['⚽ Futebol', '🏀 Basquete', '🎮 E-Sports', '🎾 Tênis', '🥊 MMA', '🏐 Vôlei'],
+    games: ['⚽ Futebol', '🏀 Basquete', '🎮 E-Sports', '🎾 Tênis', '🥊 MMA', '🏐 Vôlei', '🏒 Hóquei'],
     tag: 'Ver Confrontos',
     tagColor: 'text-blue-400',
     code: 'MOD-03',
@@ -231,7 +231,7 @@ export default function HomeMenu({ onSelect, leaderboard = [], currentUserId }: 
         {[
           { icon: Gamepad2, label: '10 Jogos', sub: 'Cassino RNG', color: 'text-brand', border: 'border-brand/15' },
           { icon: Zap, label: '7 Gachas', sub: 'APIs gratuitas', color: 'text-yellow-400', border: 'border-yellow-500/15' },
-          { icon: TrendingUp, label: '6 Esportes', sub: 'Odds ao vivo', color: 'text-blue-400', border: 'border-blue-500/15' },
+          { icon: TrendingUp, label: '7 Esportes', sub: 'Odds ao vivo', color: 'text-blue-400', border: 'border-blue-500/15' },
         ].map((stat, i) => (
           <div key={i} className={`omnitrix-card rounded-xl p-2.5 sm:p-3.5 text-center border ${stat.border}`}>
             <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color} mx-auto mb-1`} />
