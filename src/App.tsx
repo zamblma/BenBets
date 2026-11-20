@@ -510,7 +510,7 @@ export default function App() {
         prevMatches.map((match) => {
           if (!match.isLive || match.isFinished) return match;
 
-          // Real ESPN API matches recompute live odds coherently from official score & clock
+          // Real ESPN API matches recompute live odds coherently from official score, clock & field stats
           if (match.id.startsWith('espn-')) {
             const baseOdds = match.baseOdds || match.odds;
             const liveOdds = computeLiveOddsFromScore({
@@ -519,6 +519,7 @@ export default function App() {
               scoreAway: match.scoreAway ?? 0,
               progress: parseMatchProgress(match.sport, match.timeElapsed),
               baseOdds,
+              stats: match.stats,
             });
             return {
               ...match,
@@ -800,7 +801,13 @@ export default function App() {
             }
           }
 
-          // Dynamic odds synced mathematically with current score & remaining time
+          // Dynamic odds synced mathematically with current score, remaining time & live field stats
+          const nextStats = {
+            ...prevStats,
+            possessionHome: posHome,
+            shotsHome: shotsH,
+            shotsAway: shotsA,
+          };
           const baseOdds = match.baseOdds || match.odds;
           const liveOdds = computeLiveOddsFromScore({
             sport: match.sport,
@@ -808,6 +815,7 @@ export default function App() {
             scoreAway: aScore,
             progress: isFinished ? 1 : parseMatchProgress(match.sport, elapsed),
             baseOdds,
+            stats: nextStats,
           });
 
           return {
@@ -819,12 +827,7 @@ export default function App() {
             scoreAway: aScore,
             timeElapsed: elapsed,
             liveEvent,
-            stats: {
-              ...prevStats,
-              possessionHome: posHome,
-              shotsHome: shotsH,
-              shotsAway: shotsA,
-            },
+            stats: nextStats,
             baseOdds,
             odds: liveOdds,
           };
@@ -2321,6 +2324,14 @@ export default function App() {
                                     <div className="flex items-center gap-2 min-w-0">
                                       <TeamCrest name={match.teamHome} badge={homeBadge} color={homeColor} logo={match.logoHome} />
                                       <span className="font-bold text-slate-100 text-sm truncate">{match.teamHome}</span>
+                                      {(match.stats?.redCardsHome ?? 0) > 0 && (
+                                        <span
+                                          className="inline-flex items-center gap-0.5 text-[9px] font-mono font-black bg-rose-600 text-white px-1 py-0.2 rounded shrink-0"
+                                          title="Cartão vermelho (reduz ataque nas odds ao vivo)"
+                                        >
+                                          🟥 {match.stats?.redCardsHome}
+                                        </span>
+                                      )}
                                     </div>
                                     {(match.isLive || match.isFinished) && (
                                       <span className={`font-mono font-black bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border min-w-[30px] text-center ${
@@ -2334,6 +2345,14 @@ export default function App() {
                                     <div className="flex items-center gap-2 min-w-0">
                                       <TeamCrest name={match.teamAway} badge={awayBadge} color={awayColor} logo={match.logoAway} />
                                       <span className="font-bold text-slate-100 text-sm truncate">{match.teamAway}</span>
+                                      {(match.stats?.redCardsAway ?? 0) > 0 && (
+                                        <span
+                                          className="inline-flex items-center gap-0.5 text-[9px] font-mono font-black bg-rose-600 text-white px-1 py-0.2 rounded shrink-0"
+                                          title="Cartão vermelho (reduz ataque nas odds ao vivo)"
+                                        >
+                                          🟥 {match.stats?.redCardsAway}
+                                        </span>
+                                      )}
                                     </div>
                                     {(match.isLive || match.isFinished) && (
                                       <span className={`font-mono font-black bg-[#06070d] px-2.5 py-0.5 rounded-md text-xs border min-w-[30px] text-center ${
@@ -2372,7 +2391,14 @@ export default function App() {
                                   <div className="space-y-1 pt-0.5 max-w-sm">
                                     <div className="flex justify-between text-[9px] font-mono text-slate-400">
                                       <span>{posHome}%</span>
-                                      <span className="text-slate-500">{match.stats?.detailLabel || 'Domínio'} ({match.stats?.shotsHome ?? 0} × {match.stats?.shotsAway ?? 0})</span>
+                                      <span className="text-slate-400">
+                                        {match.stats?.detailLabel || 'Domínio'} ({match.stats?.shotsHome ?? 0}
+                                        {match.stats?.shotsOnTargetHome !== undefined ? ` [${match.stats.shotsOnTargetHome}]` : ''} × {match.stats?.shotsAway ?? 0}
+                                        {match.stats?.shotsOnTargetAway !== undefined ? ` [${match.stats.shotsOnTargetAway}]` : ''})
+                                        {match.stats?.xgHome !== undefined && match.stats?.xgAway !== undefined
+                                          ? ` • xG ${match.stats.xgHome.toFixed(1)}×${match.stats.xgAway.toFixed(1)}`
+                                          : ''}
+                                      </span>
                                       <span>{100 - posHome}%</span>
                                     </div>
                                     <div className="h-1 rounded-full bg-[#131726] overflow-hidden flex">

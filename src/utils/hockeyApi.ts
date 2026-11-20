@@ -1,6 +1,6 @@
 import { Match } from '../types';
 
-const HOCKEY_CACHE_KEY = 'benbets_nhl_hockey_api_v1';
+const HOCKEY_CACHE_KEY = 'benbets_nhl_hockey_api_v2';
 const HOCKEY_CACHE_TTL_MS = 60 * 1000;
 
 function clamp(value: number, min: number, max: number): number {
@@ -117,7 +117,8 @@ function poissonPmfs(lambda: number, maxGoals: number): number[] {
 }
 
 /**
- * Recalcula odds decimais ao vivo com base no placar atual, tempo decorrido e odds pré-jogo.
+ * Recalcula odds decimais ao vivo com base no placar, tempo restante, odds pré-jogo
+ * e estatísticas reais de campo (chutes, chutes no alvo, posse de bola e cartões vermelhos).
  */
 export function computeLiveOddsFromScore({
   sport,
@@ -125,17 +126,22 @@ export function computeLiveOddsFromScore({
   scoreAway,
   progress,
   baseOdds,
+  stats,
 }: {
   sport: Match['sport'];
   scoreHome: number;
   scoreAway: number;
   progress: number;
   baseOdds: { home: number; draw?: number; away: number };
+  stats?: Match['stats'];
 }): { home: number; draw?: number; away: number } {
   const isThreeWay = sport === 'Futebol' || sport === 'Hóquei';
   const diff = scoreHome - scoreAway;
 
-  if (progress <= 0 && diff === 0) {
+  const redH = Math.max(0, stats?.redCardsHome ?? 0);
+  const redA = Math.max(0, stats?.redCardsAway ?? 0);
+
+  if (progress <= 0 && diff === 0 && redH === 0 && redA === 0) {
     return {
       home: roundOdd(baseOdds.home),
       ...(baseOdds.draw !== undefined ? { draw: roundOdd(baseOdds.draw) } : {}),
@@ -145,7 +151,7 @@ export function computeLiveOddsFromScore({
 
   const t = clamp(progress, 0.02, 0.99);
   const rem = Math.max(0.025, 1 - t);
-  const overround = 1.065;
+  const overround = 1.055;
 
   const invH = 1 / clamp(baseOdds.home || 2.1, 1.05, 25);
   const invA = 1 / clamp(baseOdds.away || 2.1, 1.05, 25);
@@ -156,12 +162,77 @@ export function computeLiveOddsFromScore({
     const pH0 = invH / totalInv;
     const pA0 = invA / totalInv;
 
+    // 1. Força relativa pré-jogo
     const ratio = Math.pow(clamp(pH0 / Math.max(0.01, pA0), 0.12, 8.5), 0.45);
-    const shareH = clamp(ratio / (1 + ratio), 0.22, 0.78);
-    const totalExpectedGoals = sport === 'Hóquei' ? 5.8 : 2.65;
+    let shareH = clamp(ratio / (1 + ratio), 0.22, 0.78);
+    let totalExpectedGoals = sport === 'Hóquei' ? 5.85 : 2.65;
 
-    const lambdaH = totalExpectedGoals * shareH * rem;
-    const lambdaA = totalExpectedGoals * (1 - shareH) * rem;
+    // 2. Ajuste por volume ofensivo real (chutes no alvo / chutes totais + ritmo do jogo)
+    const sotH = stats?.shotsOnTargetHome;
+    const sotA = stats?.shotsOnTargetAway;
+    const shH = stats?.shotsHome;
+    const shA = stats?.shotsAway;
+
+    const attackH =
+      sotH !== undefined && sotA !== undefined && sotH + sotA > 0
+        ? sotH * 2.2 + (shH ?? sotH) * 0.45
+        : shH !== undefined && shA !== undefined && shH + shA > 0
+          ? shH
+          : undefined;
+    const attackA =
+      sotH !== undefined && sotA !== undefined && sotH + sotA > 0
+        ? sotA * 2.2 + (shA ?? sotA) * 0.45
+        : shH !== undefined && shA !== undefined && shH + shA > 0
+          ? shA
+          : undefined;
+
+    if (attackH !== undefined && attackA !== undefined && attackH + attackA >= 2) {
+      // Suavização Bayesiana para evitar distorção nos primeiros minutos
+      const priorStrength = sport === 'Hóquei' ? 8 : 5;
+      const obsShotShare = (attackH + priorStrength * 0.5) / (attackH + attackA + priorStrength);
+      const blendWeight = clamp(0.1 + t * 0.34, 0.1, 0.42);
+      shareH = clamp(shareH * (1 - blendWeight) + obsShotShare * blendWeight, 0.16, 0.84);
+
+      // Ritmo da partida (jogo aberto com muitos chutes vs jogo travado)
+      const rawTotalShots = (shH ?? sotH ?? 0) + (shA ?? sotA ?? 0);
+      if (rawTotalShots > 0 && t >= 0.15) {
+        const expectedFullShots = sport === 'Hóquei' ? 60 : 23;
+        const projectedShots = rawTotalShots / t;
+        const tempoFactor = clamp(0.76 + 0.24 * (projectedShots / expectedFullShots), 0.78, 1.32);
+        totalExpectedGoals *= tempoFactor;
+      }
+    }
+
+    // 3. Ajuste por posse de bola (Futebol)
+    if (sport === 'Futebol' && typeof stats?.possessionHome === 'number' && Number.isFinite(stats.possessionHome)) {
+      const posEdge = clamp((stats.possessionHome - 50) / 100, -0.3, 0.3);
+      shareH = clamp(shareH + posEdge * (0.1 + t * 0.08), 0.15, 0.85);
+    }
+
+    let lambdaH = totalExpectedGoals * shareH * rem;
+    let lambdaA = totalExpectedGoals * (1 - shareH) * rem;
+
+    // 4. Impacto real de cartão vermelho (expulsão reduz ataque próprio ~28% e aumenta o do rival ~24%)
+    if (redH > 0) {
+      lambdaH *= Math.pow(0.72, redH);
+      lambdaA *= Math.pow(1.24, redH);
+    }
+    if (redA > 0) {
+      lambdaA *= Math.pow(0.72, redA);
+      lambdaH *= Math.pow(1.24, redA);
+    }
+
+    // 5. Urgência de reta final (quem perde por 1 gol pressiona e se expõe; na NHL puxa o goleiro)
+    if (Math.abs(diff) === 1 && t >= 0.72) {
+      const urgency = sport === 'Hóquei' ? 1.18 : 1.1;
+      if (diff > 0) {
+        lambdaA *= urgency;
+        lambdaH *= 1.06;
+      } else {
+        lambdaH *= urgency;
+        lambdaA *= 1.06;
+      }
+    }
 
     const maxK = sport === 'Hóquei' ? 14 : 10;
     const pmfH = poissonPmfs(lambdaH, maxK);
@@ -182,9 +253,9 @@ export function computeLiveOddsFromScore({
     }
 
     const norm = Math.max(0.0001, pH + pD + pA);
-    const fH = clamp(pH / norm, 0.025, 0.93);
+    const fH = clamp(pH / norm, 0.025, 0.94);
     const fD = clamp(pD / norm, 0.025, 0.90);
-    const fA = clamp(pA / norm, 0.025, 0.93);
+    const fA = clamp(pA / norm, 0.025, 0.94);
 
     return {
       home: roundOdd(1 / (fH * overround)),
@@ -193,7 +264,7 @@ export function computeLiveOddsFromScore({
     };
   }
 
-  // Esportes 2-way (Basquete, Tênis, E-Sports, MMA, Vôlei)
+  // Esportes 2-way (Basquete, Tênis, E-Sports, MMA, Vôlei) com ponderação de momentum/estatísticas
   const totalInv2 = invH + invA;
   const pH0 = clamp(invH / totalInv2, 0.08, 0.92);
   const pA0 = 1 - pH0;
@@ -208,7 +279,21 @@ export function computeLiveOddsFromScore({
   const minScale = stdDev > 4 ? 1.8 : 0.45;
   const remainingScale = Math.max(minScale, stdDev * Math.sqrt(rem));
   const priorPointsEdge = (priorLogit / 1.65) * stdDev * rem;
-  const z = (diff + priorPointsEdge) / remainingScale;
+
+  let statsMomentum = 0;
+  if (typeof stats?.possessionHome === 'number' && Number.isFinite(stats.possessionHome)) {
+    statsMomentum += ((stats.possessionHome - 50) / 50) * 0.28;
+  }
+  if (
+    typeof stats?.shotsHome === 'number' &&
+    typeof stats?.shotsAway === 'number' &&
+    stats.shotsHome + stats.shotsAway >= 4
+  ) {
+    const ratioEdge = (stats.shotsHome - stats.shotsAway) / (stats.shotsHome + stats.shotsAway);
+    statsMomentum += ratioEdge * 0.35;
+  }
+
+  const z = (diff + priorPointsEdge) / remainingScale + statsMomentum * Math.sqrt(rem);
   const probH = clamp(1 / (1 + Math.exp(-1.7 * z)), 0.03, 0.97);
   const probA = 1 - probH;
 
@@ -386,6 +471,22 @@ function mapEspnHockeyEvent(ev: any): Match | null {
         : 'Fim de Jogo'
       : undefined;
 
+    const venueName = comp.venue?.fullName;
+    const venueCity = comp.venue?.address?.city;
+    const venueText = venueName ? (venueCity ? `${venueName} • ${venueCity}` : venueName) : 'Arena NHL';
+
+    const shotsH = extractShots(homeComp);
+    const shotsA = extractShots(awayComp);
+    const liveStats: Match['stats'] | undefined = isLive
+      ? {
+          shotsHome: shotsH ?? 12 + (scoreHome ?? 0) * 5,
+          shotsAway: shotsA ?? 11 + (scoreAway ?? 0) * 5,
+          ...(shotsH !== undefined ? { shotsOnTargetHome: shotsH } : {}),
+          ...(shotsA !== undefined ? { shotsOnTargetAway: shotsA } : {}),
+          detailLabel: 'Chutes ao Gol (SOG)',
+        }
+      : undefined;
+
     const odds =
       isLive && scoreHome !== undefined && scoreAway !== undefined
         ? computeLiveOddsFromScore({
@@ -394,15 +495,9 @@ function mapEspnHockeyEvent(ev: any): Match | null {
             scoreAway,
             progress: parseMatchProgress('Hóquei', timeElapsed),
             baseOdds,
+            stats: liveStats,
           })
         : baseOdds;
-
-    const venueName = comp.venue?.fullName;
-    const venueCity = comp.venue?.address?.city;
-    const venueText = venueName ? (venueCity ? `${venueName} • ${venueCity}` : venueName) : 'Arena NHL';
-
-    const shotsH = extractShots(homeComp);
-    const shotsA = extractShots(awayComp);
 
     const homeName = homeComp.team.shortDisplayName || homeComp.team.displayName || homeComp.team.name;
     const awayName = awayComp.team.shortDisplayName || awayComp.team.displayName || awayComp.team.name;
@@ -435,13 +530,7 @@ function mapEspnHockeyEvent(ev: any): Match | null {
         : isFinished
         ? `Placar Final: ${homeName} ${scoreHome ?? 0} x ${scoreAway ?? 0} ${awayName}`
         : undefined,
-      stats: isLive
-        ? {
-            shotsHome: shotsH ?? 12 + (scoreHome ?? 0) * 5,
-            shotsAway: shotsA ?? 11 + (scoreAway ?? 0) * 5,
-            detailLabel: 'Chutes ao Gol (SOG)',
-          }
-        : undefined,
+      stats: liveStats,
       baseOdds,
       odds,
     };

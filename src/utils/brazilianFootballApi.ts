@@ -1,7 +1,7 @@
 import { Match } from '../types';
 import { computeLiveOddsFromScore, parseMatchProgress } from './hockeyApi';
 
-const CACHE_KEY = 'benbets_br_football_api_v4';
+const CACHE_KEY = 'benbets_br_football_api_v5';
 const CACHE_TTL_MS = 60 * 1000;
 
 interface LeagueDef {
@@ -83,22 +83,39 @@ function calcFormPoints(form?: string): number {
   return pts;
 }
 
-function deriveOddsFromForm(homeForm?: string, awayForm?: string) {
+function parseRecordWinRate(summary?: string): number | null {
+  if (!summary || typeof summary !== 'string') return null;
+  const parts = summary.split('-').map((n) => parseInt(n, 10));
+  if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) return null;
+  const w = parts[0] || 0;
+  const d = parts.length >= 3 ? parts[1] || 0 : 0;
+  const l = parts.length >= 3 ? parts[2] || 0 : parts[1] || 0;
+  const games = w + d + l;
+  if (games < 3) return null;
+  return (w * 3 + d) / (games * 3);
+}
+
+function deriveOddsFromForm(homeForm?: string, awayForm?: string, homeRecord?: string, awayRecord?: string) {
   const hPts = calcFormPoints(homeForm);
   const aPts = calcFormPoints(awayForm);
-  const diff = Math.max(-9, Math.min(9, hPts - aPts));
+  const formDiff = Math.max(-9, Math.min(9, hPts - aPts));
 
-  const drawProb = 0.28 - Math.abs(diff) * 0.005;
-  const homeShare = 0.56 + diff * 0.025; // slight home field edge
+  const hRate = parseRecordWinRate(homeRecord);
+  const aRate = parseRecordWinRate(awayRecord);
+  const recordEdge = hRate !== null && aRate !== null ? (hRate - aRate) * 0.45 : 0;
+
+  const combinedEdge = formDiff * 0.022 + recordEdge;
+  const drawProb = Math.max(0.19, 0.28 - Math.abs(combinedEdge) * 0.18);
+  const homeShare = Math.max(0.24, Math.min(0.78, 0.56 + combinedEdge)); // mando de campo + forma + campanha
   const remaining = 1 - drawProb;
-  const homeProb = Math.max(0.14, Math.min(0.75, remaining * homeShare));
-  const awayProb = Math.max(0.14, 1 - drawProb - homeProb);
+  const homeProb = Math.max(0.12, Math.min(0.78, remaining * homeShare));
+  const awayProb = Math.max(0.12, 1 - drawProb - homeProb);
 
-  const margin = 0.94;
+  const margin = 0.945;
   return {
-    home: Number(Math.max(1.22, Math.min(12.0, margin / homeProb)).toFixed(2)),
+    home: Number(Math.max(1.2, Math.min(12.0, margin / homeProb)).toFixed(2)),
     draw: Number(Math.max(2.6, Math.min(6.5, margin / drawProb)).toFixed(2)),
-    away: Number(Math.max(1.22, Math.min(12.0, margin / awayProb)).toFixed(2)),
+    away: Number(Math.max(1.2, Math.min(12.0, margin / awayProb)).toFixed(2)),
   };
 }
 
@@ -162,6 +179,56 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
         : 'Em andamento'
       : undefined;
 
+  // Real statistics, shots on target, red cards & estimated xG
+  const posHome = findStatNumber(homeComp?.statistics, ['possessionPct']);
+  const shotsHome = findStatNumber(homeComp?.statistics, ['totalShots']);
+  const shotsAway = findStatNumber(awayComp?.statistics, ['totalShots']);
+  const sotHome = findStatNumber(homeComp?.statistics, ['shotsOnTarget']);
+  const sotAway = findStatNumber(awayComp?.statistics, ['shotsOnTarget']);
+
+  const details = Array.isArray(comp.details) ? comp.details : [];
+  let redCardsHome = findStatNumber(homeComp?.statistics, ['redCards']) ?? 0;
+  let redCardsAway = findStatNumber(awayComp?.statistics, ['redCards']) ?? 0;
+  if (redCardsHome === 0 && redCardsAway === 0 && details.length > 0) {
+    for (const det of details) {
+      if (!det?.redCard) continue;
+      const tid = String(det?.team?.id ?? '');
+      if (tid && tid === String(homeTeam.id ?? '')) redCardsHome += 1;
+      else if (tid && tid === String(awayTeam.id ?? '')) redCardsAway += 1;
+    }
+  }
+
+  const effShotsH = shotsHome ?? sotHome;
+  const effShotsA = shotsAway ?? sotAway;
+  const xgHome =
+    sotHome !== undefined
+      ? Number((sotHome * 0.3 + Math.max(0, (shotsHome ?? sotHome) - sotHome) * 0.06).toFixed(2))
+      : effShotsH !== undefined
+        ? Number((effShotsH * 0.11).toFixed(2))
+        : undefined;
+  const xgAway =
+    sotAway !== undefined
+      ? Number((sotAway * 0.3 + Math.max(0, (shotsAway ?? sotAway) - sotAway) * 0.06).toFixed(2))
+      : effShotsA !== undefined
+        ? Number((effShotsA * 0.11).toFixed(2))
+        : undefined;
+
+  const liveStats: Match['stats'] | undefined =
+    posHome !== undefined || effShotsH !== undefined || redCardsHome > 0 || redCardsAway > 0
+      ? {
+          possessionHome: posHome ?? 50,
+          shotsHome: effShotsH ?? 0,
+          shotsAway: effShotsA ?? 0,
+          ...(sotHome !== undefined ? { shotsOnTargetHome: sotHome } : {}),
+          ...(sotAway !== undefined ? { shotsOnTargetAway: sotAway } : {}),
+          ...(redCardsHome > 0 ? { redCardsHome } : {}),
+          ...(redCardsAway > 0 ? { redCardsAway } : {}),
+          ...(xgHome !== undefined ? { xgHome } : {}),
+          ...(xgAway !== undefined ? { xgAway } : {}),
+          detailLabel: sotHome !== undefined ? 'Posse • Chutes (Alvo)' : 'Posse % • Finalizações',
+        }
+      : undefined;
+
   // Real Moneyline Odds -> Decimal
   const oddsObj = Array.isArray(comp.odds) ? comp.odds[0] : undefined;
   const ml = oddsObj?.moneyline;
@@ -169,7 +236,12 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
   const decDraw = americanToDecimal(ml?.draw?.close?.odds ?? ml?.draw?.open?.odds ?? oddsObj?.drawOdds?.moneyLine);
   const decAway = americanToDecimal(ml?.away?.close?.odds ?? ml?.away?.open?.odds);
 
-  const fallbackOdds = deriveOddsFromForm(homeComp?.form, awayComp?.form);
+  const fallbackOdds = deriveOddsFromForm(
+    homeComp?.form,
+    awayComp?.form,
+    homeComp?.records?.[0]?.summary,
+    awayComp?.records?.[0]?.summary
+  );
   const baseOdds = {
     home: decHome ?? fallbackOdds.home,
     draw: decDraw ?? fallbackOdds.draw,
@@ -183,19 +255,14 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
           scoreAway,
           progress: parseMatchProgress('Futebol', timeElapsed),
           baseOdds,
+          stats: liveStats,
         })
       : baseOdds;
-
-  // Real statistics & play details
-  const posHome = findStatNumber(homeComp?.statistics, ['possessionPct']);
-  const shotsHome = findStatNumber(homeComp?.statistics, ['totalShots', 'shotsOnTarget']);
-  const shotsAway = findStatNumber(awayComp?.statistics, ['totalShots', 'shotsOnTarget']);
 
   let liveEvent: string | undefined;
   if (isFinished) {
     liveEvent = '🏁 Fim de Jogo — Placar Final Oficial';
   } else if (isLive) {
-    const details = Array.isArray(comp.details) ? comp.details : [];
     const latest = details[details.length - 1];
     if (latest) {
       const clockText = latest?.clock?.displayValue ? `${latest.clock.displayValue} ` : '';
@@ -243,15 +310,7 @@ function mapEspnEventToMatch(ev: any, leagueDef: LeagueDef): Match | null {
     scoreAway,
     timeElapsed,
     liveEvent,
-    stats:
-      posHome !== undefined || shotsHome !== undefined
-        ? {
-            possessionHome: posHome ?? 50,
-            shotsHome: shotsHome ?? 0,
-            shotsAway: shotsAway ?? 0,
-            detailLabel: 'Posse % • Finalizações',
-          }
-        : undefined,
+    stats: liveStats,
     baseOdds,
     odds,
   };

@@ -24,6 +24,12 @@ export interface Match {
     possessionHome?: number;
     shotsHome?: number;
     shotsAway?: number;
+    shotsOnTargetHome?: number;
+    shotsOnTargetAway?: number;
+    redCardsHome?: number;
+    redCardsAway?: number;
+    xgHome?: number;
+    xgAway?: number;
     detailLabel?: string;
   };
   baseOdds?: {
