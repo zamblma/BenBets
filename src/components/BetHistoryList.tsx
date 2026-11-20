@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Ticket, Clock, Percent, ShieldCheck, XCircle, Trophy } from 'lucide-react';
 import { BetSelection, PlacedBet } from '../types';
 
@@ -36,6 +36,22 @@ export default function BetHistoryList({
 }: BetHistoryListProps) {
   const [activeTab, setActiveTab] = useState<'slip' | 'history'>('history');
   const [stakeInput, setStakeInput] = useState<string>('');
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'pending' | 'won'>('all');
+  const [visibleCount, setVisibleCount] = useState<number>(40);
+
+  const pendingCount = useMemo(
+    () => placedBets.filter((b) => b.status === 'pending').length,
+    [placedBets]
+  );
+  const wonCount = useMemo(
+    () => placedBets.filter((b) => b.status === 'won').length,
+    [placedBets]
+  );
+  const filteredBets = useMemo(() => {
+    if (historyFilter === 'pending') return placedBets.filter((b) => b.status === 'pending');
+    if (historyFilter === 'won') return placedBets.filter((b) => b.status === 'won');
+    return placedBets;
+  }, [placedBets, historyFilter]);
 
   useEffect(() => {
     if (selections.length > 0) {
@@ -238,63 +254,90 @@ export default function BetHistoryList({
         {/* HISTORY Tab */}
         {activeTab === 'history' && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Relatório de Apostas Efetuadas</h3>
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0">
-              {placedBets.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-center py-20 text-slate-600 text-xs">
-                  <ShieldCheck className="w-8 h-8 text-slate-800 mb-2" />
-                  Nenhuma aposta registrada até o momento.
+            <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap shrink-0">
+              <div className="flex items-center gap-1">
+                {([
+                  { id: 'all' as const, label: `Todas (${placedBets.length})` },
+                  { id: 'pending' as const, label: `Pendentes (${pendingCount})` },
+                  { id: 'won' as const, label: `Vitórias (${wonCount})` },
+                ]).map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      setHistoryFilter(f.id);
+                      setVisibleCount(40);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                      historyFilter === f.id
+                        ? 'bg-brand/15 border-brand/50 text-brand'
+                        : 'bg-[#080a12] border-[#1b1f30] text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+              {filteredBets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center py-16 text-slate-500 text-xs">
+                  <ShieldCheck className="w-8 h-8 text-slate-700 mb-2" />
+                  {placedBets.length === 0
+                    ? 'Nenhuma aposta registrada até o momento.'
+                    : 'Nenhuma aposta encontrada neste filtro.'}
                 </div>
               ) : (
-                placedBets.map((bet) => {
+                <>
+                  {filteredBets.slice(0, visibleCount).map((bet) => {
                   const { stake: betStake, odds: betOdds, payout: betPayout } = getSafeBetNumbers(bet);
                   return (
                   <div 
                     key={bet.id} 
-                    className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                    className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
                       bet.status === 'won'
-                        ? 'bg-brand/5 border-brand/20'
+                        ? 'bg-brand/[0.06] border-brand/25'
                         : bet.status === 'lost'
-                          ? 'bg-rose-950/10 border-rose-500/10'
-                          : 'bg-[#0d0e16] border-[#1c1f2f]'
+                          ? 'bg-rose-950/15 border-rose-500/15'
+                          : 'bg-[#0c0e17] border-amber-400/25'
                     }`}
                   >
                     {/* Bet Top row */}
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-1.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-sans tracking-wide ${
                             bet.type === 'sports' 
-                              ? 'bg-sky-950 text-sky-400' 
+                              ? 'bg-sky-950 text-sky-300 border border-sky-500/25' 
                               : bet.type === 'crash' 
-                                ? 'bg-amber-950 text-amber-400' 
-                                : 'bg-[#1b1731] text-[#b39eff]'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-500/25' 
+                                : 'bg-[#1b1731] text-[#c4b5fd] border border-purple-500/25'
                           }`}>
-                            {bet.type === 'sports' ? 'Esportes' : bet.type === 'crash' ? 'Crash' : 'Slots'}
+                            {bet.type === 'sports' ? 'Esportes' : bet.type === 'crash' ? 'Crash' : 'Cassino'}
                           </span>
-                          <span className="text-slate-300 text-[11px] font-bold">{bet.matchName}</span>
+                          <span className="text-slate-100 text-[11px] font-bold truncate">{bet.matchName}</span>
                         </div>
-                        <p className="text-slate-400 text-[10px] mt-1 leading-relaxed">
+                        <p className="text-slate-400 text-[10px] mt-1 leading-relaxed truncate">
                           {bet.selectionName}
                         </p>
                       </div>
 
                       {/* Status indicator */}
-                      <div>
+                      <div className="shrink-0">
                         {bet.status === 'won' && (
-                          <div className="flex items-center gap-1 text-brand text-xs font-bold">
-                            <Trophy className="w-4 h-4" />
+                          <div className="flex items-center gap-1 text-brand text-[11px] font-black">
+                            <Trophy className="w-3.5 h-3.5" />
                             <span>VENCEU</span>
                           </div>
                         )}
                         {bet.status === 'lost' && (
-                          <div className="flex items-center gap-1 text-rose-400 text-xs font-bold">
+                          <div className="flex items-center gap-1 text-rose-400 text-[11px] font-bold">
                             <XCircle className="w-3.5 h-3.5" />
                             <span>PERDEU</span>
                           </div>
                         )}
                         {bet.status === 'pending' && (
-                          <div className="flex items-center gap-1 text-amber-400 text-xs font-bold animate-pulse">
+                          <div className="flex items-center gap-1 text-amber-300 text-[11px] font-bold animate-pulse">
                             <Clock className="w-3.5 h-3.5" />
                             <span>PENDENTE</span>
                           </div>
@@ -303,9 +346,9 @@ export default function BetHistoryList({
                     </div>
 
                     {/* Money & odds details */}
-                    <div className="flex justify-between items-center mt-3 border-t border-slate-950/40 pt-2 text-[10px] text-slate-400 font-mono">
-                      <div>Value: <span className="text-slate-200">R$ {betStake.toFixed(2)}</span></div>
-                      <div>Cotação: <span className="text-slate-200 font-bold">@{betOdds.toFixed(2)}</span></div>
+                    <div className="flex justify-between items-center mt-2.5 border-t border-white/5 pt-2 text-[10px] text-slate-400 font-mono">
+                      <div>Aposta: <span className="text-slate-200">R$ {betStake.toFixed(2)}</span></div>
+                      <div>Odd: <span className="text-slate-200 font-bold">@{betOdds.toFixed(2)}</span></div>
                       <div>Retorno: <span className={bet.status === 'won' ? 'text-brand font-bold' : 'text-slate-300'}>
                         R$ {bet.status === 'won' ? betPayout.toFixed(2) : bet.status === 'lost' ? '0.00' : betPayout.toFixed(2)}
                       </span></div>
@@ -313,9 +356,9 @@ export default function BetHistoryList({
 
                     {/* Realistic settlement notice for PENDING sports bets & Final Score on settled bets */}
                     {bet.status === 'pending' && bet.type === 'sports' && (
-                      <div className="mt-2.5 border-t border-[#1c1f2e] pt-2 text-[10px] text-amber-300/90 flex items-center gap-1.5 font-mono">
+                      <div className="mt-2 border-t border-[#1c1f2e] pt-1.5 text-[10px] text-amber-300/90 flex items-center gap-1.5 font-mono">
                         <Clock className="w-3 h-3 shrink-0" />
-                        <span>Aguardando Fim de Jogo (apuração somente após apito final)</span>
+                        <span>Aguardando Fim de Jogo</span>
                       </div>
                     )}
                     {bet.status !== 'pending' && bet.outcomeValue && bet.type === 'sports' && (
@@ -325,12 +368,22 @@ export default function BetHistoryList({
                     )}
                   </div>
                   );
-                })
+                })}
+                {filteredBets.length > visibleCount && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 40)}
+                    className="w-full py-2 rounded-xl bg-[#090c15] hover:bg-[#111626] border border-[#1d2236] text-[11px] font-bold text-slate-300 hover:text-brand transition-colors cursor-pointer"
+                  >
+                    Carregar mais ({filteredBets.length - visibleCount} restantes)
+                  </button>
+                )}
+                </>
               )}
             </div>
             {/* Disclaimer policy */}
-            <div className="border-t border-[#1b1e2e] pt-2 text-[9px] text-slate-500 leading-normal mb-1">
-              Todos os prêmios esportivos acima são liquidados de forma simulada e imediata a fins de demonstração técnica de fluxos fiscais (SPA).
+            <div className="border-t border-[#1b1e2e] pt-2 text-[9px] text-slate-500 leading-normal mt-1 shrink-0">
+              Prêmios simulados em ambiente demonstrativo conforme regras da Lei 14.790/2023 (SPA).
             </div>
           </div>
         )}

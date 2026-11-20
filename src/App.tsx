@@ -1425,9 +1425,9 @@ export default function App() {
     <div className="min-h-screen font-sans text-slate-100 flex flex-col justify-between pb-20 lg:pb-0">
       
       {/* 🇧🇷 NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#080a12]/90 border-b border-brand/15 backdrop-blur-xl px-3 py-2.5 md:px-8 lg:px-12 relative">
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent pointer-events-none" />
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
+      <header className="sticky top-0 z-40 bg-[#06080f]/88 border-b border-brand/15 backdrop-blur-xl px-2.5 py-2 md:px-8 lg:px-10 relative shadow-[0_8px_32px_rgba(0,0,0,0.45)]">
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/55 to-transparent pointer-events-none" />
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Logo & Slogan */}
           <button
@@ -1438,37 +1438,30 @@ export default function App() {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               setIsMobileMenuOpen(false);
             }}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer text-left group"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer text-left group shrink-0"
           >
-            <OmnitrixLogo size="sm" className="group-hover:scale-105 transition-transform" />
-            <div className="hidden sm:block">
+            <OmnitrixLogo size="sm" animated className="group-hover:scale-105 transition-transform" />
+            <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-black font-display text-lg tracking-tight leading-none text-white">
-                  Ben<span className="text-brand">Bets</span>
+                <h1 className="font-black font-display text-base sm:text-lg tracking-tight leading-none text-white">
+                  Ben<span className="text-brand drop-shadow-[0_0_10px_rgba(0,255,135,0.3)]">Bets</span>
                 </h1>
-                <span className="text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-brand/10 text-brand border border-brand/25">
+                <span className="hidden sm:inline-block text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-brand/10 text-brand border border-brand/25">
                   .bet.br
                 </span>
               </div>
-              <p className="text-[9px] text-slate-400 font-medium mt-0.5">Ambiente Demonstração Legal • Lei 14.790/2023</p>
+              <p className="hidden md:block text-[9px] text-slate-400 font-medium mt-0.5">
+                Omnitrix Gaming Hub • Cassino, Gachas & Sportsbook
+              </p>
             </div>
           </button>
 
           {/* User Account Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* Mobile Hamburger */}
-            <button 
-              onClick={() => setIsMobileMenuOpen(prev => !prev)}
-              className="lg:hidden p-2 border border-[#1c1e2d] text-slate-400 hover:text-brand rounded-xl hover:bg-[#161826] transition-colors cursor-pointer"
-              title="Menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-
-            {/* Balance Visor (Omnitrix HUD) */}
-            <div className="bg-[#06070d]/95 px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-xl border border-brand/25 shadow-[0_0_20px_rgba(0,255,135,0.08)] flex items-center gap-2.5">
-              <div className="hidden sm:flex items-center justify-center p-1.5 bg-brand/10 border border-brand/20 rounded-lg text-brand relative">
+            {/* Balance Visor (Omnitrix HUD Wallet) */}
+            <div className="bg-[#05070d]/95 px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-xl border border-brand/30 shadow-[0_0_22px_rgba(0,255,135,0.1)] flex items-center gap-2">
+              <div className="hidden sm:flex items-center justify-center p-1.5 bg-brand/12 border border-brand/25 rounded-lg text-brand relative">
                 <Wallet className="w-4 h-4" />
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand animate-pulse" />
               </div>
@@ -1477,18 +1470,28 @@ export default function App() {
                   <span className="w-1.5 h-1.5 rounded-full bg-brand sm:hidden animate-pulse" />
                   Saldo
                 </span>
-                <span className="font-mono text-brand font-extrabold text-sm md:text-base tracking-tight select-none drop-shadow-[0_0_10px_rgba(0,255,135,0.25)]">
+                <span className="font-mono text-brand font-extrabold text-xs sm:text-sm md:text-base tracking-tight select-none drop-shadow-[0_0_10px_rgba(0,255,135,0.28)]">
                   R$ {(Number.isFinite(balance) && balance >= 0 ? balance : 20).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <button 
                 onClick={() => setIsPixOpen(true)}
-                className="ml-0.5 w-7 h-7 flex items-center justify-center rounded-lg bg-brand hover:bg-[#00e074] text-slate-950 font-black text-lg leading-none cursor-pointer transition-all shadow-[0_0_12px_rgba(0,255,135,0.3)] hover:scale-105 shrink-0"
+                className="ml-0.5 h-7 px-2 md:px-2.5 flex items-center justify-center gap-1 rounded-lg bg-brand hover:bg-[#19ff96] text-slate-950 font-black text-xs leading-none cursor-pointer transition-all shadow-[0_0_14px_rgba(0,255,135,0.35)] hover:scale-105 shrink-0"
                 title="Depositar / Sacar / Cupons"
               >
-                +
+                <span className="text-base leading-none">+</span>
+                <span className="hidden md:inline uppercase tracking-wider text-[10px]">Pix</span>
               </button>
             </div>
+
+            {/* Mobile Hamburger */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(prev => !prev)}
+              className="lg:hidden p-2 border border-[#1c1e2d] text-slate-300 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#161826] transition-colors cursor-pointer"
+              title="Menu"
+            >
+              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
 
             {/* Leaderboard shortcut */}
             <button
@@ -1651,42 +1654,55 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Hero Brazil Regulatory Header Notice */}
-      <div className="bg-[#0b0c13] border-b border-[#1b1d2c]/60 py-1.5 sm:py-2.5 px-3 text-[10px] sm:text-xs text-center text-slate-300">
-        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
-          <span className="bg-brand/10 border border-brand/20 text-brand px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold font-mono">COMPLIANCE NACIONAL</span>
-          <p className="text-[9px] sm:text-[11px] font-medium text-slate-300">
-            Apostas operadas de acordo com as regras de Jogo Seguro. Domínio exclusivo <span className="font-bold text-brand">.bet.br</span> outorga SPA/MF.
-          </p>
+      {/* Compact Regulatory Ticker (desktop only to maximize mobile viewport) */}
+      <div className="hidden sm:block bg-[#070911]/85 border-b border-white/5 py-1.5 px-3 text-[11px] text-center text-slate-400">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-center gap-2">
+          <span className="bg-brand/10 border border-brand/25 text-brand px-2 py-0.5 rounded-full text-[9px] font-bold font-mono tracking-wider">
+            SPA/MF • LEI 14.790/2023
+          </span>
+          <span>
+            Ambiente interativo de demonstração com domínio <span className="font-bold text-brand">.bet.br</span> e chat multiplayer ao vivo.
+          </span>
         </div>
       </div>
 
       {/* MAIN CONTAINER GRID */}
-      <main className="max-w-[1600px] mx-auto px-2 sm:px-3 py-3 md:px-8 lg:px-12 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-8 w-full">
+      <main className="max-w-[1600px] mx-auto px-2.5 sm:px-4 py-3.5 md:px-8 lg:px-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 w-full">
         
         {/* LEFT COLUMN: FILTERS & MATCHES/CASINO SELECT (COLS-8) */}
-        <section className="col-span-1 lg:col-span-8 space-y-4 lg:space-y-6">
+        <section className="col-span-1 lg:col-span-8 space-y-4 lg:space-y-5">
           
           {/* Main Visual Category Switchers */}
-          <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-2 py-1 pb-2 md:pb-3 justify-start scrollbar-none snap-x snap-mandatory -mx-2 sm:mx-0 px-2 sm:px-0">
+          <div className="flex bg-[#090c16]/85 border border-white/8 rounded-2xl p-1.5 overflow-x-auto gap-1.5 justify-start scrollbar-none snap-x snap-mandatory">
             {[
-              { id: 'Home', label: 'Menu', icon: '🏠' },
-              { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-              { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
-              { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
-              { id: 'Ranking', label: 'Ranking', icon: '🏆' },
+              { id: 'Home', label: 'Início', icon: <Home className="w-3.5 h-3.5" /> },
+              { id: 'Cassino', label: 'Cassino', icon: <Flame className="w-3.5 h-3.5" /> },
+              { id: 'Colecionaveis', label: 'Colecionáveis', icon: <Star className="w-3.5 h-3.5" /> },
+              { id: 'Todos', label: 'Esportes', icon: <Dribbble className="w-3.5 h-3.5" />, badge: liveMatchesCount > 0 ? liveMatchesCount : undefined },
+              { id: 'Ranking', label: 'Ranking', icon: <Trophy className="w-3.5 h-3.5" /> },
             ].map((sport) => (
               <button
                 key={sport.id}
                 onClick={() => { setSelectedSport(sport.id); setSelectedCasinoGame(null); setSelectedColecionavel(null); }}
-                className={`py-2 md:py-2.5 px-3 md:px-4 rounded-xl text-[10px] md:text-xs font-bold transition-all duration-300 whitespace-nowrap cursor-pointer flex items-center gap-1.5 md:gap-2 border leading-none shrink-0 snap-al-start ${
+                className={`py-2 md:py-2.5 px-3 md:px-4 rounded-xl text-[11px] md:text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer flex items-center gap-1.5 md:gap-2 leading-none shrink-0 snap-start ${
                   selectedSport === sport.id
-                    ? 'bg-brand text-slate-950 border-brand font-extrabold shadow-[0_0_15px_rgba(0,255,135,0.2)]'
-                    : 'bg-[#0d0e16] hover:bg-[#141624] text-slate-300 border-[#1a1d2d]'
+                    ? 'bg-brand text-slate-950 font-black shadow-[0_0_18px_rgba(0,255,135,0.28)]'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <span>{sport.icon}</span>
-                {sport.label}
+                {sport.icon}
+                <span>{sport.label}</span>
+                {sport.badge !== undefined && (
+                  <span
+                    className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded-full ${
+                      selectedSport === sport.id
+                        ? 'bg-slate-950/20 text-slate-950'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/35'
+                    }`}
+                  >
+                    {sport.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1695,8 +1711,20 @@ export default function App() {
           {selectedSport === 'Home' ? (
             <HomeMenu
               onSelect={(section) => { setSelectedSport(section); setSelectedCasinoGame(null); setSelectedColecionavel(null); }}
+              onQuickLaunch={(section, gameId) => {
+                setSelectedSport(section);
+                if (section === 'Cassino') {
+                  setSelectedCasinoGame(gameId);
+                  setSelectedColecionavel(null);
+                } else {
+                  setSelectedColecionavel(gameId);
+                  setSelectedCasinoGame(null);
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
               leaderboard={liveLeaderboard}
               currentUserId={firebaseUser.uid}
+              liveMatchesCount={liveMatchesCount}
             />
           ) : selectedSport === 'Ranking' ? (
             <Leaderboard

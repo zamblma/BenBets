@@ -6,23 +6,66 @@
   --font-mono: 'JetBrains Mono', monospace;
   --color-brand: #00ff87;
   --color-brand-glow: rgba(0, 255, 135, 0.25);
+  --color-brand-deep: #00b862;
+  --color-alien: #7cffc4;
   --color-obsidian: #06070d;
+  --color-surface: #0b0e18;
+  --color-surface-2: #10141f;
+  --color-line: #1c2133;
 }
 
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  color-scheme: dark;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #06070d;
-  background-image:
-    radial-gradient(ellipse 80% 45% at 50% -10%, rgba(0, 255, 135, 0.10), transparent 70%),
-    radial-gradient(rgba(0, 255, 135, 0.055) 1px, transparent 1px);
-  background-size: 100% 100%, 28px 28px;
+  background-color: #05060b;
   color: #f1f5f9;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fundo Omnitrix: aurora verde + grade hexagonal + vinheta (fixo, sem custo de repaint no scroll) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 30rem at 15% -8%, rgba(0, 255, 135, 0.13), transparent 60%),
+    radial-gradient(50rem 28rem at 95% 5%, rgba(56, 189, 248, 0.07), transparent 60%),
+    radial-gradient(45rem 30rem at 50% 110%, rgba(168, 85, 247, 0.07), transparent 60%),
+    #05060b;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0, 255, 135, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 135, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 20%, #000 35%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 20%, #000 35%, transparent 85%);
+}
+
+::selection {
+  background: rgba(0, 255, 135, 0.28);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(0, 255, 135, 0.75);
+  outline-offset: 2px;
+  border-radius: 10px;
 }
 
 button,
@@ -50,14 +93,20 @@ textarea {
 
 /* Omnitrix HUD surfaces */
 .omnitrix-panel {
-  background: linear-gradient(165deg, #0d101b 0%, #07080f 100%);
-  border: 1px solid rgba(0, 255, 135, 0.14);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(165deg, rgba(16, 20, 32, 0.92) 0%, rgba(8, 10, 17, 0.96) 100%);
+  border: 1px solid rgba(0, 255, 135, 0.13);
+  box-shadow:
+    0 18px 50px -12px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .omnitrix-card {
   position: relative;
-  background: linear-gradient(160deg, rgba(13, 16, 26, 0.94), rgba(7, 8, 14, 0.98));
+  background: linear-gradient(160deg, rgba(15, 19, 30, 0.94), rgba(8, 9, 15, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s ease, box-shadow 0.28s ease;
@@ -112,6 +161,11 @@ textarea {
   to { transform: rotate(360deg); }
 }
 
+@keyframes omnitrix-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
 @keyframes omnitrix-pulse {
   0%, 100% { opacity: 0.45; transform: scale(0.96); }
   50% { opacity: 0.9; transform: scale(1.06); }
@@ -119,6 +173,10 @@ textarea {
 
 .animate-omnitrix-spin {
   animation: omnitrix-spin 22s linear infinite;
+}
+
+.animate-omnitrix-spin-reverse {
+  animation: omnitrix-spin-reverse 34s linear infinite;
 }
 
 .animate-omnitrix-pulse {
