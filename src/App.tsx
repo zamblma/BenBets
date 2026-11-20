@@ -24,7 +24,11 @@ import {
   Trophy,
   Volume2,
   VolumeX,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Ticket,
+  X,
+  Home
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,8 +41,8 @@ import { fetchRealHockeyMatches, computeLiveOddsFromScore, parseMatchProgress } 
 // Firebase
 import { auth, db } from './firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { MUDAE_SEASON_VERSION, getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance } from './firebase/db';
-import type { MissionProgress, LeaderboardEntry } from './firebase/db';
+import { MUDAE_SEASON_VERSION, getUserData, createUserData, updateBalance, addBet, updateBet, addTransaction, addPokemonCards, removePokemonCard, addWorldCupStickers, removeWorldCupSticker, setWorldCupCollection, addKpopCards, removeKpopCard, addCS2Cards, removeCS2Card, addAnimeCards, removeAnimeCard, setAnimeCollection, getMissions, claimMissionReward, DAILY_MISSIONS, subscribeToLeaderboard, updateUserPresence, markUserOffline, sanitizePlacedBets, recoverValidBalance, subscribeToLiveChat, sendLiveChatMessage, deleteLiveChatMessage } from './firebase/db';
+import type { MissionProgress, LeaderboardEntry, LiveChatMessage } from './firebase/db';
 // Subcomponents
 import ApostasInfo from './components/ApostasInfo';
 import PixModal from './components/PixModal';
@@ -59,6 +63,7 @@ import WorldCupAlbum from './components/WorldCupAlbum';
 import KpopPhotocards from './components/KpopPhotocards';
 import CS2Cases from './components/CS2Cases';
 import BetHistoryList from './components/BetHistoryList';
+import LiveChat from './components/LiveChat';
 import AuthScreen from './components/AuthScreen';
 import HomeMenu from './components/HomeMenu';
 import AdminPanel from './components/AdminPanel';
@@ -142,6 +147,16 @@ export default function App() {
   });
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [leaderboardPermissionError, setLeaderboardPermissionError] = useState(false);
+  const [chatMessages, setChatMessages] = useState<LiveChatMessage[]>([]);
+  const [chatOnlineCount, setChatOnlineCount] = useState(0);
+  const [chatOnlineUids, setChatOnlineUids] = useState<string[]>([]);
+  const [chatPermissionError, setChatPermissionError] = useState(false);
+  const [mobileSheet, setMobileSheet] = useState<null | 'slip' | 'chat'>(null);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const chatInitDoneRef = useRef(false);
+  const mobileSheetRef = useRef(mobileSheet);
+  mobileSheetRef.current = mobileSheet;
+  const lastSeenChatCreatedAtRef = useRef<number>(0);
 
   // Cache local do usuário (backup quando o Firestore estiver indisponível)
   const [loadError, setLoadError] = useState('');
@@ -340,6 +355,91 @@ export default function App() {
     );
     return () => unsub();
   }, [firebaseUser]);
+
+  // Realtime global Live Chat listener
+  useEffect(() => {
+    if (!firebaseUser) {
+      setChatMessages([]);
+      setChatOnlineCount(0);
+      setChatOnlineUids([]);
+      setChatPermissionError(false);
+      setUnreadChatCount(0);
+      chatInitDoneRef.current = false;
+      return;
+    }
+
+    const unsub = subscribeToLiveChat(
+      (msgs, onlineCount, onlineUids) => {
+        setChatMessages(msgs);
+        setChatOnlineCount(onlineCount);
+        setChatOnlineUids(onlineUids);
+        setChatPermissionError(false);
+
+        const latestAt = msgs.length > 0 ? msgs[msgs.length - 1].createdAt : 0;
+        if (!chatInitDoneRef.current) {
+          chatInitDoneRef.current = true;
+          lastSeenChatCreatedAtRef.current = latestAt;
+          return;
+        }
+
+        if (mobileSheetRef.current === 'chat') {
+          lastSeenChatCreatedAtRef.current = latestAt;
+          setUnreadChatCount(0);
+        } else {
+          const newRemote = msgs.filter(
+            (m) => m.uid !== firebaseUser.uid && m.createdAt > lastSeenChatCreatedAtRef.current
+          ).length;
+          if (newRemote > 0) {
+            setUnreadChatCount((prev) => Math.max(prev, newRemote));
+          }
+        }
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') {
+          setChatPermissionError(true);
+        }
+      }
+    );
+    return () => unsub();
+  }, [firebaseUser]);
+
+  const handleSendChatMessage = useCallback(
+    async (text: string, extra?: { kind?: 'text' | 'win'; badgeText?: string }) => {
+      if (!firebaseUser) return false;
+      const display = (
+        userName ||
+        firebaseUser.displayName ||
+        firebaseUser.email?.split('@')[0] ||
+        'Jogador'
+      ).trim();
+      try {
+        const created = await sendLiveChatMessage(firebaseUser.uid, display, text, extra);
+        if (!created) return false;
+        setChatMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created].slice(-80)));
+        lastSeenChatCreatedAtRef.current = Math.max(lastSeenChatCreatedAtRef.current, created.createdAt);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [firebaseUser, userName]
+  );
+
+  const handleDeleteChatMessage = useCallback(
+    async (messageId: string) => {
+      if (!firebaseUser) return;
+      setChatMessages((prev) => prev.filter((m) => m.id !== messageId));
+      await deleteLiveChatMessage(firebaseUser.uid, messageId).catch(() => {});
+    },
+    [firebaseUser]
+  );
+
+  const openMobileChat = () => {
+    const latestAt = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].createdAt : Date.now();
+    lastSeenChatCreatedAtRef.current = latestAt;
+    setUnreadChatCount(0);
+    setMobileSheet((prev) => (prev === 'chat' ? null : 'chat'));
+  };
 
   // Presence heartbeat (lastSeen) for active online status
   useEffect(() => {
@@ -1322,7 +1422,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen font-sans text-slate-100 flex flex-col justify-between">
+    <div className="min-h-screen font-sans text-slate-100 flex flex-col justify-between pb-20 lg:pb-0">
       
       {/* 🇧🇷 NAVIGATION BAR */}
       <header className="sticky top-0 z-40 bg-[#080a12]/90 border-b border-brand/15 backdrop-blur-xl px-3 py-2.5 md:px-8 lg:px-12 relative">
@@ -1433,32 +1533,32 @@ export default function App() {
               {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
 
-            {/* Regulation Manual */}
+            {/* Regulation Manual (desktop bar — mobile inside hamburger menu) */}
             <button 
               onClick={() => setIsInfoOpen(true)}
-              className="p-2 border border-[#1c1e2d] hover:border-brand/40 text-slate-400 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
+              className="hidden sm:block p-2 border border-[#1c1e2d] hover:border-brand/40 text-slate-400 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer"
               title="Ler Legislação das Bets"
             >
               <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-brand" />
             </button>
 
-            {/* Admin */}
+            {/* Admin (desktop bar — mobile inside hamburger menu) */}
             <button 
               onClick={() => setShowAdmin(true)}
-              className="p-2 border border-[#1c1e2d] hover:border-brand/30 text-slate-500 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
+              className="hidden sm:block p-2 border border-[#1c1e2d] hover:border-brand/30 text-slate-500 hover:text-brand rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer"
               title="Admin"
             >
               <Shield className="w-4 h-4" />
             </button>
 
-            {/* Logout */}
+            {/* Logout (desktop bar — mobile inside hamburger menu) */}
             {firebaseUser && (
               <button 
                 onClick={async () => {
                   await markUserOffline(firebaseUser.uid).catch(() => {});
                   await signOut(auth);
                 }}
-                className="p-2 border border-[#1c1e2d] hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer block"
+                className="hidden sm:block p-2 border border-[#1c1e2d] hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-xl bg-[#0a0c14] hover:bg-[#131726] transition-colors cursor-pointer"
                 title="Sair"
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1478,27 +1578,59 @@ export default function App() {
             exit={{ opacity: 0, height: 0 }}
             className="lg:hidden bg-[#0c0d14] border-b border-[#1c1e2d] overflow-hidden"
           >
-            <div className="px-3 py-2 flex flex-wrap gap-1.5 max-h-[50vh] overflow-y-auto">
-              {[
-                { id: 'Home', label: 'Menu', icon: '🏠' },
-                { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
-                { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
-                { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
-                { id: 'Ranking', label: 'Ranking', icon: '🏆' },
-              ].map((sport) => (
+            <div className="px-3 py-2.5 space-y-2 max-h-[60vh] overflow-y-auto">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'Home', label: 'Menu', icon: '🏠' },
+                  { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
+                  { id: 'Colecionaveis', label: 'Colecionáveis', icon: '💎' },
+                  { id: 'Todos', label: 'Todos os Esportes', icon: '⚽' },
+                  { id: 'Ranking', label: 'Ranking', icon: '🏆' },
+                ].map((sport) => (
+                  <button
+                    key={sport.id}
+                    onClick={() => { setSelectedSport(sport.id); setSelectedCasinoGame(null); setSelectedColecionavel(null); setIsMobileMenuOpen(false); }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border leading-none ${
+                      selectedSport === sport.id
+                        ? 'bg-brand text-slate-950 border-brand shadow-[0_0_10px_rgba(0,255,135,0.2)]'
+                        : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
+                    }`}
+                  >
+                    <span>{sport.icon}</span>
+                    {sport.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-white/5">
                 <button
-                  key={sport.id}
-                  onClick={() => { setSelectedSport(sport.id); setSelectedCasinoGame(null); setSelectedColecionavel(null); setIsMobileMenuOpen(false); }}
-                  className={`py-1.5 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border leading-none ${
-                    selectedSport === sport.id
-                      ? 'bg-brand text-slate-950 border-brand shadow-[0_0_10px_rgba(0,255,135,0.2)]'
-                      : 'bg-[#0d0e16] text-slate-300 border-[#1a1d2d] hover:bg-[#141624]'
-                  }`}
+                  type="button"
+                  onClick={() => { setIsMobileMenuOpen(false); setIsInfoOpen(true); }}
+                  className="py-2 px-3 rounded-xl text-xs font-bold bg-[#0d0e16] text-brand border border-brand/25 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{sport.icon}</span>
-                  {sport.label}
+                  <ShieldCheck className="w-3.5 h-3.5" /> Legislação
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => { setIsMobileMenuOpen(false); setShowAdmin(true); }}
+                  className="py-2 px-3 rounded-xl text-xs font-bold bg-[#0d0e16] text-slate-300 border border-[#1a1d2d] flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5" /> Admin
+                </button>
+                {firebaseUser && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsMobileMenuOpen(false);
+                      await markUserOffline(firebaseUser.uid).catch(() => {});
+                      await signOut(auth);
+                    }}
+                    className="py-2 px-3 rounded-xl text-xs font-bold bg-rose-950/30 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> Sair
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -1536,7 +1668,7 @@ export default function App() {
         <section className="col-span-1 lg:col-span-8 space-y-4 lg:space-y-6">
           
           {/* Main Visual Category Switchers */}
-          <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-2 py-1 pb-2 md:pb-3 justify-start scrollbar-thin snap-x snap-mandatory -mx-3 md:mx-0 px-3 md:px-0">
+          <div className="flex border-b border-[#1a1c2a] overflow-x-auto gap-2 py-1 pb-2 md:pb-3 justify-start scrollbar-none snap-x snap-mandatory -mx-2 sm:mx-0 px-2 sm:px-0">
             {[
               { id: 'Home', label: 'Menu', icon: '🏠' },
               { id: 'Cassino', label: 'Jogos de Cassino', icon: '🚀' },
@@ -2017,7 +2149,7 @@ export default function App() {
                   placeholder="Buscar partida, time, estádio ou campeonato..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full"
+                  className="bg-transparent border-none text-base sm:text-xs text-slate-200 placeholder-slate-600 focus:outline-none w-full"
                 />
                 {searchQuery && (
                   <button
@@ -2304,7 +2436,7 @@ export default function App() {
                                       value={quickBetStake}
                                       onChange={(e) => setQuickBetStake(e.target.value)}
                                       placeholder="Valor"
-                                      className="w-full bg-transparent text-sm font-mono font-bold text-white outline-none"
+                                      className="w-full bg-transparent text-base sm:text-sm font-mono font-bold text-white outline-none"
                                       autoFocus
                                     />
                                   </div>
@@ -2436,8 +2568,8 @@ export default function App() {
 
         </section>
 
-        {/* RIGHT COLUMN: ACTIVE BET SLIP & PLACED HISTORY LEDGER */}
-        <section className="col-span-1 lg:col-span-4 space-y-4 lg:space-y-6 lg:sticky lg:top-20 lg:self-start">
+        {/* RIGHT COLUMN: ACTIVE BET SLIP, PLACED HISTORY & LIVE USER CHAT */}
+        <section className="col-span-1 lg:col-span-4 space-y-4 lg:sticky lg:top-20 lg:self-start">
           <BetHistoryList
             selections={selections}
             onRemoveSelection={handleRemoveSelection}
@@ -2448,12 +2580,24 @@ export default function App() {
             onAddPlacedBet={handleAddPlacedBet}
             onSettleBet={handleSettleAction}
           />
+          <LiveChat
+            messages={chatMessages}
+            currentUserId={firebaseUser.uid}
+            currentUserName={userName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Jogador'}
+            onlineCount={chatOnlineCount}
+            onlineUids={chatOnlineUids}
+            leaderboard={liveLeaderboard}
+            placedBets={placedBets}
+            permissionError={chatPermissionError}
+            onSendMessage={handleSendChatMessage}
+            onDeleteMessage={handleDeleteChatMessage}
+          />
         </section>
 
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-[#0b0c13] border-t border-[#1b1e2e] text-slate-500 py-8 px-4 mt-12 text-center text-[11px] leading-relaxed">
+      <footer className="bg-[#0b0c13] border-t border-[#1b1e2e] text-slate-500 py-8 pb-10 lg:pb-8 px-4 mt-10 text-center text-[11px] leading-relaxed">
         <div className="max-w-[1600px] mx-auto space-y-4">
           
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-slate-400 uppercase font-sans font-bold tracking-wider">
@@ -2523,6 +2667,168 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Quick Drawer (Cupom / Chat Ao Vivo) */}
+      <AnimatePresence>
+        {mobileSheet && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end"
+          >
+            <div
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+              onClick={() => setMobileSheet(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative z-10 w-full max-w-lg mx-auto px-2 pb-2"
+            >
+              <div className="flex items-center justify-between px-3 py-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileSheet('slip')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                      mobileSheet === 'slip'
+                        ? 'bg-brand text-slate-950 border-brand'
+                        : 'bg-[#0c0e17] text-slate-300 border-[#22273c]'
+                    }`}
+                  >
+                    <Ticket className="w-3.5 h-3.5" />
+                    <span>Cupom ({selections.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const latestAt =
+                        chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].createdAt : Date.now();
+                      lastSeenChatCreatedAtRef.current = latestAt;
+                      setUnreadChatCount(0);
+                      setMobileSheet('chat');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                      mobileSheet === 'chat'
+                        ? 'bg-brand text-slate-950 border-brand'
+                        : 'bg-[#0c0e17] text-slate-300 border-[#22273c]'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Chat Ao Vivo</span>
+                    <span className="text-[10px] font-mono opacity-80">({Math.max(1, chatOnlineCount)})</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileSheet(null)}
+                  className="p-2 rounded-xl bg-[#0c0e17] border border-[#22273c] text-slate-300 hover:text-white cursor-pointer"
+                  aria-label="Fechar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {mobileSheet === 'slip' ? (
+                <BetHistoryList
+                  selections={selections}
+                  onRemoveSelection={handleRemoveSelection}
+                  onClearSelections={handleClearSelections}
+                  balance={balance}
+                  onUpdateBalance={handleDepositSuccess}
+                  placedBets={placedBets}
+                  onAddPlacedBet={handleAddPlacedBet}
+                  onSettleBet={handleSettleAction}
+                  fullHeight
+                />
+              ) : (
+                <LiveChat
+                  messages={chatMessages}
+                  currentUserId={firebaseUser.uid}
+                  currentUserName={userName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Jogador'}
+                  onlineCount={chatOnlineCount}
+                  onlineUids={chatOnlineUids}
+                  leaderboard={liveLeaderboard}
+                  placedBets={placedBets}
+                  permissionError={chatPermissionError}
+                  onSendMessage={handleSendChatMessage}
+                  onDeleteMessage={handleDeleteChatMessage}
+                  compactHeightClass="h-[72dvh] max-h-[580px]"
+                  hideCollapseButton
+                />
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fixed Mobile Bottom Navigation Bar */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#080a12]/95 border-t border-brand/20 backdrop-blur-xl px-1.5 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-lg mx-auto grid grid-cols-6 gap-1">
+          {[
+            { id: 'Home', label: 'Início', icon: <Home className="w-4 h-4" />, active: selectedSport === 'Home' && !mobileSheet },
+            { id: 'Cassino', label: 'Cassino', icon: <Flame className="w-4 h-4" />, active: selectedSport === 'Cassino' && !mobileSheet },
+            { id: 'Colecionaveis', label: 'Gachas', icon: <Star className="w-4 h-4" />, active: selectedSport === 'Colecionaveis' && !mobileSheet },
+            { id: 'Todos', label: 'Esportes', icon: <Dribbble className="w-4 h-4" />, active: selectedSport === 'Todos' && !mobileSheet },
+          ].map((navItem) => (
+            <button
+              key={navItem.id}
+              type="button"
+              onClick={() => {
+                setMobileSheet(null);
+                setSelectedSport(navItem.id);
+                setSelectedCasinoGame(null);
+                setSelectedColecionavel(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                navItem.active ? 'text-brand bg-brand/10 border border-brand/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              }`}
+            >
+              {navItem.icon}
+              <span className="text-[10px] font-bold leading-none">{navItem.label}</span>
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setMobileSheet((prev) => (prev === 'slip' ? null : 'slip'))}
+            className={`relative py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+              mobileSheet === 'slip' ? 'text-brand bg-brand/10 border border-brand/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'
+            }`}
+          >
+            <Ticket className="w-4 h-4" />
+            <span className="text-[10px] font-bold leading-none">Cupom</span>
+            {selections.length > 0 && (
+              <span className="absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-brand text-slate-950 text-[9px] font-mono font-black flex items-center justify-center">
+                {selections.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={openMobileChat}
+            className={`relative py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+              mobileSheet === 'chat' ? 'text-brand bg-brand/10 border border-brand/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'
+            }`}
+          >
+            <div className="relative">
+              <MessageSquare className="w-4 h-4" />
+              <span className="absolute -bottom-0.5 -right-1 w-2 h-2 rounded-full bg-brand border border-[#080a12]" />
+            </div>
+            <span className="text-[10px] font-bold leading-none">Chat</span>
+            {unreadChatCount > 0 && (
+              <span className="absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-mono font-black flex items-center justify-center">
+                {unreadChatCount > 9 ? '9+' : unreadChatCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </nav>
 
       {/* Welcome Bonus Toast */}
       <AnimatePresence>

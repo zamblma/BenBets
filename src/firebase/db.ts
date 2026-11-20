@@ -1214,6 +1214,140 @@ export async function acknowledgeMudaeSalesReceipts(uid: string, receiptIds: str
   await setDoc(ref, { mudaeData: { ...mudae, salesReceipts: updated } }, { merge: true });
 }
 
+// Live Global Chat
+export interface LiveChatMessage {
+  id: string;
+  uid: string;
+  userName: string;
+  text: string;
+  createdAt: number;
+  kind?: 'text' | 'win';
+  badgeText?: string;
+}
+
+function sanitizeChatMessage(raw: any, fallbackUid: string, fallbackName: string): LiveChatMessage | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const text = typeof raw.text === 'string' ? raw.text.trim().slice(0, 220) : '';
+  if (!text) return null;
+  const createdAt = typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : 0;
+  if (createdAt <= 0) return null;
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : `chat-${fallbackUid.slice(0, 6)}-${createdAt}`;
+  return {
+    id,
+    uid: fallbackUid,
+    userName:
+      typeof raw.userName === 'string' && raw.userName.trim()
+        ? raw.userName.trim().slice(0, 40)
+        : fallbackName,
+    text,
+    createdAt,
+    kind: raw.kind === 'win' ? 'win' : 'text',
+    ...(typeof raw.badgeText === 'string' && raw.badgeText.trim()
+      ? { badgeText: raw.badgeText.trim().slice(0, 48) }
+      : {}),
+  };
+}
+
+export function subscribeToLiveChat(
+  onUpdate: (messages: LiveChatMessage[], onlineCount: number, onlineUids: string[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) => {
+      const now = Date.now();
+      const collected: LiveChatMessage[] = [];
+      const onlineUids: string[] = [];
+
+      for (const d of snap.docs) {
+        const raw = d.data() || {};
+        const uid = d.id;
+        const resolvedName =
+          typeof raw.displayName === 'string' && raw.displayName.trim()
+            ? raw.displayName.trim()
+            : typeof raw.email === 'string' && raw.email.includes('@')
+              ? raw.email.split('@')[0]
+              : `Agente ${uid.slice(0, 5)}`;
+
+        const lastSeen = typeof raw.lastSeen === 'number' && Number.isFinite(raw.lastSeen) ? raw.lastSeen : 0;
+        if (lastSeen > 0 && now - lastSeen < ONLINE_WINDOW_MS) {
+          onlineUids.push(uid);
+        }
+
+        const list = Array.isArray(raw.liveChatMessages) ? raw.liveChatMessages : [];
+        for (const item of list) {
+          const clean = sanitizeChatMessage(item, uid, resolvedName);
+          if (clean) collected.push(clean);
+        }
+      }
+
+      collected.sort((a, b) => a.createdAt - b.createdAt);
+      onUpdate(collected.slice(-80), onlineUids.length, onlineUids);
+    },
+    (err) => {
+      console.warn('[BenBets Chat] Erro ao sincronizar chat ao vivo:', err?.code || err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export async function sendLiveChatMessage(
+  uid: string,
+  userName: string,
+  text: string,
+  extra?: { kind?: 'text' | 'win'; badgeText?: string }
+): Promise<LiveChatMessage | null> {
+  if (!uid) return null;
+  const trimmed = text.trim().slice(0, 220);
+  if (!trimmed) return null;
+
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  const raw = snap.exists() ? snap.data() || {} : {};
+  const resolvedName =
+    typeof raw.displayName === 'string' && raw.displayName.trim()
+      ? raw.displayName.trim()
+      : userName.trim() || 'Jogador';
+
+  const existing: LiveChatMessage[] = Array.isArray(raw.liveChatMessages)
+    ? raw.liveChatMessages
+        .map((m: any) => sanitizeChatMessage(m, uid, resolvedName))
+        .filter((m: LiveChatMessage | null): m is LiveChatMessage => Boolean(m))
+    : [];
+
+  const msg: LiveChatMessage = {
+    id: `msg-${uid.slice(0, 5)}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    uid,
+    userName: resolvedName,
+    text: trimmed,
+    createdAt: Date.now(),
+    kind: extra?.kind === 'win' ? 'win' : 'text',
+    ...(extra?.badgeText ? { badgeText: extra.badgeText.trim().slice(0, 48) } : {}),
+  };
+
+  const next = [...existing, msg].slice(-25);
+  await setDoc(
+    ref,
+    {
+      liveChatMessages: next,
+      lastSeen: Date.now(),
+    },
+    { merge: true }
+  );
+  return msg;
+}
+
+export async function deleteLiveChatMessage(uid: string, messageId: string): Promise<void> {
+  if (!uid || !messageId) return;
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const raw = snap.data() || {};
+  const existing = Array.isArray(raw.liveChatMessages) ? raw.liveChatMessages : [];
+  const filtered = existing.filter((m: any) => m?.id !== messageId);
+  await updateDoc(ref, { liveChatMessages: filtered });
+}
+
 // Admin
 export async function getAllUsers(): Promise<AdminUserRecord[]> {
   const snap = await getDocs(collection(db, 'users'));

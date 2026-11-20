@@ -87,7 +87,7 @@ const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
 const MUDAE_ACTIVE_POOL_TOTAL = 128_125;
 const MUDAE_LEGACY_POOL_TOTAL = 129_254;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v8';
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v9';
 
 // 2.585 páginas de 50 personagens cobrem todo o universo Mudae (~128.125 ativos / ~129.254 com legados)
 const TIER_PAGE_RANGES: Array<[number, number]> = [
@@ -462,17 +462,19 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
     } else if ((!prev.image && s.image) || s.favourites > prev.favourites || (!prev.globalRank && s.globalRank)) {
       dedup.set(s.id, {
         ...s,
+        series: s.series && s.series !== 'Anime' ? s.series : prev.series || s.series,
         image: s.image || prev.image || '',
+        favourites: Math.max(prev.favourites, s.favourites),
         globalRank: s.globalRank ?? prev.globalRank,
       });
     }
   }
 
   const allItems = Array.from(dedup.values());
-  const usedCanonicalRanks = new Set<number>();
+  const usedRanks = new Set<number>();
   for (const item of allItems) {
     const canon = getCanonicalMatch(item.name);
-    if (canon) usedCanonicalRanks.add(canon.rank);
+    if (canon) usedRanks.add(canon.rank);
   }
 
   allItems.sort((a, b) => {
@@ -501,10 +503,20 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
               : item.favourites >= 1800
                 ? 1501
                 : 15001;
-      while (usedCanonicalRanks.has(nextFreeRank)) nextFreeRank += 1;
-      const estimatedRank = item.globalRank ? Math.max(item.globalRank, minEstimatedRank) : Math.max(nextFreeRank, minEstimatedRank);
+      while (usedRanks.has(nextFreeRank)) nextFreeRank += 1;
+      let estimatedRank = item.globalRank
+        ? Math.max(item.globalRank, minEstimatedRank)
+        : Math.max(nextFreeRank, minEstimatedRank);
+      while (usedRanks.has(estimatedRank) && estimatedRank < MUDAE_LEGACY_POOL_TOTAL) {
+        estimatedRank += 1;
+      }
+      if (usedRanks.has(estimatedRank)) {
+        estimatedRank = nextFreeRank;
+        while (usedRanks.has(estimatedRank)) estimatedRank += 1;
+      }
       claimRank = Math.min(MUDAE_LEGACY_POOL_TOTAL, estimatedRank);
-      nextFreeRank += 1;
+      usedRanks.add(claimRank);
+      if (claimRank >= nextFreeRank) nextFreeRank = claimRank + 1;
     }
     const { baseValue, tierIndex, tierLabel } = computeMudaeValueAndTier(
       claimRank,
@@ -536,16 +548,29 @@ function mergeCatalogChars(existing: MudaeChar[], incoming: RawCharSeed[]): Muda
 }
 
 function buildFallbackCatalog(): MudaeChar[] {
+  let rankBOffset = 0;
+  let rankCOffset = 0;
   return buildCatalogFromSeeds(
-    FALLBACK_SEED.map((s) => ({
-      id: `anilist_${s.id}`,
-      name: s.name,
-      series: s.series,
-      image: s.image,
-      gender: s.gender,
-      favourites: s.favourites,
-      role: 'Main',
-    }))
+    FALLBACK_SEED.map((s) => {
+      let globalRank: number | undefined;
+      if (s.favourites >= 1800 && s.favourites < 9500) {
+        globalRank = 1580 + rankBOffset * 470;
+        rankBOffset += 1;
+      } else if (s.favourites < 1800) {
+        globalRank = 15400 + rankCOffset * 2650;
+        rankCOffset += 1;
+      }
+      return {
+        id: `anilist_${s.id}`,
+        name: s.name,
+        series: s.series,
+        image: s.image,
+        gender: s.gender,
+        favourites: s.favourites,
+        role: 'Main',
+        ...(globalRank !== undefined ? { globalRank } : {}),
+      };
+    })
   );
 }
 
@@ -599,10 +624,25 @@ function normalizeGender(raw: any, idHint?: string | number, nameHint?: string):
   return hashGenderFallback(`${idHint ?? ''}:${nameHint ?? ''}`);
 }
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function mapAniListNode(ch: any, fallbackSeries?: string, globalRank?: number): RawCharSeed | null {
   if (!ch?.id) return null;
   const edge = ch.media?.edges?.[0];
-  const titleObj = edge?.node?.title;
+  const node = ch.media?.nodes?.[0] || edge?.node;
+  const titleObj = node?.title;
   const series = titleObj?.english || titleObj?.romaji || fallbackSeries || 'Anime';
   const rawRole = edge?.characterRole;
   const role =
@@ -625,13 +665,65 @@ function mapAniListNode(ch: any, fallbackSeries?: string, globalRank?: number): 
   };
 }
 
+// Hidratação ultrarrápida (~100ms) por chave primária id_in para preencher retratos do catálogo base
+async function fetchAniListSeedsByIds(ids: number[]): Promise<RawCharSeed[]> {
+  if (ids.length === 0) return [];
+  const seeds: RawCharSeed[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const query = `
+      query ($ids: [Int]) {
+        Page(page: 1, perPage: 50) {
+          characters(id_in: $ids) {
+            id
+            name { full }
+            gender
+            favourites
+            image { large }
+            media(perPage: 1) {
+              nodes { title { romaji english } }
+            }
+          }
+        }
+      }
+    `;
+    try {
+      const res = await fetchWithTimeout(
+        'https://graphql.anilist.co',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ query, variables: { ids: chunk } }),
+        },
+        2000
+      );
+      if (!res.ok) continue;
+      const json = await res.json();
+      const list = json?.data?.Page?.characters;
+      if (!Array.isArray(list)) continue;
+      for (const ch of list) {
+        const mapped = mapAniListNode(ch);
+        if (mapped) seeds.push(mapped);
+      }
+    } catch {
+      /* ignore timeout or rate limit */
+    }
+  }
+  return seeds;
+}
+
 // Fallback automático para a API Jikan (MyAnimeList) quando a AniList limitar (HTTP 429) ou falhar
 async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> {
   const seeds: RawCharSeed[] = [];
   for (let i = 0; i < pages.length; i++) {
     const p = Math.max(1, pages[i]);
+    const fastJikanPage = ((p - 1) % 100) + 1;
     try {
-      const res = await fetch(`https://api.jikan.moe/v4/characters?page=${p}&limit=25&order_by=favorites&sort=desc`);
+      const res = await fetchWithTimeout(
+        `https://api.jikan.moe/v4/characters?page=${fastJikanPage}&limit=25&order_by=favorites&sort=desc`,
+        undefined,
+        1800
+      );
       if (!res.ok) continue;
       const json = await res.json();
       const list = Array.isArray(json?.data) ? json.data : [];
@@ -652,7 +744,7 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
         });
       });
       if (i < pages.length - 1) {
-        await new Promise((r) => setTimeout(r, 420));
+        await new Promise((r) => setTimeout(r, 260));
       }
     } catch {
       /* ignore individual page failure */
@@ -661,12 +753,12 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
   return seeds;
 }
 
-// Fetch arbitrary explicit list of AniList pages (máx 3 páginas por request p/ evitar 429, c/ fallback Jikan)
+// Fetch arbitrary explicit list of AniList pages (máx 2 páginas enxutas por request c/ timeout 2200ms e fallback Jikan)
 async function fetchAniListPagesList(
   pages: number[],
   onSourceUsed?: (src: 'anilist' | 'jikan') => void
 ): Promise<RawCharSeed[]> {
-  const cappedPages = pages.slice(0, 3);
+  const cappedPages = pages.slice(0, 2);
   const fields = cappedPages.map(
     (p, i) => `
       p${i}: Page(page: ${p}, perPage: 50) {
@@ -676,11 +768,8 @@ async function fetchAniListPagesList(
           gender
           favourites
           image { large }
-          media(sort: [POPULARITY_DESC], perPage: 1) {
-            edges {
-              characterRole
-              node { title { romaji english } }
-            }
+          media(perPage: 1) {
+            nodes { title { romaji english } }
           }
         }
       }
@@ -689,11 +778,15 @@ async function fetchAniListPagesList(
 
   const query = `query { ${fields.join('\n')} }`;
   try {
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ query }),
-    });
+    const res = await fetchWithTimeout(
+      'https://graphql.anilist.co',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query }),
+      },
+      2200
+    );
     if (!res.ok) throw new Error(`AniList HTTP ${res.status}`);
     const json = await res.json();
     const data = json?.data || {};
@@ -999,6 +1092,8 @@ export default function AnimeGacha({
   const seenRemoteRollIdsRef = useRef<Set<string>>(new Set());
   const catalogRef = useRef<MudaeChar[]>(catalog);
   catalogRef.current = catalog;
+  const recentLiveCharIdsRef = useRef<Set<string>>(new Set());
+  recentLiveCharIdsRef.current = new Set(localLiveRolls.map((r) => r.char.id));
   const autoFocusRef = useRef(autoFocusLive);
   autoFocusRef.current = autoFocusLive;
   const wishRef = useRef<string[]>(mudaeData.wishlist);
@@ -1138,31 +1233,57 @@ export default function AnimeGacha({
     };
 
     try {
-      setLoadingStatus('Conectando à AniList/Jikan (pool completo de 128.125 / 129.254 bonecos)...');
-      // 1ª onda enxuta (3 páginas = 150 chars sem causar HTTP 429), cobrindo Top + Rank B + Rank C (#47.500)
-      const wave1 = await fetchAniListPagesList([1, 180, 950], recordSource);
+      setLoadingStatus('Conectando à AniList...');
+      const safetyBannerTimer = window.setTimeout(() => {
+        if (!isStale()) setLoadingStatus('');
+      }, 1500);
+
+      const missingImageIds = FALLBACK_SEED.filter((s) => !s.image).map((s) => s.id);
+      // 1ª onda enxuta e paralela: hidrata fotos do catálogo base via id_in (~100ms) + busca 2 páginas sem sort aninhado
+      const [hydratedFallbackSeeds, wave1] = await Promise.all([
+        missingImageIds.length > 0 ? fetchAniListSeedsByIds(missingImageIds) : Promise.resolve([]),
+        fetchAniListPagesList([1, 120], recordSource),
+      ]);
+      window.clearTimeout(safetyBannerTimer);
       if (isStale()) return;
 
-      let currentCatalog = mergeCatalogChars(buildFallbackCatalog(), wave1);
+      let currentCatalog = mergeCatalogChars(buildFallbackCatalog(), [...hydratedFallbackSeeds, ...wave1]);
       cachedMudaeMemory = currentCatalog;
-      loadedWavePageMemory = 950;
+      loadedWavePageMemory = 120;
       setCatalog(currentCatalog);
       saveCatalogToStorage(currentCatalog);
       if (detectedSource) setApiSourceStatus(detectedSource);
+      // Limpa o banner imediatamente após a Onda 1 para não atrapalhar o jogador
+      setLoadingStatus('');
 
-      // Lotes sequenciais espalhados por todas as 2.585 páginas com pausa segura (950ms)
+      // Pré-aquece os tiers principais (Rank C e Rank B) em background para rolagens instantâneas
+      for (const warmupTier of [0, 1]) {
+        fetchRandomUnloadedPageForTier(warmupTier, 2200)
+          .then((seeds) => {
+            if (isStale() || seeds.length === 0) return;
+            prefetchedByTierRef.current[warmupTier] = buildCatalogFromSeeds(seeds);
+            const updated = mergeCatalogChars(catalogRef.current, seeds);
+            cachedMudaeMemory = updated;
+            saveCatalogToStorage(updated);
+            setCatalog(updated);
+          })
+          .catch(() => {});
+      }
+
+      // Lotes silenciosos em pares (2 páginas/request) espalhados por todas as 2.585 páginas
       const batches: number[][] = [
-        [45, 520, 1480],
-        [95, 760, 1950],
-        [12, 340, 2240],
-        [3, 140, 1180],
-        [8, 220, 2490],
+        [180, 950],
+        [45, 520],
+        [760, 1480],
+        [95, 1950],
+        [340, 2240],
+        [12, 1180],
+        [220, 2490],
       ];
 
       for (const pageBatch of batches) {
         if (isStale()) return;
-        setLoadingStatus(`Sincronizando catálogo AniList (${currentCatalog.length} bonecos carregados)...`);
-        await new Promise((r) => setTimeout(r, 950));
+        await new Promise((r) => setTimeout(r, 750));
         if (isStale()) return;
         try {
           const batch = await fetchAniListPagesList(pageBatch, recordSource);
@@ -1200,25 +1321,25 @@ export default function AnimeGacha({
     };
   }, [syncCatalogFromApi]);
 
-  // On-demand catalog expansion (+450 characters per click em lotes seguros de 3 páginas)
+  // On-demand catalog expansion (+400 characters per click em lotes enxutos de 2 páginas)
   const handleExpandCatalog = useCallback(async () => {
     if (expandingApi) return;
     setExpandingApi(true);
     try {
       const basePage = Math.max(20, loadedWavePageMemory + 1);
       let working = catalogRef.current;
-      for (let w = 0; w < 3; w++) {
-        const s = basePage + w * 3;
-        setLoadingStatus(`Importando mais animes (páginas ${s}–${s + 2})...`);
-        const batch = await fetchAniListPagesList([s, s + 1, s + 2], (src) => setApiSourceStatus(src));
+      for (let w = 0; w < 4; w++) {
+        const s = basePage + w * 2;
+        setLoadingStatus(`Importando mais animes (páginas ${s}–${s + 1})...`);
+        const batch = await fetchAniListPagesList([s, s + 1], (src) => setApiSourceStatus(src));
         if (batch.length > 0) {
           working = mergeCatalogChars(working, batch);
           cachedMudaeMemory = working;
-          loadedWavePageMemory = s + 2;
+          loadedWavePageMemory = s + 1;
           setCatalog(working);
           saveCatalogToStorage(working);
         }
-        await new Promise((r) => setTimeout(r, 900));
+        await new Promise((r) => setTimeout(r, 650));
       }
       play('levelup');
       showToast(`🌌 Catálogo expandido! Agora há ${working.length} personagens na roleta!`, 'success');
@@ -1450,7 +1571,7 @@ export default function AnimeGacha({
     [mergedLiveRolls, activeRollId]
   );
 
-  // Sorteia direto na página inédita recém-buscada (cobrindo 1..2.585 = 129.254 bonecos) mantendo raridade real
+  // Sorteia instantaneamente (0ms) priorizando o buffer pré-carregado daquele Tier e bonecos com retrato
   const pickCharacterForRoll = useCallback(
     (
       mode: RollMode,
@@ -1482,7 +1603,9 @@ export default function AnimeGacha({
         // Pequeno bônus de Wishlist cross-tier (+0,35% por wish, máx 1,5%) sem quebrar raridade
         const upgradeChance = Math.min(0.015, wishMatchesGlobal.length * 0.0035);
         if (wishMatchesGlobal.length > 0 && Math.random() < upgradeChance) {
-          return wishMatchesGlobal[Math.floor(Math.random() * wishMatchesGlobal.length)];
+          const wishWithImg = wishMatchesGlobal.filter((c) => Boolean(c.image));
+          const wishPool = wishWithImg.length > 0 ? wishWithImg : wishMatchesGlobal;
+          return wishPool[Math.floor(Math.random() * wishPool.length)];
         }
 
         let candidatePool = pool.filter((c) => c.tierIndex === targetTier);
@@ -1516,6 +1639,12 @@ export default function AnimeGacha({
         }
         if (candidatePool.length === 0) candidatePool = pool;
 
+        // Prioriza personagens com foto carregada e evita repetir cards ainda no palco ao vivo
+        const withImages = candidatePool.filter((c) => Boolean(c.image));
+        if (withImages.length > 0) candidatePool = withImages;
+        const unseenInLive = candidatePool.filter((c) => !recentLiveCharIdsRef.current.has(c.id));
+        if (unseenInLive.length > 0) candidatePool = unseenInLive;
+
         const weightedTier = candidatePool.map((c) => ({
           char: c,
           weight: wishSet.has(c.id) ? wishSpawnWeight : 1,
@@ -1529,8 +1658,14 @@ export default function AnimeGacha({
         return candidatePool[Math.floor(Math.random() * candidatePool.length)];
       }
 
+      let finalPool = pool;
+      const poolWithImages = finalPool.filter((c) => Boolean(c.image));
+      if (poolWithImages.length > 0) finalPool = poolWithImages;
+      const poolUnseen = finalPool.filter((c) => !recentLiveCharIdsRef.current.has(c.id));
+      if (poolUnseen.length > 0) finalPool = poolUnseen;
+
       const tierWeights = getTierWeights(luckMultiplier);
-      const weighted = pool.map((c) => {
+      const weighted = finalPool.map((c) => {
         let weight = tierWeights[c.tierIndex] ?? 0.5;
         if (wishSet.has(c.id)) {
           weight *= wishSpawnWeight;
@@ -1544,13 +1679,13 @@ export default function AnimeGacha({
         r -= item.weight;
         if (r <= 0) return item.char;
       }
-      return pool[Math.floor(Math.random() * pool.length)];
+      return finalPool[Math.floor(Math.random() * finalPool.length)];
     },
     [mudaeData.disablelist, mudaeData.wishlist, luckMultiplier, wishSpawnWeight]
   );
 
   const performRoll = useCallback(
-    async (mode: RollMode) => {
+    (mode: RollMode) => {
       if (rollingLockRef.current) return;
 
       const usingPaidExtra = freeRollsRemaining <= 0;
@@ -1576,28 +1711,16 @@ export default function AnimeGacha({
 
       try {
         const targetTier = pickTargetTierIndex(luckMultiplier);
-        let workingCatalog = catalogRef.current;
+        const workingCatalog = catalogRef.current;
         let freshTierBatch: MudaeChar[] | undefined;
 
-        // Usa buffer pré-carregado daquele Tier (0ms) ou busca na hora uma página inédita (1..2.585)
+        // Execução 100% instantânea (0ms): usa buffer pré-carregado se pronto ou catálogo atual; busca novas páginas só em background
         const buffered = prefetchedByTierRef.current[targetTier];
         if (buffered && buffered.length > 0) {
           freshTierBatch = buffered;
           delete prefetchedByTierRef.current[targetTier];
-          prefetchTierBuffer(targetTier);
-        } else {
-          const backupTier = workingCatalog.length <= 75 ? (targetTier === 0 ? 1 : 0) : undefined;
-          const liveSeeds = await fetchRandomUnloadedPageForTier(targetTier, 1600, backupTier);
-          if (liveSeeds.length > 0) {
-            setApiSourceStatus((prev) => (prev === 'loading' ? 'anilist' : prev));
-            freshTierBatch = buildCatalogFromSeeds(liveSeeds);
-            const merged = mergeCatalogChars(catalogRef.current, liveSeeds);
-            workingCatalog = merged;
-            cachedMudaeMemory = merged;
-            saveCatalogToStorage(merged);
-            setCatalog(merged);
-          }
         }
+        prefetchTierBuffer(targetTier);
 
         if (workingCatalog.length === 0) return;
 
@@ -1621,6 +1744,7 @@ export default function AnimeGacha({
         setTab('roll');
         setLastRollMode(mode);
         const char = pickCharacterForRoll(mode, targetTier, freshTierBatch, workingCatalog);
+        recentLiveCharIdsRef.current.add(char.id);
         const isWish = mudaeData.wishlist.includes(char.id);
         const myOwned = myCollectionMap.get(char.id);
         const serverOwner = serverClaims[char.id];
@@ -1703,7 +1827,7 @@ export default function AnimeGacha({
           play('cardFlip');
         }
 
-        // Pré-busca em background do próximo Tier para deixar o próximo roll instantâneo e inédito
+        // Pré-busca em background do próximo Tier provável para manter o pool sempre renovado
         const nextPrefetchTier = pickTargetTierIndex(luckMultiplier);
         prefetchTierBuffer(nextPrefetchTier);
       } finally {
@@ -2497,7 +2621,7 @@ export default function AnimeGacha({
                 className="text-[10px] font-mono font-bold bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/45 px-2.5 py-0.5 rounded-full cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1"
               >
                 <Sparkles className="w-3 h-3" />
-                <span>{expandingApi ? 'Importando...' : '+450 Bonecos API'}</span>
+                <span>{expandingApi ? 'Importando...' : '+400 Bonecos API'}</span>
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[9px] font-mono">

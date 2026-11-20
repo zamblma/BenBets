@@ -21,6 +21,7 @@ interface BetHistoryListProps {
   placedBets: PlacedBet[];
   onAddPlacedBet: (bet: PlacedBet) => void;
   onSettleBet: (betId: string, status: 'won' | 'lost', payOut: number) => void;
+  fullHeight?: boolean;
 }
 
 export default function BetHistoryList({
@@ -31,6 +32,7 @@ export default function BetHistoryList({
   onUpdateBalance,
   placedBets,
   onAddPlacedBet,
+  fullHeight = false,
 }: BetHistoryListProps) {
   const [activeTab, setActiveTab] = useState<'slip' | 'history'>('history');
   const [stakeInput, setStakeInput] = useState<string>('');
@@ -95,7 +97,11 @@ export default function BetHistoryList({
   };
 
   return (
-    <div className="omnitrix-panel rounded-2xl overflow-hidden flex flex-col h-[420px] lg:h-[540px] relative">
+    <div
+      className={`omnitrix-panel rounded-2xl overflow-hidden flex flex-col relative ${
+        fullHeight ? 'h-[72dvh] max-h-[580px]' : 'h-[380px] lg:h-[420px]'
+      }`}
+    >
       <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent pointer-events-none" />
       {/* Header Tabs */}
       <div className="flex border-b border-[#1b1e2e] bg-[#07080f] p-1">
@@ -184,7 +190,7 @@ export default function BetHistoryList({
                         min="1"
                         value={stakeInput}
                         onChange={(e) => setStakeInput(e.target.value)}
-                        className="w-full bg-[#040508] border border-[#1b1e2e] rounded-lg p-2 text-sm font-bold text-white focus:outline-none focus:border-brand font-mono"
+                        className="w-full bg-[#040508] border border-[#1b1e2e] rounded-lg p-2 text-base sm:text-sm font-bold text-white focus:outline-none focus:border-brand font-mono"
                       />
                     </div>
                     
@@ -233,7 +239,7 @@ export default function BetHistoryList({
         {activeTab === 'history' && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Relatório de Apostas Efetuadas</h3>
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[380px]">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0">
               {placedBets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-20 text-slate-600 text-xs">
                   <ShieldCheck className="w-8 h-8 text-slate-800 mb-2" />
