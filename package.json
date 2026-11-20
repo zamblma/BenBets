@@ -10,7 +10,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "echo 'Linting completed successfully!'",
     "reset-users": "node scripts/resetUsers.mjs",
-    "sync-users": "node scripts/syncAuthUsers.mjs"
+    "sync-users": "node scripts/syncAuthUsers.mjs",
+    "sync:mudae": "node scripts/sync-mudae-catalog.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

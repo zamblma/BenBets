@@ -87,7 +87,60 @@ const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
 const MUDAE_ACTIVE_POOL_TOTAL = 128_125;
 const MUDAE_LEGACY_POOL_TOTAL = 129_254;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v9';
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v10';
+const AVATAR_FIX_CACHE_KEY = 'mudaeAvatarFixCache_v1';
+
+function isUsablePortraitUrl(url: unknown): url is string {
+  if (typeof url !== 'string' || !url.startsWith('http')) return false;
+  const low = url.toLowerCase();
+  return !low.includes('default.jpg') && !low.includes('questionmark') && !low.includes('placeholder');
+}
+
+const resolvedPortraitMemory = new Map<string, string>();
+const catalogPortraitById = new Map<string, string>();
+const catalogPortraitByName = new Map<string, string>();
+const inflightPortraitLookups = new Map<string, Promise<string | null>>();
+
+try {
+  const savedFixes = localStorage.getItem(AVATAR_FIX_CACHE_KEY);
+  if (savedFixes) {
+    const parsed = JSON.parse(savedFixes);
+    if (parsed && typeof parsed === 'object') {
+      for (const [k, v] of Object.entries(parsed)) {
+        if (isUsablePortraitUrl(v)) resolvedPortraitMemory.set(k, v);
+      }
+    }
+  }
+} catch {
+  /* ignore storage errors */
+}
+
+function savePortraitFixToCache(keys: string[], url: string) {
+  if (!isUsablePortraitUrl(url)) return;
+  for (const k of keys) {
+    if (k) resolvedPortraitMemory.set(k, url);
+  }
+  try {
+    const out: Record<string, string> = {};
+    let count = 0;
+    for (const [k, v] of resolvedPortraitMemory.entries()) {
+      out[k] = v;
+      count += 1;
+      if (count >= 400) break;
+    }
+    localStorage.setItem(AVATAR_FIX_CACHE_KEY, JSON.stringify(out));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function indexCatalogPortraits(items: Array<{ id?: string; name?: string; image?: string }>) {
+  for (const item of items) {
+    if (!isUsablePortraitUrl(item?.image)) continue;
+    if (item.id) catalogPortraitById.set(item.id, item.image);
+    if (item.name) catalogPortraitByName.set(item.name.trim().toLowerCase(), item.image);
+  }
+}
 
 // 2.585 páginas de 50 personagens cobrem todo o universo Mudae (~128.125 ativos / ~129.254 com legados)
 const TIER_PAGE_RANGES: Array<[number, number]> = [
@@ -378,74 +431,74 @@ function getFloorUpgradeCost(def: TowerFloorDef, currentLevel: number): number {
 }
 
 const FALLBACK_SEED: Array<{ id: number; name: string; series: string; gender: CharGender; favourites: number; image: string }> = [
-  // Rank S+ Ícones
+  // Rank S+ Ícones (IDs e retratos oficiais verificados)
   { id: 45627, name: 'Levi Ackerman', series: 'Attack on Titan', gender: 'Male', favourites: 138000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b45627-CR68RyZmddGG.png' },
-  { id: 127691, name: 'Satoru Gojo', series: 'Jujutsu Kaisen', gender: 'Male', favourites: 129500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127691-Um2kqT0uS6aL.png' },
-  { id: 40, name: 'Monkey D. Luffy', series: 'One Piece', gender: 'Male', favourites: 118000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40-chJF5P2dF99H.png' },
-  { id: 124381, name: 'Zero Two', series: 'DARLING in the FRANXX', gender: 'Female', favourites: 92000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b124381-21T6r09P91v7.png' },
-  { id: 89362, name: 'Rem', series: 'Re:ZERO', gender: 'Female', favourites: 88000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b89362-56W1dS0f1v58.png' },
-  { id: 137079, name: 'Makima', series: 'Chainsaw Man', gender: 'Female', favourites: 84500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b137079-B3wX2sM9209s.png' },
-  { id: 176754, name: 'Frieren', series: "Frieren: Beyond Journey's End", gender: 'Female', favourites: 81000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b176754-Ya2vX20K03i7.png' },
-  { id: 127518, name: 'Nezuko Kamado', series: 'Demon Slayer', gender: 'Female', favourites: 76000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127518-K9K11r90r21Z.png' },
-  { id: 89028, name: 'Megumin', series: 'KonoSuba', gender: 'Female', favourites: 72000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b89028-k4N8zR3h1c90.png' },
-  { id: 129927, name: 'Marin Kitagawa', series: 'My Dress-Up Darling', gender: 'Female', favourites: 67500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b129927-46c01k6qT367.png' },
+  { id: 127691, name: 'Satoru Gojo', series: 'Jujutsu Kaisen', gender: 'Male', favourites: 129500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127691-9zqh1xpIubn7.png' },
+  { id: 40, name: 'Monkey D. Luffy', series: 'ONE PIECE', gender: 'Male', favourites: 118000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40-MNypXsxSRb1R.png' },
+  { id: 124381, name: 'Zero Two', series: 'DARLING in the FRANXX', gender: 'Female', favourites: 92000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b124381-2gAVq76HPfL2.png' },
+  { id: 88575, name: 'Rem', series: 'Re:ZERO', gender: 'Female', favourites: 88000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b88575-Ayu8UPDA8NS6.png' },
+  { id: 137080, name: 'Makima', series: 'Chainsaw Man', gender: 'Female', favourites: 84500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b137080-UHcynYNjb5ZU.png' },
+  { id: 176754, name: 'Frieren', series: "Frieren: Beyond Journey's End", gender: 'Female', favourites: 81000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b176754-PCnpqIOkjhFk.png' },
+  { id: 127518, name: 'Nezuko Kamado', series: 'Demon Slayer: Kimetsu no Yaiba', gender: 'Female', favourites: 76000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127518-NRlq1CQ1v1ro.png' },
+  { id: 89361, name: 'Megumin', series: 'KonoSuba', gender: 'Female', favourites: 72000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b89361-tq8PQQ4MmF0M.png' },
+  { id: 133676, name: 'Marin Kitagawa', series: 'My Dress-Up Darling', gender: 'Female', favourites: 67500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b133676-kV2czE3C8Qls.png' },
   // Rank S
-  { id: 62, name: 'Roronoa Zoro', series: 'One Piece', gender: 'Male', favourites: 46000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b62-W8kU27aF8267.png' },
-  { id: 27, name: 'Killua Zoldyck', series: 'Hunter x Hunter', gender: 'Male', favourites: 44000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b27-Z9v2sR91P92G.png' },
-  { id: 14, name: 'Itachi Uchiha', series: 'Naruto', gender: 'Male', favourites: 39000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b14-9v1P507cW169.png' },
-  { id: 40881, name: 'Mikasa Ackerman', series: 'Attack on Titan', gender: 'Female', favourites: 36000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40881-F3gr1P23nN4N.png' },
-  { id: 497, name: 'Saber', series: 'Fate/stay night', gender: 'Female', favourites: 31000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b497-w201r5942u2W.png' },
+  { id: 62, name: 'Roronoa Zoro', series: 'ONE PIECE', gender: 'Male', favourites: 46000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b62-S7oAeA9WInjV.png' },
+  { id: 27, name: 'Killua Zoldyck', series: 'Hunter x Hunter', gender: 'Male', favourites: 44000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b27-Z5O02kQUydpT.jpg' },
+  { id: 14, name: 'Itachi Uchiha', series: 'Naruto', gender: 'Male', favourites: 39000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b14-9Kb1E5oel1ke.png' },
+  { id: 40881, name: 'Mikasa Ackerman', series: 'Attack on Titan', gender: 'Female', favourites: 36000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b40881-F3gr1PkreDvj.png' },
+  { id: 497, name: 'Saber', series: 'Fate/stay night', gender: 'Female', favourites: 31000, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b497-Yg5pNmC8kxzs.png' },
   // Rank A
-  { id: 11, name: 'Edward Elric', series: 'Fullmetal Alchemist: Brotherhood', gender: 'Male', favourites: 21500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b11-0D590s5c38yT.png' },
-  { id: 71, name: 'L Lawliet', series: 'Death Note', gender: 'Male', favourites: 20500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b71-9S9P7W4496xX.png' },
-  { id: 246, name: 'Son Goku', series: 'Dragon Ball Z', gender: 'Male', favourites: 19500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b246-P009X9N6419X.png' },
-  { id: 1555, name: 'Hinata Hyuga', series: 'Naruto', gender: 'Female', favourites: 18500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1555-510N625p03W1.png' },
-  { id: 121102, name: 'Mai Sakurajima', series: 'Rascal Does Not Dream', gender: 'Female', favourites: 17500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b121102-32t5Y542R76J.png' },
-  { id: 132645, name: 'Yor Forger', series: 'SPY x FAMILY', gender: 'Female', favourites: 16500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b132645-41G5P7Y2j24H.png' },
-  { id: 138101, name: 'Power', series: 'Chainsaw Man', gender: 'Female', favourites: 15500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b138101-kY6V0W8B57V5.png' },
-  { id: 206, name: 'Spike Spiegel', series: 'Cowboy Bebop', gender: 'Male', favourites: 14500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b206-N5t0M4X0d11n.png' },
-  // Rank B (R$ 5–7) — Femininos e Masculinos
-  { id: 145, name: 'Sakura Haruno', series: 'Naruto', gender: 'Female', favourites: 8900, image: '' },
-  { id: 249, name: 'Inoue Orihime', series: 'Bleach', gender: 'Female', favourites: 8400, image: '' },
-  { id: 1690, name: 'Temari', series: 'Naruto', gender: 'Female', favourites: 7800, image: '' },
-  { id: 139814, name: 'Nobara Kugisaki', series: 'Jujutsu Kaisen', gender: 'Female', favourites: 9400, image: '' },
-  { id: 130041, name: 'Mitsuri Kanroji', series: 'Demon Slayer', gender: 'Female', favourites: 8800, image: '' },
-  { id: 92954, name: 'Tsuyu Asui', series: 'My Hero Academia', gender: 'Female', favourites: 7600, image: '' },
-  { id: 5186, name: 'Lucy Heartfilia', series: 'Fairy Tail', gender: 'Female', favourites: 7200, image: '' },
-  { id: 2457, name: 'Perona', series: 'One Piece', gender: 'Female', favourites: 6400, image: '' },
-  { id: 45887, name: 'Sasha Braus', series: 'Attack on Titan', gender: 'Female', favourites: 8200, image: '' },
-  { id: 129132, name: 'Kanao Tsuyuri', series: 'Demon Slayer', gender: 'Female', favourites: 5800, image: '' },
-  { id: 259, name: 'Renji Abarai', series: 'Bleach', gender: 'Male', favourites: 8600, image: '' },
-  { id: 263, name: 'Yasutora Sado', series: 'Bleach', gender: 'Male', favourites: 4900, image: '' },
-  { id: 4839, name: 'Gray Fullbuster', series: 'Fairy Tail', gender: 'Male', favourites: 9100, image: '' },
-  { id: 46494, name: 'Jean Kirstein', series: 'Attack on Titan', gender: 'Male', favourites: 7400, image: '' },
-  { id: 46484, name: 'Reiner Braun', series: 'Attack on Titan', gender: 'Male', favourites: 8500, image: '' },
-  { id: 92953, name: 'Tenya Iida', series: 'My Hero Academia', gender: 'Male', favourites: 6100, image: '' },
-  { id: 92956, name: 'Eijiro Kirishima', series: 'My Hero Academia', gender: 'Male', favourites: 8900, image: '' },
-  { id: 129131, name: 'Inosuke Hashibira', series: 'Demon Slayer', gender: 'Male', favourites: 9600, image: '' },
-  { id: 19662, name: 'Buggy the Clown', series: 'One Piece', gender: 'Male', favourites: 7500, image: '' },
-  { id: 9684, name: 'Kankuro', series: 'Naruto', gender: 'Male', favourites: 4200, image: '' },
-  // Rank C (R$ 3–5) — Femininos e Masculinos comuns
-  { id: 1694, name: 'Tenten', series: 'Naruto', gender: 'Female', favourites: 1450, image: '' },
-  { id: 1689, name: 'Ino Yamanaka', series: 'Naruto', gender: 'Female', favourites: 1600, image: '' },
-  { id: 2514, name: 'Tashigi', series: 'One Piece', gender: 'Female', favourites: 1350, image: '' },
-  { id: 3001, name: 'Momo Hinamori', series: 'Bleach', gender: 'Female', favourites: 1100, image: '' },
-  { id: 2962, name: 'Soi Fon', series: 'Bleach', gender: 'Female', favourites: 1550, image: '' },
-  { id: 92964, name: 'Mina Ashido', series: 'My Hero Academia', gender: 'Female', favourites: 1700, image: '' },
-  { id: 121942, name: 'Charmy Pappitson', series: 'Black Clover', gender: 'Female', favourites: 1200, image: '' },
-  { id: 36829, name: 'Koala', series: 'One Piece', gender: 'Female', favourites: 950, image: '' },
-  { id: 15810, name: 'Karin Uzumaki', series: 'Naruto', gender: 'Female', favourites: 850, image: '' },
-  { id: 1875, name: 'Alvida', series: 'One Piece', gender: 'Female', favourites: 650, image: '' },
-  { id: 9382, name: 'Kiba Inuzuka', series: 'Naruto', gender: 'Male', favourites: 1500, image: '' },
-  { id: 2423, name: 'Shino Aburame', series: 'Naruto', gender: 'Male', favourites: 1400, image: '' },
-  { id: 2425, name: 'Choji Akimichi', series: 'Naruto', gender: 'Male', favourites: 1150, image: '' },
-  { id: 2431, name: 'Konohamaru Sarutobi', series: 'Naruto', gender: 'Male', favourites: 980, image: '' },
-  { id: 5255, name: 'Koby', series: 'One Piece', gender: 'Male', favourites: 1650, image: '' },
-  { id: 73995, name: 'Bartolomeo', series: 'One Piece', gender: 'Male', favourites: 1300, image: '' },
-  { id: 46496, name: 'Connie Springer', series: 'Attack on Titan', gender: 'Male', favourites: 1250, image: '' },
-  { id: 92955, name: 'Denki Kaminari', series: 'My Hero Academia', gender: 'Male', favourites: 1720, image: '' },
-  { id: 121941, name: 'Magna Swing', series: 'Black Clover', gender: 'Male', favourites: 1050, image: '' },
-  { id: 9811, name: 'Iruka Umino', series: 'Naruto', gender: 'Male', favourites: 1480, image: '' },
+  { id: 11, name: 'Edward Elric', series: 'Fullmetal Alchemist', gender: 'Male', favourites: 21500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b11-TA5Nuk7EDUZG.jpg' },
+  { id: 71, name: 'L Lawliet', series: 'Death Note', gender: 'Male', favourites: 20500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b71-1W4panC53vfs.png' },
+  { id: 246, name: 'Son Goku', series: 'Dragon Ball', gender: 'Male', favourites: 19500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/246-wsRRr6z1kii8.png' },
+  { id: 1555, name: 'Hinata Hyuga', series: 'Naruto', gender: 'Female', favourites: 18500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1555-Q41GLTV3FvYF.png' },
+  { id: 127222, name: 'Mai Sakurajima', series: 'Rascal Does Not Dream', gender: 'Female', favourites: 17500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127222-Jh5hhP7vZ7s1.png' },
+  { id: 138102, name: 'Yor Forger', series: 'SPY x FAMILY', gender: 'Female', favourites: 16500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b138102-ZOAu9jI2d5ke.png' },
+  { id: 137079, name: 'Power', series: 'Chainsaw Man', gender: 'Female', favourites: 15500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b137079-6yLEUYR3bmpr.png' },
+  { id: 1, name: 'Spike Spiegel', series: 'Cowboy Bebop', gender: 'Male', favourites: 14500, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1-ChxaldmieFlQ.png' },
+  // Rank B (R$ 5–7) — Femininos e Masculinos com fotos reais verificadas
+  { id: 145, name: 'Sakura Haruno', series: 'Naruto', gender: 'Female', favourites: 2910, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b145-IorfpI8arxeX.png' },
+  { id: 249, name: 'Yuki Nagato', series: 'Haruhi Suzumiya', gender: 'Female', favourites: 2945, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b249-2YImP6IQTe8t.png' },
+  { id: 191672, name: 'Akari Watanabe', series: 'More Than a Married Couple', gender: 'Female', favourites: 3059, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b191672-MozVAnqyv9oZ.png' },
+  { id: 141122, name: 'Kei Karuizawa', series: 'Classroom of the Elite', gender: 'Female', favourites: 3012, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b141122-6Zk52eU3VK3O.png' },
+  { id: 122191, name: 'Hanako Koyanagi', series: 'Wotakoi', gender: 'Female', favourites: 3034, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b122191-sigwgpeam2U1.png' },
+  { id: 24312, name: 'Hinata Kawamoto', series: 'March comes in like a lion', gender: 'Female', favourites: 2998, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b24312-A39sjFFj3Zrg.png' },
+  { id: 2552, name: 'Misaki Nakahara', series: 'Welcome to the N-H-K', gender: 'Female', favourites: 2991, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b2552-KCehpCmmitMV.jpg' },
+  { id: 68583, name: 'Akane Tsunemori', series: 'PSYCHO-PASS', gender: 'Female', favourites: 2989, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b68583-sEP2wyE2Tk7a.png' },
+  { id: 5186, name: 'Lucy Heartfilia', series: 'Fairy Tail', gender: 'Female', favourites: 4561, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b5186-izgXf2S86K9u.png' },
+  { id: 45887, name: 'Sasha Blouse', series: 'Attack on Titan', gender: 'Female', favourites: 8221, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b45887-QPtJH0KwqthW.jpg' },
+  { id: 4839, name: 'Gray Fullbuster', series: 'Fairy Tail', gender: 'Male', favourites: 3638, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b4839-p2SBgjdTxHxk.png' },
+  { id: 46484, name: 'Reiner Braun', series: 'Attack on Titan', gender: 'Male', favourites: 7807, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b46484-P6A2GjNQn49F.png' },
+  { id: 1694, name: 'Neji Hyuuga', series: 'Naruto', gender: 'Male', favourites: 2614, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1694-TL4obouDwJ7k.jpg' },
+  { id: 129132, name: 'Muzan Kibutsuji', series: 'Demon Slayer: Kimetsu no Yaiba', gender: 'Male', favourites: 2118, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b129132-4nIZakUZ1o8W.jpg' },
+  { id: 3149, name: 'Tobi', series: 'Naruto: Shippuden', gender: 'Male', favourites: 3064, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b3149-j6cl8A9yup51.png' },
+  { id: 84681, name: 'Yukine', series: 'Noragami', gender: 'Male', favourites: 3059, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b84681-vFMPNxeDkoqt.png' },
+  { id: 137222, name: 'Kou Minamoto', series: 'Toilet-Bound Hanako-kun', gender: 'Male', favourites: 3042, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b137222-ojZAO84oI2Hp.png' },
+  { id: 124704, name: 'Saichi Sugimoto', series: 'Golden Kamuy', gender: 'Male', favourites: 3038, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b124704-bndQyaj7X9dv.png' },
+  { id: 145342, name: 'Takemichi Hanagaki', series: 'Tokyo Revengers', gender: 'Male', favourites: 3028, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b145342-GSUutL83jGgI.png' },
+  { id: 206, name: 'Shigure Souma', series: 'Fruits Basket', gender: 'Male', favourites: 1801, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b206-4HokrxTIqu7L.jpg' },
+  // Rank C (R$ 3–5) — Femininos e Masculinos comuns com fotos reais verificadas
+  { id: 73995, name: 'Sumire Hanano', series: 'Chihayafuru 2', gender: 'Female', favourites: 52, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b73995-zmAMQkG9nTUF.png' },
+  { id: 19662, name: 'Ukraine', series: 'Hetalia Axis Powers', gender: 'Female', favourites: 21, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b19662-hfG0ASfwOqaZ.jpg' },
+  { id: 2425, name: 'Himeka Kuujou', series: 'Kamichama Karin', gender: 'Female', favourites: 18, image: 'https://s4.anilist.co/file/anilistcdn/character/large/2425.jpg' },
+  { id: 5255, name: 'Rizel Iwaki', series: 'Rizelmine', gender: 'Female', favourites: 10, image: 'https://s4.anilist.co/file/anilistcdn/character/large/5255.jpg' },
+  { id: 9811, name: 'Michiru Satomi', series: 'IGPX 2', gender: 'Female', favourites: 3, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b9811-aIS8UIYoOSuD.png' },
+  { id: 1689, name: 'Shuro Tsukasa', series: 'Ceres, Celestial Legend', gender: 'Female', favourites: 2, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1689-xzzB94F9geqk.jpg' },
+  { id: 1690, name: 'Suzumi Aogiri', series: 'Ceres, Celestial Legend', gender: 'Female', favourites: 2, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1690-5o65GgAxbEjr.png' },
+  { id: 3001, name: 'Maiku Kamishiro', series: 'Please☆Twins!', gender: 'Female', favourites: 2, image: 'https://s4.anilist.co/file/anilistcdn/character/large/3001.jpg' },
+  { id: 1875, name: 'Reiko Oota', series: 'Destiny of the Shrine Maiden', gender: 'Female', favourites: 2, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b1875-H2r6SHgUlQvN.jpg' },
+  { id: 9382, name: 'Gold', series: 'Demon Flowers', gender: 'Female', favourites: 0, image: 'https://s4.anilist.co/file/anilistcdn/character/large/9382.jpg' },
+  { id: 138850, name: 'Sousuke Shima', series: 'Skip and Loafer', gender: 'Male', favourites: 1612, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b138850-eqwZ11Q6sLrl.png' },
+  { id: 127116, name: 'Haruki Shiga', series: 'I Want to Eat Your Pancreas', gender: 'Male', favourites: 1610, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b127116-u2fIKMSYDdVj.png' },
+  { id: 152004, name: 'Tsuchigomori', series: 'Toilet-Bound Hanako-kun', gender: 'Male', favourites: 1604, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b152004-h2AbqFq0zZOZ.png' },
+  { id: 36829, name: 'Akihiko Kayaba', series: 'Sword Art Online', gender: 'Male', favourites: 262, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b36829-X5zITNEQ7xij.png' },
+  { id: 121942, name: 'Usagi', series: 'JUNI TAISEN', gender: 'Male', favourites: 207, image: 'https://s4.anilist.co/file/anilistcdn/character/large/121942-vPUkECWBhh3D.jpg' },
+  { id: 15810, name: 'Estellise Sidos Heurassein', series: 'Tales of Vesperia', gender: 'Male', favourites: 46, image: 'https://s4.anilist.co/file/anilistcdn/character/large/15810.jpg' },
+  { id: 259, name: 'Satoshi Imamiya', series: 'Abenobashi', gender: 'Male', favourites: 16, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b259-Cux73x7T2w2l.png' },
+  { id: 263, name: 'Sayaka Imamiya', series: 'Abenobashi', gender: 'Male', favourites: 5, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b263-XRQYvVHlCj7e.png' },
+  { id: 9684, name: 'Mariabella Everlasting', series: 'Orphen', gender: 'Male', favourites: 1, image: 'https://s4.anilist.co/file/anilistcdn/character/large/b9684-6FRT7L9cFCEF.png' },
+  { id: 2431, name: 'Heinz Schneider', series: 'El Cazador de la Bruja', gender: 'Male', favourites: 0, image: 'https://s4.anilist.co/file/anilistcdn/character/large/2431.jpg' },
 ];
 
 type RawCharSeed = Omit<MudaeChar, 'claimRank' | 'baseValue' | 'tierIndex' | 'tierLabel'> & {
@@ -487,7 +540,7 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
   });
 
   let nextFreeRank = 1;
-  return allItems.map((item) => {
+  const result = allItems.map((item) => {
     const canon = getCanonicalMatch(item.name);
     let claimRank: number;
     if (canon) {
@@ -531,6 +584,8 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
       tierLabel,
     };
   });
+  indexCatalogPortraits(result);
+  return result;
 }
 
 function mergeCatalogChars(existing: MudaeChar[], incoming: RawCharSeed[]): MudaeChar[] {
@@ -653,16 +708,166 @@ function mapAniListNode(ch: any, fallbackSeries?: string, globalRank?: number): 
         : rawRole === 'BACKGROUND'
           ? 'Background'
           : undefined;
+  const rawImg = ch.image?.large || '';
   return {
     id: `anilist_${ch.id}`,
     name: ch.name?.full || 'Personagem',
     series,
-    image: ch.image?.large || '',
+    image: isUsablePortraitUrl(rawImg) ? rawImg : '',
     gender: normalizeGender(ch.gender, ch.id, ch.name?.full),
     favourites: typeof ch.favourites === 'number' && Number.isFinite(ch.favourites) ? ch.favourites : 400,
     role,
     ...(typeof globalRank === 'number' ? { globalRank } : {}),
   };
+}
+
+let edgeProxyDisabled =
+  typeof window !== 'undefined' &&
+  (window.location.hostname.endsWith('github.io') ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1');
+
+function getMudaeEdgeProxyUrl(): string {
+  const configured = (import.meta as any).env?.VITE_MUDAE_PROXY_URL;
+  if (typeof configured === 'string' && configured.trim()) return configured.trim();
+  if (edgeProxyDisabled) return '';
+  return '/api/mudae';
+}
+
+async function loadPrebuiltStaticCatalog(): Promise<{ seeds: RawCharSeed[]; pagesLoaded: number[] }> {
+  try {
+    const base = ((import.meta as any).env?.BASE_URL || '/').replace(/\/$/, '');
+    const res = await fetchWithTimeout(`${base}/mudae-catalog.json`, undefined, 2200);
+    if (!res.ok) return { seeds: [], pagesLoaded: [] };
+    const json = await res.json();
+    const rawSeeds: RawCharSeed[] = Array.isArray(json?.seeds) ? json.seeds : [];
+    const validSeeds = rawSeeds.filter((s) => s?.id && isUsablePortraitUrl(s.image));
+    const pagesLoaded: number[] = Array.isArray(json?.pagesLoaded) ? json.pagesLoaded : [];
+    return { seeds: validSeeds, pagesLoaded };
+  } catch {
+    return { seeds: [], pagesLoaded: [] };
+  }
+}
+
+async function resolveCharacterPortraitAuto(name: string, charId?: string): Promise<string | null> {
+  const trimmedName = (name || '').trim();
+  if (!trimmedName && !charId) return null;
+  const normName = trimmedName.toLowerCase();
+
+  if (charId) {
+    const mem = resolvedPortraitMemory.get(charId) || catalogPortraitById.get(charId);
+    if (isUsablePortraitUrl(mem)) return mem;
+  }
+  if (normName) {
+    const mem = resolvedPortraitMemory.get(normName) || catalogPortraitByName.get(normName);
+    if (isUsablePortraitUrl(mem)) return mem;
+  }
+
+  const dedupKey = charId || normName;
+  const inflight = inflightPortraitLookups.get(dedupKey);
+  if (inflight) return inflight;
+
+  const task = (async (): Promise<string | null> => {
+    const numericId = charId?.startsWith('anilist_') ? Number(charId.replace('anilist_', '')) : NaN;
+    const validId = Number.isInteger(numericId) && numericId > 0 ? numericId : null;
+
+    // 1) Tenta endpoint Serverless com Edge Cache se disponível
+    const proxyBase = getMudaeEdgeProxyUrl();
+    if (proxyBase) {
+      try {
+        const qs = validId ? `ids=${validId}` : `q=${encodeURIComponent(trimmedName)}`;
+        const pRes = await fetchWithTimeout(`${proxyBase}?${qs}`, undefined, 2200);
+        if (pRes.ok) {
+          const ct = pRes.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const pJson = await pRes.json();
+            const first = Array.isArray(pJson?.seeds) ? pJson.seeds[0] : null;
+            if (isUsablePortraitUrl(first?.image)) {
+              savePortraitFixToCache([charId || '', normName], first.image);
+              return first.image;
+            }
+          } else {
+            edgeProxyDisabled = true;
+          }
+        } else if (pRes.status === 404) {
+          edgeProxyDisabled = true;
+        }
+      } catch {
+        /* fallback direto para AniList */
+      }
+    }
+
+    // 2) Tenta AniList GraphQL por ID ou busca exata
+    try {
+      const query = validId
+        ? `
+          query ($id: Int, $search: String) {
+            byId: Page(page: 1, perPage: 1) { characters(id: $id) { id image { large } } }
+            bySearch: Page(page: 1, perPage: 1) { characters(search: $search, sort: [FAVOURITES_DESC]) { id image { large } } }
+          }
+        `
+        : `
+          query ($search: String) {
+            bySearch: Page(page: 1, perPage: 1) { characters(search: $search, sort: [FAVOURITES_DESC]) { id image { large } } }
+          }
+        `;
+      const res = await fetchWithTimeout(
+        'https://graphql.anilist.co',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            query,
+            variables: validId ? { id: validId, search: trimmedName } : { search: trimmedName },
+          }),
+        },
+        2400
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const cand =
+          json?.data?.byId?.characters?.[0]?.image?.large ||
+          json?.data?.bySearch?.characters?.[0]?.image?.large ||
+          '';
+        if (isUsablePortraitUrl(cand)) {
+          savePortraitFixToCache([charId || '', normName], cand);
+          return cand;
+        }
+      }
+    } catch {
+      /* tenta Jikan em seguida */
+    }
+
+    // 3) Fallback Jikan (MyAnimeList)
+    if (trimmedName) {
+      try {
+        const jRes = await fetchWithTimeout(
+          `https://api.jikan.moe/v4/characters?q=${encodeURIComponent(trimmedName)}&limit=1`,
+          undefined,
+          1600
+        );
+        if (jRes.ok) {
+          const jJson = await jRes.json();
+          const url = jJson?.data?.[0]?.images?.jpg?.image_url || '';
+          if (isUsablePortraitUrl(url)) {
+            savePortraitFixToCache([charId || '', normName], url);
+            return url;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return null;
+  })();
+
+  inflightPortraitLookups.set(dedupKey, task);
+  try {
+    return await task;
+  } finally {
+    inflightPortraitLookups.delete(dedupKey);
+  }
 }
 
 // Hidratação ultrarrápida (~100ms) por chave primária id_in para preencher retratos do catálogo base
@@ -695,7 +900,7 @@ async function fetchAniListSeedsByIds(ids: number[]): Promise<RawCharSeed[]> {
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({ query, variables: { ids: chunk } }),
         },
-        2000
+        2400
       );
       if (!res.ok) continue;
       const json = await res.json();
@@ -722,7 +927,7 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
       const res = await fetchWithTimeout(
         `https://api.jikan.moe/v4/characters?page=${fastJikanPage}&limit=25&order_by=favorites&sort=desc`,
         undefined,
-        1800
+        1500
       );
       if (!res.ok) continue;
       const json = await res.json();
@@ -732,11 +937,12 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
         const rawFav = typeof ch.favorites === 'number' && Number.isFinite(ch.favorites) ? ch.favorites : 500;
         const scaledFav = Math.round(rawFav * 0.65);
         const globalRank = Math.min(MUDAE_LEGACY_POOL_TOTAL, (p - 1) * 50 + idxInPage * 2 + 1);
+        const rawImg = ch.images?.jpg?.image_url || '';
         seeds.push({
           id: `mal_${ch.mal_id}`,
           name: ch.name || 'Personagem',
           series: Array.isArray(ch.nicknames) && ch.nicknames[0] ? String(ch.nicknames[0]) : 'Anime Catalog (MAL)',
-          image: ch.images?.jpg?.image_url || '',
+          image: isUsablePortraitUrl(rawImg) ? rawImg : '',
           gender: normalizeGender(undefined, ch.mal_id, ch.name),
           favourites: scaledFav,
           role: 'Main',
@@ -753,16 +959,46 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
   return seeds;
 }
 
-// Fetch arbitrary explicit list of AniList pages (máx 2 páginas enxutas por request c/ timeout 2200ms e fallback Jikan)
+// Fetch arbitrary explicit list of AniList pages (respeitando o limite de profundidade page<=100 da AniList p/ zero HTTP 400 + suporte a Proxy Edge /api/mudae)
 async function fetchAniListPagesList(
   pages: number[],
   onSourceUsed?: (src: 'anilist' | 'jikan') => void
 ): Promise<RawCharSeed[]> {
   const cappedPages = pages.slice(0, 2);
-  const fields = cappedPages.map(
-    (p, i) => `
-      p${i}: Page(page: ${p}, perPage: 50) {
-        characters(sort: [FAVOURITES_DESC]) {
+
+  // Tenta Edge Proxy Serverless (/api/mudae) se ativo fora do GitHub Pages
+  const proxyBase = getMudaeEdgeProxyUrl();
+  if (proxyBase) {
+    try {
+      const res = await fetchWithTimeout(`${proxyBase}?pages=${cappedPages.join(',')}`, undefined, 2500);
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const json = await res.json();
+          const seeds: RawCharSeed[] = Array.isArray(json?.seeds) ? json.seeds : [];
+          if (seeds.length > 0) {
+            for (const p of cappedPages) loadedPagesMemory.add(p);
+            onSourceUsed?.(json.source === 'jikan' ? 'jikan' : 'anilist');
+            return seeds;
+          }
+        } else {
+          edgeProxyDisabled = true;
+        }
+      } else if (res.status === 404) {
+        edgeProxyDisabled = true;
+      }
+    } catch {
+      /* segue para chamada direta à AniList */
+    }
+  }
+
+  // AniList rejeita com HTTP 400 qualquer Page(page > 100): mapeia páginas lógicas >100 para ID_DESC / ID dentro de 1..100
+  const fields = cappedPages.map((p, i) => {
+    const sortMode = p <= 100 ? 'FAVOURITES_DESC' : p % 2 === 0 ? 'ID_DESC' : 'ID';
+    const mappedPage = p <= 100 ? p : (((p - 101) * 13 + Math.floor(p / 100) * 7) % 100) + 1;
+    return `
+      p${i}: Page(page: ${mappedPage}, perPage: 50) {
+        characters(sort: [${sortMode}]) {
           id
           name { full }
           gender
@@ -773,8 +1009,8 @@ async function fetchAniListPagesList(
           }
         }
       }
-    `
-  );
+    `;
+  });
 
   const query = `query { ${fields.join('\n')} }`;
   try {
@@ -785,7 +1021,7 @@ async function fetchAniListPagesList(
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ query }),
       },
-      2200
+      2400
     );
     if (!res.ok) throw new Error(`AniList HTTP ${res.status}`);
     const json = await res.json();
@@ -1012,13 +1248,50 @@ function parseCardMetadata(card: PokemonCard): { rank: number; favourites: numbe
   };
 }
 
-const AvatarWithFallback: React.FC<{ src: string; name: string; className?: string }> = ({ src, name, className = '' }) => {
+const AvatarWithFallback: React.FC<{ src: string; name: string; charId?: string; className?: string }> = ({
+  src,
+  name,
+  charId,
+  className = '',
+}) => {
   const [failed, setFailed] = useState(false);
+  const [resolvedSrc, setResolvedSrc] = useState<string>(() => {
+    if (isUsablePortraitUrl(src)) return src;
+    const normName = (name || '').trim().toLowerCase();
+    const cached =
+      (charId ? resolvedPortraitMemory.get(charId) || catalogPortraitById.get(charId) : '') ||
+      (normName ? resolvedPortraitMemory.get(normName) || catalogPortraitByName.get(normName) : '');
+    return isUsablePortraitUrl(cached) ? cached : '';
+  });
+
   useEffect(() => {
     setFailed(false);
-  }, [src]);
+    if (isUsablePortraitUrl(src)) {
+      setResolvedSrc(src);
+      return;
+    }
+    const normName = (name || '').trim().toLowerCase();
+    const immediate =
+      (charId ? resolvedPortraitMemory.get(charId) || catalogPortraitById.get(charId) : '') ||
+      (normName ? resolvedPortraitMemory.get(normName) || catalogPortraitByName.get(normName) : '');
+    setResolvedSrc(isUsablePortraitUrl(immediate) ? immediate : '');
+  }, [src, name, charId]);
 
-  if (!src || failed) {
+  useEffect(() => {
+    if (!failed && isUsablePortraitUrl(resolvedSrc)) return;
+    let cancelled = false;
+    resolveCharacterPortraitAuto(name, charId).then((found) => {
+      if (!cancelled && isUsablePortraitUrl(found) && found !== resolvedSrc) {
+        setResolvedSrc(found);
+        setFailed(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [failed, resolvedSrc, name, charId]);
+
+  if (!isUsablePortraitUrl(resolvedSrc) || failed) {
     const initials = name
       .split(/\s+/)
       .slice(0, 2)
@@ -1030,7 +1303,7 @@ const AvatarWithFallback: React.FC<{ src: string; name: string; className?: stri
       </div>
     );
   }
-  return <img src={src} alt={name} className={className} onError={() => setFailed(true)} />;
+  return <img src={resolvedSrc} alt={name} className={className} onError={() => setFailed(true)} />;
 };
 
 export default function AnimeGacha({
@@ -1200,10 +1473,11 @@ export default function AnimeGacha({
       } catch {}
     }
 
-    if (!forceRefresh && cachedMudaeMemory && cachedMudaeMemory.length >= 400) {
+    if (!forceRefresh && cachedMudaeMemory && cachedMudaeMemory.length >= 50) {
+      indexCatalogPortraits(cachedMudaeMemory);
       setCatalog(cachedMudaeMemory);
       setApiSourceStatus('anilist');
-      return;
+      if (cachedMudaeMemory.length >= 400) return;
     }
 
     if (!forceRefresh) {
@@ -1211,15 +1485,19 @@ export default function AnimeGacha({
         const rawCache = localStorage.getItem(CATALOG_CACHE_KEY);
         if (rawCache) {
           const parsed = JSON.parse(rawCache);
-          if (Array.isArray(parsed) && parsed.length >= 400) {
-            cachedMudaeMemory = parsed;
-            loadedWavePageMemory = 950;
-            for (const p of [1, 3, 8, 12, 45, 95, 140, 180, 220, 340, 520, 760, 950, 1180, 1480, 1950, 2240, 2490]) {
-              loadedPagesMemory.add(p);
+          if (Array.isArray(parsed) && parsed.length >= 50) {
+            const validImgCount = parsed.filter((c) => isUsablePortraitUrl(c?.image)).length;
+            if (validImgCount >= 30) {
+              indexCatalogPortraits(parsed);
+              cachedMudaeMemory = parsed;
+              loadedWavePageMemory = Math.max(loadedWavePageMemory, 220);
+              for (const p of [1, 2, 4, 6, 12, 22, 35, 65]) {
+                loadedPagesMemory.add(p);
+              }
+              setCatalog(parsed);
+              setApiSourceStatus('anilist');
+              if (parsed.length >= 400) return;
             }
-            setCatalog(parsed);
-            setApiSourceStatus('anilist');
-            return;
           }
         }
       } catch { /* ignore */ }
@@ -1233,57 +1511,89 @@ export default function AnimeGacha({
     };
 
     try {
-      setLoadingStatus('Conectando à AniList...');
+      setLoadingStatus('Carregando catálogo pré-processado...');
       const safetyBannerTimer = window.setTimeout(() => {
         if (!isStale()) setLoadingStatus('');
-      }, 1500);
+      }, 1400);
 
-      const missingImageIds = FALLBACK_SEED.filter((s) => !s.image).map((s) => s.id);
-      // 1ª onda enxuta e paralela: hidrata fotos do catálogo base via id_in (~100ms) + busca 2 páginas sem sort aninhado
-      const [hydratedFallbackSeeds, wave1] = await Promise.all([
-        missingImageIds.length > 0 ? fetchAniListSeedsByIds(missingImageIds) : Promise.resolve([]),
-        fetchAniListPagesList([1, 120], recordSource),
-      ]);
+      // 1) Carrega instantaneamente (~30ms) o catálogo pré-processado em public/mudae-catalog.json (zero HTTP 429!)
+      const staticData = await loadPrebuiltStaticCatalog();
+      if (isStale()) {
+        window.clearTimeout(safetyBannerTimer);
+        return;
+      }
+
+      let currentCatalog = buildFallbackCatalog();
+      if (staticData.seeds.length > 0) {
+        currentCatalog = mergeCatalogChars(currentCatalog, staticData.seeds);
+        for (const p of staticData.pagesLoaded) loadedPagesMemory.add(p);
+        loadedWavePageMemory = Math.max(loadedWavePageMemory, 65);
+        recordSource('anilist');
+      }
+
+      // Hidrata quaisquer IDs do catálogo base que ainda estejam sem retrato verificado
+      const baseMissingIds = currentCatalog
+        .filter((c) => !isUsablePortraitUrl(c.image) && c.id.startsWith('anilist_'))
+        .map((c) => Number(c.id.replace('anilist_', '')))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (baseMissingIds.length > 0) {
+        const hydrated = await fetchAniListSeedsByIds(baseMissingIds);
+        if (!isStale() && hydrated.length > 0) {
+          currentCatalog = mergeCatalogChars(currentCatalog, hydrated);
+          recordSource('anilist');
+        }
+      }
+
+      // Se o JSON estático ainda estiver vazio/indisponível, busca 1 onda inicial enxuta antes de liberar o spinner
+      if (currentCatalog.length < 150) {
+        const wave1 = await fetchAniListPagesList([1, 350], recordSource);
+        if (!isStale() && wave1.length > 0) {
+          currentCatalog = mergeCatalogChars(currentCatalog, wave1);
+        }
+      }
+
       window.clearTimeout(safetyBannerTimer);
       if (isStale()) return;
 
-      let currentCatalog = mergeCatalogChars(buildFallbackCatalog(), [...hydratedFallbackSeeds, ...wave1]);
       cachedMudaeMemory = currentCatalog;
-      loadedWavePageMemory = 120;
       setCatalog(currentCatalog);
       saveCatalogToStorage(currentCatalog);
       if (detectedSource) setApiSourceStatus(detectedSource);
-      // Limpa o banner imediatamente após a Onda 1 para não atrapalhar o jogador
       setLoadingStatus('');
 
-      // Pré-aquece os tiers principais (Rank C e Rank B) em background para rolagens instantâneas
+      // Expansão sequencial e gentil em background (1 lote a cada 1.4s p/ evitar HTTP 429 no cliente)
+      await new Promise((r) => setTimeout(r, 900));
+      if (isStale()) return;
+
       for (const warmupTier of [0, 1]) {
-        fetchRandomUnloadedPageForTier(warmupTier, 2200)
-          .then((seeds) => {
-            if (isStale() || seeds.length === 0) return;
+        if (isStale()) return;
+        try {
+          const seeds = await fetchRandomUnloadedPageForTier(warmupTier, 2400);
+          if (seeds.length > 0 && !isStale()) {
             prefetchedByTierRef.current[warmupTier] = buildCatalogFromSeeds(seeds);
-            const updated = mergeCatalogChars(catalogRef.current, seeds);
-            cachedMudaeMemory = updated;
-            saveCatalogToStorage(updated);
-            setCatalog(updated);
-          })
-          .catch(() => {});
+            currentCatalog = mergeCatalogChars(catalogRef.current, seeds);
+            cachedMudaeMemory = currentCatalog;
+            saveCatalogToStorage(currentCatalog);
+            setCatalog(currentCatalog);
+            setApiSourceStatus('anilist');
+          }
+        } catch {
+          /* ignore */
+        }
+        await new Promise((r) => setTimeout(r, 1200));
       }
 
-      // Lotes silenciosos em pares (2 páginas/request) espalhados por todas as 2.585 páginas
       const batches: number[][] = [
         [180, 950],
         [45, 520],
         [760, 1480],
         [95, 1950],
-        [340, 2240],
-        [12, 1180],
-        [220, 2490],
       ];
 
       for (const pageBatch of batches) {
         if (isStale()) return;
-        await new Promise((r) => setTimeout(r, 750));
+        await new Promise((r) => setTimeout(r, 1400));
         if (isStale()) return;
         try {
           const batch = await fetchAniListPagesList(pageBatch, recordSource);
@@ -2901,7 +3211,7 @@ export default function AnimeGacha({
                       }`}
                     >
                       <div className="aspect-[3/4] rounded-lg overflow-hidden bg-black/50 mb-1 relative">
-                        <AvatarWithFallback src={item.char.image} name={item.char.name} className="w-full h-full object-cover" />
+                        <AvatarWithFallback src={item.char.image} name={item.char.name} charId={item.char.id} className="w-full h-full object-cover" />
                         <span className="absolute bottom-1 left-1 text-[8px] font-mono font-black bg-black/80 text-white px-1 rounded">
                           #{item.char.claimRank}
                         </span>
@@ -2992,6 +3302,7 @@ export default function AnimeGacha({
                   <AvatarWithFallback
                     src={activeRoll.char.image}
                     name={activeRoll.char.name}
+                    charId={activeRoll.char.id}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -3304,6 +3615,7 @@ export default function AnimeGacha({
                     <AvatarWithFallback
                       src={item.image}
                       name={item.card.name}
+                      charId={item.card.id}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <span className={`absolute top-2 left-2 text-[9px] font-mono font-black px-1.5 py-0.5 rounded border backdrop-blur-md ${TIER_CONFIG[item.tierIndex].badge}`}>
@@ -3422,7 +3734,7 @@ export default function AnimeGacha({
                     }`}
                   >
                     <div className="aspect-[3/4] relative bg-[#070911]">
-                      <AvatarWithFallback src={listing.image} name={listing.card.name} className="w-full h-full object-cover" />
+                      <AvatarWithFallback src={listing.image} name={listing.card.name} charId={listing.cardId} className="w-full h-full object-cover" />
                       <span className={`absolute top-2 left-2 text-[9px] font-mono font-black px-1.5 py-0.5 rounded border backdrop-blur-md ${TIER_CONFIG[listing.tierIndex].badge}`}>
                         #{listing.rank}
                       </span>
@@ -3639,7 +3951,7 @@ export default function AnimeGacha({
                           className="flex items-center justify-between gap-2 bg-[#070911] border border-pink-500/35 rounded-xl p-2"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <AvatarWithFallback src={char.image} name={char.name} className="w-10 h-12 rounded-lg object-cover shrink-0" />
+                            <AvatarWithFallback src={char.image} name={char.name} charId={char.id} className="w-10 h-12 rounded-lg object-cover shrink-0" />
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-white truncate">{char.name}</p>
                               <p className="text-[10px] text-slate-400 truncate">
@@ -3732,7 +4044,7 @@ export default function AnimeGacha({
                         className="flex items-center justify-between gap-2 bg-[#070911] border border-[#1c2033] rounded-xl p-2"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <AvatarWithFallback src={char.image} name={char.name} className="w-10 h-12 rounded-lg object-cover shrink-0" />
+                          <AvatarWithFallback src={char.image} name={char.name} charId={char.id} className="w-10 h-12 rounded-lg object-cover shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-white truncate">{char.name}</p>
                             <p className="text-[10px] text-indigo-300 truncate">{char.series}</p>
@@ -3922,7 +4234,7 @@ export default function AnimeGacha({
                     }`}
                   >
                     <div className="aspect-[3/4] relative bg-[#070911]">
-                      <AvatarWithFallback src={claim.image} name={claim.name} className="w-full h-full object-cover" />
+                      <AvatarWithFallback src={claim.image} name={claim.name} charId={claim.cardId} className="w-full h-full object-cover" />
                       <span className={`absolute top-2 left-2 text-[9px] font-mono font-black px-1.5 py-0.5 rounded border backdrop-blur-md ${TIER_CONFIG[claim.tierIndex].badge}`}>
                         #{claim.rank}
                       </span>
@@ -4047,7 +4359,7 @@ export default function AnimeGacha({
               className="bg-[#0d101b] border border-[#2a304d] rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl"
             >
               <div className="aspect-[3/4] relative bg-black">
-                <AvatarWithFallback src={selectedCharModal.image} name={selectedCharModal.name} className="w-full h-full object-cover" />
+                <AvatarWithFallback src={selectedCharModal.image} name={selectedCharModal.name} charId={selectedCharModal.id} className="w-full h-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setSelectedCharModal(null)}
