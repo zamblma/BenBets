@@ -85,15 +85,17 @@ const MAX_FREE_ROLLS_PER_HOUR = 5;
 const MAX_EXTRA_ROLLS_PER_HOUR = 2;
 const EXTRA_ROLL_COST = 100.0;
 const BASE_RT_COST = 120.0;
-const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v7';
+const MUDAE_ACTIVE_POOL_TOTAL = 128_125;
+const MUDAE_LEGACY_POOL_TOTAL = 129_254;
+const CATALOG_CACHE_KEY = 'mudaeAnimeCatalog_v8';
 
-// Faixas de páginas na AniList API (~50 personagens por página, cobrindo 10.000+ bonecos)
+// 2.585 páginas de 50 personagens cobrem todo o universo Mudae (~128.125 ativos / ~129.254 com legados)
 const TIER_PAGE_RANGES: Array<[number, number]> = [
-  [46, 200], // Rank C (~7.750 personagens)
-  [13, 45],  // Rank B (~1.650 personagens)
-  [5, 12],   // Rank A (~400 personagens)
-  [1, 4],    // Rank S (~200 personagens)
-  [1, 2],    // Rank S+ Ícone (+ Top 50 canônico)
+  [301, 2585], // Rank C (#15.001 – #129.254 • +114.250 personagens, R$ 3–5)
+  [31, 300],   // Rank B (#1.501 – #15.000 • 13.500 personagens, R$ 5–7)
+  [6, 30],     // Rank A (#251 – #1.500 • 1.250 personagens, R$ 140–680)
+  [2, 5],      // Rank S (#51 – #250 • 200 personagens, R$ 750–1.750)
+  [1, 1],      // Rank S+ Ícone (#1 – #50 • Top 50 canônico, R$ 1.766–3.450)
 ];
 
 function getTierWeights(luckMultiplier: number): number[] {
@@ -337,25 +339,25 @@ function computeMudaeValueAndTier(
   let tierIndex = 0;
   let baseValue = 4;
 
-  if (favs >= 50000 || rank <= 30) {
+  if (favs >= 50000 || rank <= 35) {
     tierIndex = 4;
     const progress = Math.min(1, Math.max(0, (Math.max(50000, favs) - 50000) / 85000));
     baseValue = Math.min(3450, Math.round(1766 + progress * 1684));
-  } else if (favs >= 24000 || rank <= 100) {
+  } else if (favs >= 24000 || rank <= 250) {
     tierIndex = 3;
     const progress = Math.min(1, Math.max(0, (Math.max(24000, favs) - 24000) / 26000));
     baseValue = Math.min(1750, Math.round(750 + progress * 1000));
-  } else if (favs >= 11000 || rank <= 250) {
+  } else if (favs >= 9500 || rank <= 1500) {
     tierIndex = 2;
-    const progress = Math.min(1, Math.max(0, (Math.max(11000, favs) - 11000) / 13000));
+    const progress = Math.min(1, Math.max(0, (Math.max(9500, favs) - 9500) / 14500));
     baseValue = Math.min(680, Math.round(140 + progress * 540));
-  } else if (favs >= 3500 || rank <= 650) {
+  } else if (favs >= 1800 || rank <= 15000) {
     tierIndex = 1;
-    const progress = Math.min(1, Math.max(0, (Math.max(3500, favs) - 3500) / 7500));
+    const progress = Math.min(1, Math.max(0, (Math.max(1800, favs) - 1800) / 7700));
     baseValue = Math.max(5, Math.min(7, Math.round(5 + progress * 2)));
   } else {
     tierIndex = 0;
-    const progress = Math.min(1, Math.max(0, Math.min(3500, favs) / 3500));
+    const progress = Math.min(1, Math.max(0, Math.min(1800, favs) / 1800));
     baseValue = Math.max(3, Math.min(5, Math.round(3 + progress * 2)));
   }
 
@@ -424,29 +426,31 @@ const FALLBACK_SEED: Array<{ id: number; name: string; series: string; gender: C
   { id: 19662, name: 'Buggy the Clown', series: 'One Piece', gender: 'Male', favourites: 7500, image: '' },
   { id: 9684, name: 'Kankuro', series: 'Naruto', gender: 'Male', favourites: 4200, image: '' },
   // Rank C (R$ 3–5) — Femininos e Masculinos comuns
-  { id: 1694, name: 'Tenten', series: 'Naruto', gender: 'Female', favourites: 2900, image: '' },
-  { id: 1689, name: 'Ino Yamanaka', series: 'Naruto', gender: 'Female', favourites: 3100, image: '' },
-  { id: 2514, name: 'Tashigi', series: 'One Piece', gender: 'Female', favourites: 2400, image: '' },
-  { id: 3001, name: 'Momo Hinamori', series: 'Bleach', gender: 'Female', favourites: 1900, image: '' },
-  { id: 2962, name: 'Soi Fon', series: 'Bleach', gender: 'Female', favourites: 2700, image: '' },
-  { id: 92964, name: 'Mina Ashido', series: 'My Hero Academia', gender: 'Female', favourites: 3200, image: '' },
-  { id: 121942, name: 'Charmy Pappitson', series: 'Black Clover', gender: 'Female', favourites: 1600, image: '' },
-  { id: 36829, name: 'Koala', series: 'One Piece', gender: 'Female', favourites: 1450, image: '' },
-  { id: 15810, name: 'Karin Uzumaki', series: 'Naruto', gender: 'Female', favourites: 1350, image: '' },
-  { id: 1875, name: 'Alvida', series: 'One Piece', gender: 'Female', favourites: 950, image: '' },
-  { id: 9382, name: 'Kiba Inuzuka', series: 'Naruto', gender: 'Male', favourites: 2800, image: '' },
-  { id: 2423, name: 'Shino Aburame', series: 'Naruto', gender: 'Male', favourites: 2500, image: '' },
-  { id: 2425, name: 'Choji Akimichi', series: 'Naruto', gender: 'Male', favourites: 1800, image: '' },
-  { id: 2431, name: 'Konohamaru Sarutobi', series: 'Naruto', gender: 'Male', favourites: 1500, image: '' },
-  { id: 5255, name: 'Koby', series: 'One Piece', gender: 'Male', favourites: 2600, image: '' },
-  { id: 73995, name: 'Bartolomeo', series: 'One Piece', gender: 'Male', favourites: 2300, image: '' },
-  { id: 46496, name: 'Connie Springer', series: 'Attack on Titan', gender: 'Male', favourites: 2100, image: '' },
-  { id: 92955, name: 'Denki Kaminari', series: 'My Hero Academia', gender: 'Male', favourites: 3300, image: '' },
-  { id: 121941, name: 'Magna Swing', series: 'Black Clover', gender: 'Male', favourites: 1700, image: '' },
-  { id: 9811, name: 'Iruka Umino', series: 'Naruto', gender: 'Male', favourites: 2700, image: '' },
+  { id: 1694, name: 'Tenten', series: 'Naruto', gender: 'Female', favourites: 1450, image: '' },
+  { id: 1689, name: 'Ino Yamanaka', series: 'Naruto', gender: 'Female', favourites: 1600, image: '' },
+  { id: 2514, name: 'Tashigi', series: 'One Piece', gender: 'Female', favourites: 1350, image: '' },
+  { id: 3001, name: 'Momo Hinamori', series: 'Bleach', gender: 'Female', favourites: 1100, image: '' },
+  { id: 2962, name: 'Soi Fon', series: 'Bleach', gender: 'Female', favourites: 1550, image: '' },
+  { id: 92964, name: 'Mina Ashido', series: 'My Hero Academia', gender: 'Female', favourites: 1700, image: '' },
+  { id: 121942, name: 'Charmy Pappitson', series: 'Black Clover', gender: 'Female', favourites: 1200, image: '' },
+  { id: 36829, name: 'Koala', series: 'One Piece', gender: 'Female', favourites: 950, image: '' },
+  { id: 15810, name: 'Karin Uzumaki', series: 'Naruto', gender: 'Female', favourites: 850, image: '' },
+  { id: 1875, name: 'Alvida', series: 'One Piece', gender: 'Female', favourites: 650, image: '' },
+  { id: 9382, name: 'Kiba Inuzuka', series: 'Naruto', gender: 'Male', favourites: 1500, image: '' },
+  { id: 2423, name: 'Shino Aburame', series: 'Naruto', gender: 'Male', favourites: 1400, image: '' },
+  { id: 2425, name: 'Choji Akimichi', series: 'Naruto', gender: 'Male', favourites: 1150, image: '' },
+  { id: 2431, name: 'Konohamaru Sarutobi', series: 'Naruto', gender: 'Male', favourites: 980, image: '' },
+  { id: 5255, name: 'Koby', series: 'One Piece', gender: 'Male', favourites: 1650, image: '' },
+  { id: 73995, name: 'Bartolomeo', series: 'One Piece', gender: 'Male', favourites: 1300, image: '' },
+  { id: 46496, name: 'Connie Springer', series: 'Attack on Titan', gender: 'Male', favourites: 1250, image: '' },
+  { id: 92955, name: 'Denki Kaminari', series: 'My Hero Academia', gender: 'Male', favourites: 1720, image: '' },
+  { id: 121941, name: 'Magna Swing', series: 'Black Clover', gender: 'Male', favourites: 1050, image: '' },
+  { id: 9811, name: 'Iruka Umino', series: 'Naruto', gender: 'Male', favourites: 1480, image: '' },
 ];
 
-type RawCharSeed = Omit<MudaeChar, 'claimRank' | 'baseValue' | 'tierIndex' | 'tierLabel'>;
+type RawCharSeed = Omit<MudaeChar, 'claimRank' | 'baseValue' | 'tierIndex' | 'tierLabel'> & {
+  globalRank?: number;
+};
 
 function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
   const dedup = new Map<string, RawCharSeed>();
@@ -455,8 +459,12 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
     const prev = dedup.get(s.id);
     if (!prev) {
       dedup.set(s.id, s);
-    } else if ((!prev.image && s.image) || s.favourites > prev.favourites) {
-      dedup.set(s.id, { ...s, image: s.image || prev.image || '' });
+    } else if ((!prev.image && s.image) || s.favourites > prev.favourites || (!prev.globalRank && s.globalRank)) {
+      dedup.set(s.id, {
+        ...s,
+        image: s.image || prev.image || '',
+        globalRank: s.globalRank ?? prev.globalRank,
+      });
     }
   }
 
@@ -487,14 +495,15 @@ function buildCatalogFromSeeds(seeds: RawCharSeed[]): MudaeChar[] {
         item.favourites >= 50000
           ? 1
           : item.favourites >= 24000
-            ? 31
-            : item.favourites >= 11000
-              ? 101
-              : item.favourites >= 3500
-                ? 251
-                : 651;
+            ? 36
+            : item.favourites >= 9500
+              ? 251
+              : item.favourites >= 1800
+                ? 1501
+                : 15001;
       while (usedCanonicalRanks.has(nextFreeRank)) nextFreeRank += 1;
-      claimRank = Math.max(nextFreeRank, minEstimatedRank);
+      const estimatedRank = item.globalRank ? Math.max(item.globalRank, minEstimatedRank) : Math.max(nextFreeRank, minEstimatedRank);
+      claimRank = Math.min(MUDAE_LEGACY_POOL_TOTAL, estimatedRank);
       nextFreeRank += 1;
     }
     const { baseValue, tierIndex, tierLabel } = computeMudaeValueAndTier(
@@ -521,6 +530,7 @@ function mergeCatalogChars(existing: MudaeChar[], incoming: RawCharSeed[]): Muda
     gender: c.gender,
     favourites: c.favourites,
     role: c.role,
+    globalRank: c.claimRank,
   }));
   return buildCatalogFromSeeds([...existingSeeds, ...incoming]);
 }
@@ -589,7 +599,7 @@ function normalizeGender(raw: any, idHint?: string | number, nameHint?: string):
   return hashGenderFallback(`${idHint ?? ''}:${nameHint ?? ''}`);
 }
 
-function mapAniListNode(ch: any, fallbackSeries?: string): RawCharSeed | null {
+function mapAniListNode(ch: any, fallbackSeries?: string, globalRank?: number): RawCharSeed | null {
   if (!ch?.id) return null;
   const edge = ch.media?.edges?.[0];
   const titleObj = edge?.node?.title;
@@ -611,6 +621,7 @@ function mapAniListNode(ch: any, fallbackSeries?: string): RawCharSeed | null {
     gender: normalizeGender(ch.gender, ch.id, ch.name?.full),
     favourites: typeof ch.favourites === 'number' && Number.isFinite(ch.favourites) ? ch.favourites : 400,
     role,
+    ...(typeof globalRank === 'number' ? { globalRank } : {}),
   };
 }
 
@@ -624,10 +635,11 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
       if (!res.ok) continue;
       const json = await res.json();
       const list = Array.isArray(json?.data) ? json.data : [];
-      for (const ch of list) {
-        if (!ch?.mal_id) continue;
+      list.forEach((ch: any, idxInPage: number) => {
+        if (!ch?.mal_id) return;
         const rawFav = typeof ch.favorites === 'number' && Number.isFinite(ch.favorites) ? ch.favorites : 500;
         const scaledFav = Math.round(rawFav * 0.65);
+        const globalRank = Math.min(MUDAE_LEGACY_POOL_TOTAL, (p - 1) * 50 + idxInPage * 2 + 1);
         seeds.push({
           id: `mal_${ch.mal_id}`,
           name: ch.name || 'Personagem',
@@ -636,8 +648,9 @@ async function fetchJikanPagesFallback(pages: number[]): Promise<RawCharSeed[]> 
           gender: normalizeGender(undefined, ch.mal_id, ch.name),
           favourites: scaledFav,
           role: 'Main',
+          globalRank,
         });
-      }
+      });
       if (i < pages.length - 1) {
         await new Promise((r) => setTimeout(r, 420));
       }
@@ -687,13 +700,15 @@ async function fetchAniListPagesList(
     const seeds: RawCharSeed[] = [];
 
     for (let i = 0; i < cappedPages.length; i++) {
-      loadedPagesMemory.add(cappedPages[i]);
+      const pageNum = cappedPages[i];
+      loadedPagesMemory.add(pageNum);
       const list = data[`p${i}`]?.characters;
       if (!Array.isArray(list)) continue;
-      for (const ch of list) {
-        const mapped = mapAniListNode(ch);
+      list.forEach((ch: any, idxInPage: number) => {
+        const globalRank = Math.min(MUDAE_LEGACY_POOL_TOTAL, (pageNum - 1) * 50 + idxInPage + 1);
+        const mapped = mapAniListNode(ch, undefined, globalRank);
         if (mapped) seeds.push(mapped);
-      }
+      });
     }
     if (seeds.length > 0) {
       onSourceUsed?.('anilist');
@@ -942,6 +957,7 @@ export default function AnimeGacha({
   const [apiSourceStatus, setApiSourceStatus] = useState<ApiSourceStatus>('loading');
   const [expandingApi, setExpandingApi] = useState(false);
   const [searchingGlobal, setSearchingGlobal] = useState(false);
+  const [autoWishLoading, setAutoWishLoading] = useState(false);
   const [rollingMode, setRollingMode] = useState<RollMode | null>(null);
   const [mudaeData, setMudaeData] = useState<MudaeUserData>(getDefaultMudaeUserData);
   const [serverClaims, setServerClaims] = useState<Record<string, ServerAnimeClaim>>({});
@@ -977,6 +993,8 @@ export default function AnimeGacha({
 
   const toastTimerRef = useRef<number | null>(null);
   const rollingLockRef = useRef(false);
+  const prefetchedByTierRef = useRef<Record<number, MudaeChar[]>>({});
+  const lastAutoWishSearchRef = useRef<string>('');
   const processedReceiptIdsRef = useRef<Set<string>>(new Set());
   const seenRemoteRollIdsRef = useRef<Set<string>>(new Set());
   const catalogRef = useRef<MudaeChar[]>(catalog);
@@ -1081,6 +1099,7 @@ export default function AnimeGacha({
       cachedMudaeMemory = null;
       loadedWavePageMemory = 0;
       loadedPagesMemory.clear();
+      prefetchedByTierRef.current = {};
       try {
         localStorage.removeItem(CATALOG_CACHE_KEY);
       } catch {}
@@ -1099,8 +1118,8 @@ export default function AnimeGacha({
           const parsed = JSON.parse(rawCache);
           if (Array.isArray(parsed) && parsed.length >= 400) {
             cachedMudaeMemory = parsed;
-            loadedWavePageMemory = 32;
-            for (const p of [1, 2, 5, 8, 11, 14, 16, 18, 22, 24, 28, 32, 35, 40, 42, 50, 55, 60, 65, 70, 85, 90, 105, 110, 125, 130, 150, 155, 170, 175, 190]) {
+            loadedWavePageMemory = 950;
+            for (const p of [1, 3, 8, 12, 45, 95, 140, 180, 220, 340, 520, 760, 950, 1180, 1480, 1950, 2240, 2490]) {
               loadedPagesMemory.add(p);
             }
             setCatalog(parsed);
@@ -1119,25 +1138,25 @@ export default function AnimeGacha({
     };
 
     try {
-      setLoadingStatus('Conectando à AniList/Jikan (priorizando Rank C/B + Top ícones)...');
-      // 1ª onda enxuta (3 páginas = 150 chars sem causar HTTP 429), priorizando Rank C/B
-      const wave1 = await fetchAniListPagesList([1, 35, 90], recordSource);
+      setLoadingStatus('Conectando à AniList/Jikan (pool completo de 128.125 / 129.254 bonecos)...');
+      // 1ª onda enxuta (3 páginas = 150 chars sem causar HTTP 429), cobrindo Top + Rank B + Rank C (#47.500)
+      const wave1 = await fetchAniListPagesList([1, 180, 950], recordSource);
       if (isStale()) return;
 
       let currentCatalog = mergeCatalogChars(buildFallbackCatalog(), wave1);
       cachedMudaeMemory = currentCatalog;
-      loadedWavePageMemory = 90;
+      loadedWavePageMemory = 950;
       setCatalog(currentCatalog);
       saveCatalogToStorage(currentCatalog);
       if (detectedSource) setApiSourceStatus(detectedSource);
 
-      // Lotes sequenciais de 3 páginas com pausa segura (950ms) para evitar HTTP 429 e encher Rank C/B
+      // Lotes sequenciais espalhados por todas as 2.585 páginas com pausa segura (950ms)
       const batches: number[][] = [
-        [14, 50, 125],
-        [24, 70, 150],
-        [5, 42, 170],
-        [2, 16, 105],
-        [8, 60, 190],
+        [45, 520, 1480],
+        [95, 760, 1950],
+        [12, 340, 2240],
+        [3, 140, 1180],
+        [8, 220, 2490],
       ];
 
       for (const pageBatch of batches) {
@@ -1241,6 +1260,61 @@ export default function AnimeGacha({
     },
     [searchingGlobal, play, showToast]
   );
+
+  const prefetchTierBuffer = useCallback((tierIdx: number) => {
+    if (prefetchedByTierRef.current[tierIdx]?.length) return;
+    fetchRandomUnloadedPageForTier(tierIdx, 2500)
+      .then((seeds) => {
+        if (seeds.length === 0) return;
+        const converted = buildCatalogFromSeeds(seeds);
+        prefetchedByTierRef.current[tierIdx] = converted;
+        setCatalog((prev) => {
+          const updated = mergeCatalogChars(prev, seeds);
+          cachedMudaeMemory = updated;
+          saveCatalogToStorage(updated);
+          return updated;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Auto-busca silenciosa na API Global (129k+) ao digitar na Wishlist quando houver poucos resultados locais
+  useEffect(() => {
+    if (tab !== 'lists' || listSection !== 'wish') return;
+    const q = wishSearch.trim();
+    if (q.length < 3 || searchingGlobal) return;
+    const lower = q.toLowerCase();
+    if (lastAutoWishSearchRef.current === lower) return;
+
+    const localHits = catalogRef.current.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.series.toLowerCase().includes(lower)
+    ).length;
+    if (localHits >= 4) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      lastAutoWishSearchRef.current = lower;
+      setAutoWishLoading(true);
+      try {
+        const found = await searchAndImportFromGlobalApi(q);
+        if (!cancelled && found.length > 0) {
+          setCatalog((prev) => {
+            const merged = mergeCatalogChars(prev, found);
+            cachedMudaeMemory = merged;
+            saveCatalogToStorage(merged);
+            return merged;
+          });
+        }
+      } finally {
+        if (!cancelled) setAutoWishLoading(false);
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [tab, listSection, wishSearch, searchingGlobal]);
 
   const persistMudaeData = useCallback(
     (updater: (prev: MudaeUserData) => MudaeUserData) => {
@@ -1376,45 +1450,67 @@ export default function AnimeGacha({
     [mergedLiveRolls, activeRollId]
   );
 
-  // Rarity-weighted roll pick: Rank C/B common, Rank S/S+ genuinely rare across loaded + live API tiers
+  // Sorteia direto na página inédita recém-buscada (cobrindo 1..2.585 = 129.254 bonecos) mantendo raridade real
   const pickCharacterForRoll = useCallback(
-    (mode: RollMode, targetTier?: number, sourceCatalog?: MudaeChar[]): MudaeChar => {
-      const source = sourceCatalog || catalogRef.current;
+    (
+      mode: RollMode,
+      targetTier?: number,
+      freshTierPool?: MudaeChar[],
+      fallbackCatalog?: MudaeChar[]
+    ): MudaeChar => {
+      const globalSource = fallbackCatalog || catalogRef.current;
       const disabledSet = new Set(mudaeData.disablelist);
       const wishSet = new Set(mudaeData.wishlist);
 
-      let pool = source.filter((c) => {
-        if (mode === 'wa' && c.gender !== 'Female') return false;
-        if (mode === 'ha' && c.gender !== 'Male') return false;
-        return !disabledSet.has(c.series);
-      });
-
-      if (pool.length < 15) {
-        pool = source.filter((c) => {
-          if (mode === 'wa') return c.gender === 'Female';
-          if (mode === 'ha') return c.gender === 'Male';
-          return true;
+      const filterByModeAndDisable = (list: MudaeChar[], applyDisable = true) =>
+        list.filter((c) => {
+          if (mode === 'wa' && c.gender !== 'Female') return false;
+          if (mode === 'ha' && c.gender !== 'Male') return false;
+          return applyDisable ? !disabledSet.has(c.series) : true;
         });
-      }
-      if (pool.length === 0) pool = source;
+
+      const primaryBase = freshTierPool && freshTierPool.length > 0 ? freshTierPool : globalSource;
+      let pool = filterByModeAndDisable(primaryBase, true);
+      if (pool.length === 0) pool = filterByModeAndDisable(globalSource, true);
+      if (pool.length === 0) pool = filterByModeAndDisable(globalSource, false);
+      if (pool.length === 0) pool = globalSource;
+
+      const globalFiltered = filterByModeAndDisable(globalSource, true);
+      const wishMatchesGlobal = globalFiltered.filter((c) => wishSet.has(c.id));
 
       if (targetTier !== undefined) {
-        const wishMatches = pool.filter((c) => wishSet.has(c.id));
-        const upgradeChance = Math.min(0.015, wishMatches.length * 0.0035);
-        if (wishMatches.length > 0 && Math.random() < upgradeChance) {
-          return wishMatches[Math.floor(Math.random() * wishMatches.length)];
+        // Pequeno bônus de Wishlist cross-tier (+0,35% por wish, máx 1,5%) sem quebrar raridade
+        const upgradeChance = Math.min(0.015, wishMatchesGlobal.length * 0.0035);
+        if (wishMatchesGlobal.length > 0 && Math.random() < upgradeChance) {
+          return wishMatchesGlobal[Math.floor(Math.random() * wishMatchesGlobal.length)];
         }
 
         let candidatePool = pool.filter((c) => c.tierIndex === targetTier);
+
+        // Injeta desejos da Wishlist que pertençam ao mesmo tier para que possam sair no roll daquele tier
+        if (candidatePool.length > 0) {
+          const sameTierWishes = wishMatchesGlobal.filter((c) => c.tierIndex === targetTier);
+          const seenIds = new Set(candidatePool.map((c) => c.id));
+          for (const w of sameTierWishes) {
+            if (!seenIds.has(w.id)) {
+              candidatePool.push(w);
+              seenIds.add(w.id);
+            }
+          }
+        }
+
+        if (candidatePool.length === 0) {
+          candidatePool = globalFiltered.filter((c) => c.tierIndex === targetTier);
+        }
         if (candidatePool.length === 0) {
           for (let t = targetTier - 1; t >= 0; t--) {
-            candidatePool = pool.filter((c) => c.tierIndex === t);
+            candidatePool = globalFiltered.filter((c) => c.tierIndex === t);
             if (candidatePool.length > 0) break;
           }
         }
         if (candidatePool.length === 0) {
           for (let t = targetTier + 1; t <= 4; t++) {
-            candidatePool = pool.filter((c) => c.tierIndex === t);
+            candidatePool = globalFiltered.filter((c) => c.tierIndex === t);
             if (candidatePool.length > 0) break;
           }
         }
@@ -1481,24 +1577,20 @@ export default function AnimeGacha({
       try {
         const targetTier = pickTargetTierIndex(luckMultiplier);
         let workingCatalog = catalogRef.current;
+        let freshTierBatch: MudaeChar[] | undefined;
 
-        const disabledSet = new Set(mudaeData.disablelist);
-        const matchingTierCount = workingCatalog.filter((c) => {
-          if (mode === 'wa' && c.gender !== 'Female') return false;
-          if (mode === 'ha' && c.gender !== 'Male') return false;
-          if (c.tierIndex !== targetTier) return false;
-          return !disabledSet.has(c.series);
-        }).length;
-
-        // Fetches an unloaded page directly from AniList/Jikan when cache is cold/small or 45% of rolls to reach 10k+ chars
-        const shouldFetchLivePage =
-          workingCatalog.length <= 75 || matchingTierCount < 12 || Math.random() < 0.45;
-
-        if (shouldFetchLivePage) {
+        // Usa buffer pré-carregado daquele Tier (0ms) ou busca na hora uma página inédita (1..2.585)
+        const buffered = prefetchedByTierRef.current[targetTier];
+        if (buffered && buffered.length > 0) {
+          freshTierBatch = buffered;
+          delete prefetchedByTierRef.current[targetTier];
+          prefetchTierBuffer(targetTier);
+        } else {
           const backupTier = workingCatalog.length <= 75 ? (targetTier === 0 ? 1 : 0) : undefined;
-          const liveSeeds = await fetchRandomUnloadedPageForTier(targetTier, 1400, backupTier);
+          const liveSeeds = await fetchRandomUnloadedPageForTier(targetTier, 1600, backupTier);
           if (liveSeeds.length > 0) {
             setApiSourceStatus((prev) => (prev === 'loading' ? 'anilist' : prev));
+            freshTierBatch = buildCatalogFromSeeds(liveSeeds);
             const merged = mergeCatalogChars(catalogRef.current, liveSeeds);
             workingCatalog = merged;
             cachedMudaeMemory = merged;
@@ -1528,7 +1620,7 @@ export default function AnimeGacha({
 
         setTab('roll');
         setLastRollMode(mode);
-        const char = pickCharacterForRoll(mode, targetTier, workingCatalog);
+        const char = pickCharacterForRoll(mode, targetTier, freshTierBatch, workingCatalog);
         const isWish = mudaeData.wishlist.includes(char.id);
         const myOwned = myCollectionMap.get(char.id);
         const serverOwner = serverClaims[char.id];
@@ -1611,19 +1703,9 @@ export default function AnimeGacha({
           play('cardFlip');
         }
 
-        // Pré-busca silenciosa em background de uma página aleatória inédita (1..200) para manter o pool sempre amplo
-        const prefetchTier = pickTargetTierIndex(luckMultiplier);
-        fetchRandomUnloadedPageForTier(prefetchTier, 2500)
-          .then((extraSeeds) => {
-            if (extraSeeds.length === 0) return;
-            setCatalog((prev) => {
-              const updated = mergeCatalogChars(prev, extraSeeds);
-              cachedMudaeMemory = updated;
-              saveCatalogToStorage(updated);
-              return updated;
-            });
-          })
-          .catch(() => {});
+        // Pré-busca em background do próximo Tier para deixar o próximo roll instantâneo e inédito
+        const nextPrefetchTier = pickTargetTierIndex(luckMultiplier);
+        prefetchTierBuffer(nextPrefetchTier);
       } finally {
         rollingLockRef.current = false;
         setRollingMode(null);
@@ -1643,6 +1725,7 @@ export default function AnimeGacha({
       freeRollsUsed,
       extraRollsUsed,
       pickCharacterForRoll,
+      prefetchTierBuffer,
       myCollectionMap,
       serverClaims,
       onCollectionUpdate,
@@ -2376,7 +2459,7 @@ export default function AnimeGacha({
                 <Radio className="w-3 h-3 animate-pulse" /> MULTIPLAYER AO VIVO
               </span>
               <span className="text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-2 py-0.5 rounded-full">
-                {catalog.length} Bonecos • {availableSeries.length} Animes
+                🌐 Pool Mudae: {MUDAE_ACTIVE_POOL_TOTAL.toLocaleString('pt-BR')} Bonecos ({MUDAE_LEGACY_POOL_TOTAL.toLocaleString('pt-BR')} c/ Legados) • {catalog.length} em Cache ({availableSeries.length} Animes)
               </span>
               <span
                 className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
@@ -2612,7 +2695,9 @@ export default function AnimeGacha({
                     </p>
                     <p className="text-[10px] mt-0.5 font-mono">
                       {isRollingThis ? (
-                        <span className="text-purple-300 animate-pulse">⏳ Buscando entre +10.000 bonecos...</span>
+                        <span className="text-purple-300 animate-pulse">
+                          ⏳ Buscando entre {MUDAE_LEGACY_POOL_TOTAL.toLocaleString('pt-BR')} bonecos (pág. 1–2.585)...
+                        </span>
                       ) : freeRollsRemaining > 0 ? (
                         <span className="text-emerald-300">Grátis ({freeRollsRemaining}/5 restantes)</span>
                       ) : extraRollsRemaining > 0 ? (
@@ -3489,9 +3574,15 @@ export default function AnimeGacha({
                     disabled={searchingGlobal || !wishSearch.trim()}
                     className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-extrabold text-xs cursor-pointer shrink-0 transition-all"
                   >
-                    {searchingGlobal ? 'Buscando API...' : '🌐 Importar da API'}
+                    {searchingGlobal || autoWishLoading ? 'Buscando API...' : '🌐 Importar da API'}
                   </button>
                 </form>
+
+                {autoWishLoading && (
+                  <p className="text-[10px] font-mono text-purple-300 flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Consultando API Global (129k+) para "{wishSearch.trim()}"...
+                  </p>
+                )}
 
                 <div className="flex flex-wrap gap-1.5">
                   {POPULAR_ANIMES_PRESETS.map((anime) => (
