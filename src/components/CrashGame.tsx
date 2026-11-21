@@ -29,6 +29,8 @@ interface CrewMember {
 }
 
 const CREW_SEEDS = ['Ben_Omnitrix', 'Gwen_HUD', 'Kevin_Turbo', 'Rook_99'];
+const MIN_CASHOUT_MULT = 1.08;
+const INSTANT_CRASH_PROB = 0.10; // 10% chance de explodir na decolagem (1.00x) -> RTP 90% real em qualquer alvo
 
 function drawJetIcon(ctx: CanvasRenderingContext2D, x: number, y: number, angleRad: number, color: string, pulse: number) {
   ctx.save();
@@ -83,6 +85,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
   const [activeStake, setActiveStake] = useState<number>(0);
   const [history, setHistory] = useState<number[]>([1.34, 4.23, 1.08, 12.44, 2.11, 1.01, 3.82, 2.55]);
   const [lastWinAmount, setLastWinAmount] = useState<number>(0);
+  const [canCashout, setCanCashout] = useState<boolean>(false);
+  const canCashoutRef = useRef<boolean>(false);
   const [crew, setCrew] = useState<CrewMember[]>(() =>
     CREW_SEEDS.map((name, i) => ({
       name,
@@ -318,9 +322,12 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
 
   const settleCashout = useCallback((finalMult: number, isAuto = false) => {
     if (statusRef.current !== 'running' || activeStakeRef.current <= 0) return;
+    if (!isAuto && finalMult < MIN_CASHOUT_MULT) return;
 
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     statusRef.current = 'cashed_out';
+    canCashoutRef.current = false;
+    setCanCashout(false);
     play('cashout');
     engine.stop();
 
@@ -371,7 +378,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     }
 
     const parsedAuto = autoEnabled ? parseFloat(autoCashout) : 0;
-    autoTargetRef.current = !isNaN(parsedAuto) && parsedAuto >= 1.05 ? parsedAuto : 0;
+    autoTargetRef.current = !isNaN(parsedAuto) && parsedAuto >= 1.1 ? parsedAuto : 0;
 
     // Generate next crew targets for flight immersion
     const nextCrew: CrewMember[] = CREW_SEEDS.map((name) => ({
@@ -397,6 +404,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
     activeStakeRef.current = betVal;
     setActiveStake(betVal);
     statusRef.current = 'running';
+    canCashoutRef.current = false;
+    setCanCashout(false);
     setStatus('running');
     setMultiplier(1.0);
     setLastWinAmount(0);
@@ -412,21 +421,25 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
       cashoutBtnValueRef.current.textContent = `R$ ${betVal.toFixed(2)}`;
     }
 
-    // Provably fair cryptographic crash target (99% curve)
+    // Curva exponencial real (heavy-tail) com 10% de crash instantâneo em 1.00x (RTP 90%)
+    // P(crash >= M) = 0.90 / M => EV = 0.90 em qualquer multiplicador (acaba com lucro infinito sacando rápido)
     const buf = new Uint8Array(7);
     crypto.getRandomValues(buf);
     let h = 0;
     for (let i = 0; i < 6; i++) h = h * 256 + buf[i];
     h = (h + buf[6] / 256) / Math.pow(2, 48);
-    const h2 = Math.pow(h, 0.5);
-    const crashTarget = Math.max(1.01, Math.floor((100 * 0.99) / (1 - h2)) / 100);
+
+    let crashTarget = 1.0;
+    if (h >= INSTANT_CRASH_PROB) {
+      const u = (h - INSTANT_CRASH_PROB) / (1 - INSTANT_CRASH_PROB);
+      const raw = 1 / Math.max(1e-6, 1 - u);
+      crashTarget = Math.min(250, Math.max(1.01, Math.floor(raw * 100) / 100));
+    }
     crashPointRef.current = crashTarget;
 
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     startTimeRef.current = performance.now();
     lastAudioUpdateRef.current = 0;
-
-    const minDuration = 1100;
 
     const frameLoop = (now: number) => {
       if (statusRef.current !== 'running') return;
@@ -435,19 +448,23 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
         startTimeRef.current = now;
       }
       const elapsedSec = Math.max(0, (now - startTimeRef.current) / 1000);
-      let nextMult = 1 + Math.pow(elapsedSec * 0.25, 2.2);
 
-      if (elapsedSec * 1000 < minDuration) {
-        const linear = 1 + (crashTarget - 1) * ((elapsedSec * 1000) / minDuration);
-        if (linear < nextMult) nextMult = linear;
+      // Crash instantâneo em 1.00x: pequeno flash de decolagem (160ms) com saque bloqueado
+      if (crashTarget <= 1.0 && elapsedSec < 0.16) {
+        drawScene('running', 1.0);
+        animFrameRef.current = requestAnimationFrame(frameLoop);
+        return;
       }
+
+      // Curva ágil sem atraso artificial de 1.1s (crashes baixos realmente surpreendem)
+      let nextMult = crashTarget <= 1.0 ? 1.0 : 1 + Math.pow(elapsedSec * 0.34, 1.85);
       if (!Number.isFinite(nextMult) || nextMult < 1) {
         nextMult = 1.0;
       }
 
       // Check auto-cashout before crash check if crash >= autoTarget
       const autoT = autoTargetRef.current;
-      if (autoT > 0 && nextMult >= autoT && crashTarget >= autoT) {
+      if (autoT >= 1.1 && nextMult >= autoT && crashTarget >= autoT) {
         pointsRef.current.push({ t: elapsedSec, m: autoT });
         currentMultiplierRef.current = autoT;
         settleCashout(autoT, true);
@@ -456,6 +473,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
 
       if (nextMult >= crashTarget) {
         statusRef.current = 'crashed';
+        canCashoutRef.current = false;
+        setCanCashout(false);
         currentMultiplierRef.current = crashTarget;
         pointsRef.current.push({ t: elapsedSec, m: crashTarget });
         drawScene('crashed', crashTarget, crashTarget);
@@ -490,6 +509,12 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
         setActiveStake(0);
         activeStakeRef.current = 0;
         return;
+      }
+
+      // Libera botão de saque manual somente a partir de MIN_CASHOUT_MULT (1.08x)
+      if (!canCashoutRef.current && nextMult >= MIN_CASHOUT_MULT) {
+        canCashoutRef.current = true;
+        setCanCashout(true);
       }
 
       // 120fps DOM direct updates (zero React re-renders!)
@@ -657,8 +682,8 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
         </div>
 
         <div className="absolute bottom-2 left-4 right-4 z-10 flex justify-between text-[9px] text-slate-500 font-mono uppercase">
-          <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-brand" /> Provably Fair 99%</span>
-          <span>Alta Taxa de Quadros</span>
+          <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-brand" /> Curva Real • RTP 90% • Crash 1.00×</span>
+          <span>Saque Mín. {MIN_CASHOUT_MULT.toFixed(2)}×</span>
         </div>
       </div>
 
@@ -745,7 +770,7 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
                 <input
                   type="number"
                   step="0.1"
-                  min="1.05"
+                  min="1.10"
                   disabled={status === 'running' || !autoEnabled}
                   value={autoCashout}
                   onChange={(e) => setAutoCashout(e.target.value)}
@@ -775,12 +800,17 @@ export default function CrashGame({ balance, onUpdateBalance, onAddBetHistory, u
           {status === 'running' ? (
             <motion.button
               onClick={handleCashout}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black py-3 px-6 rounded-xl shadow-[0_0_26px_rgba(245,158,11,0.4)] flex flex-col items-center gap-0.5 cursor-pointer"
+              disabled={!canCashout}
+              whileHover={canCashout ? { scale: 1.02 } : undefined}
+              whileTap={canCashout ? { scale: 0.97 } : undefined}
+              className={`w-full font-black py-3 px-6 rounded-xl flex flex-col items-center gap-0.5 transition-all ${
+                canCashout
+                  ? 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 shadow-[0_0_26px_rgba(245,158,11,0.4)] cursor-pointer'
+                  : 'bg-[#171b2c] border border-amber-500/30 text-amber-200/70 cursor-not-allowed'
+              }`}
             >
               <span className="text-[10px] uppercase tracking-widest font-black flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5" /> SACAR AGORA
+                <Zap className="w-3.5 h-3.5" /> {canCashout ? 'SACAR AGORA' : `DECOLANDO (MÍN. ${MIN_CASHOUT_MULT.toFixed(2)}×)`}
               </span>
               <span ref={cashoutBtnValueRef} className="text-lg font-mono font-black">
                 R$ {activeStake.toFixed(2)}
